@@ -1,0 +1,362 @@
+# ServerWatch API specification
+
+Status: proposed contract. The backend is currently a scaffold; these endpoints
+are requirements for implementation, not a claim that a running API exists.
+
+## Conventions
+
+- Base path: `/api/v1`.
+- Scope: one monitored server. Metrics and incidents belong to the server returned
+  by `GET /server`.
+- Requests and responses use JSON, except successful deletion, which has no body.
+- Send `Content-Type: application/json` for requests with a body.
+- Timestamps use RFC 3339 with a timezone; normalize stored and returned values to
+  UTC, for example `2026-11-15T12:00:00Z`.
+- Resource IDs are server-generated UUIDs. Reject unknown input fields.
+- Health is public and reveals only operational status. All other endpoints
+  require `Authorization: Bearer <token>`. Readers can read; collectors can post
+  metrics; administrators can create, update, and delete incidents. Credential
+  provisioning is outside this contract; never commit or log real tokens.
+- Unsupported methods return `405 Method Not Allowed` with an `Allow` header.
+
+## Endpoint overview
+
+| API | Method | Path | Purpose | Success |
+| --- | --- | --- | --- | --- |
+| Health | GET | `/health` | Current server health | 200 or 503 |
+| Metrics | GET | `/metrics` | Read stored server statistics | 200 |
+| Metrics | POST | `/metrics` | Store a metric sample | 201 |
+| Server | GET | `/server` | Read server identity and OS information | 200 |
+| Incidents | POST | `/incidents` | Create an incident | 201 |
+| Incidents | GET | `/incidents` | List incidents | 200 |
+| Incidents | GET | `/incidents/{incident_id}` | Read one incident | 200 |
+| Incidents | PATCH | `/incidents/{incident_id}` | Update selected incident fields | 200 |
+| Incidents | DELETE | `/incidents/{incident_id}` | Delete an incident | 204 |
+
+Paths in the table are relative to `/api/v1`. PATCH supplies the update operation
+for full incident CRUD; PUT is not part of this contract.
+
+## Health API
+
+### `GET /health`
+
+Return the current health of the monitored server and the API's required
+dependencies. Accept no request body or query parameters. Use lightweight checks
+with bounded timeouts; do not perform a lengthy metric collection on each call.
+This is a readiness check, not a historical metrics endpoint.
+
+Healthy response (`200 OK`):
+
+```json
+{
+  "status": "healthy",
+  "checked_at": "2026-11-15T12:00:00Z",
+  "checks": {
+    "server": "up",
+    "database": "up"
+  }
+}
+```
+
+If a required check fails or times out, return `503 Service Unavailable` with the
+same structure, `status: "unhealthy"`, and the failed check marked `"down"`.
+Health must still respond if the database is unavailable. Do not expose internal
+addresses, exception messages, or credentials. CPU, memory, and disk measurements
+belong to the metrics API.
+
+## Metrics API
+
+### `POST /metrics`
+
+Store one sample submitted by the authorized collector. This endpoint records
+measurements; it does not change the server's CPU, memory, or disk configuration.
+
+Request:
+
+```json
+{
+  "collected_at": "2026-11-15T12:00:00Z",
+  "cpu_percent": 27.5,
+  "memory_percent": 61.2,
+  "disk_percent": 43.8,
+  "uptime_seconds": 86400
+}
+```
+
+| Field | Type | Validation |
+| --- | --- | --- |
+| `collected_at` | datetime | Required, timezone-aware; cannot be in the future |
+| `cpu_percent` | number | Required, finite, from 0 through 100 |
+| `memory_percent` | number | Required, finite, from 0 through 100 |
+| `disk_percent` | number | Required, finite, from 0 through 100 |
+| `uptime_seconds` | integer | Required, nonnegative |
+
+Reject strings or booleans in numeric fields. Historical samples are allowed.
+Use API receipt time when checking whether a timestamp is in the future; collectors
+must keep their clocks synchronized.
+
+Return `201 Created` with the submitted fields and a generated `id`:
+
+```json
+{
+  "id": "bf7dc095-3ee2-4ae1-9de7-a5eb8cadf8e9",
+  "collected_at": "2026-11-15T12:00:00Z",
+  "cpu_percent": 27.5,
+  "memory_percent": 61.2,
+  "disk_percent": 43.8,
+  "uptime_seconds": 86400
+}
+```
+
+Treat the collection timestamp as unique for this server. Repeated submissions
+with the same timestamp return `409 Conflict` without creating another row.
+
+### `GET /metrics`
+
+Return stored samples, newest collection time first, with ID ascending as a
+tiebreaker. An empty collection returns `200 OK`, not `404`.
+
+Optional query parameters:
+
+| Parameter | Default | Validation / behavior |
+| --- | --- | --- |
+| `limit` | 50 | Integer, 1–100 |
+| `offset` | 0 | Nonnegative integer |
+| `start` | Unset | Timezone-aware datetime; inclusive lower collection time |
+| `end` | Unset | Timezone-aware datetime; inclusive upper collection time |
+
+If both time bounds are provided, require `start <= end`. Invalid parameters
+return `422`. To retrieve the latest stored sample, use `GET /metrics?limit=1`.
+This reads stored data and does not trigger a new measurement.
+
+Response shape (each item has the fields shown in the POST response):
+
+```json
+{
+  "items": [],
+  "total": 0,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+`total` is the number of matching records before pagination.
+
+## Server API
+
+### `GET /server`
+
+Return identity and operating system information only. Accept no request body or
+query parameters. Metric values and incident records are served by their own APIs.
+
+Response (`200 OK`):
+
+```json
+{
+  "id": "529a234e-b07f-44ee-ae2e-95b272cceced",
+  "name": "ServerWatch production server",
+  "hostname": "serverwatch-01",
+  "os_type": "Linux",
+  "os_name": "Ubuntu",
+  "os_version": "24.04",
+  "architecture": "x86_64"
+}
+```
+
+The example values are illustrative. Read actual host information from the
+configured monitored server; a container's hostname or OS must not accidentally
+be reported as the host's identity. `id` is stable across restarts; `name` is a
+configured display name. Return `503` if server information is unavailable.
+There are no server creation, update, or deletion endpoints in this scope.
+
+## Incident API
+
+Incidents record server errors, outages, or other operational problems. Records
+remain stored until explicitly deleted, including after resolution. This API
+supports recording incidents; automatic incident detection is separate work.
+
+### `POST /incidents`
+
+Request:
+
+```json
+{
+  "title": "Disk usage above threshold",
+  "description": "Root filesystem usage exceeded the configured threshold.",
+  "severity": "warning",
+  "occurred_at": "2026-11-15T12:00:00Z"
+}
+```
+
+| Input field | Validation |
+| --- | --- |
+| `title` | Required string; trim whitespace; 1–200 characters |
+| `description` | Required string; trim whitespace; 1–5000 characters |
+| `severity` | Required enum: `info`, `warning`, `critical` |
+| `occurred_at` | Required timezone-aware datetime; cannot be in the future |
+
+Return `201 Created`, a `Location: /api/v1/incidents/{incident_id}` header, and the
+complete record:
+
+```json
+{
+  "id": "d2860789-521f-4747-b072-ba9fd104ba54",
+  "title": "Disk usage above threshold",
+  "description": "Root filesystem usage exceeded the configured threshold.",
+  "severity": "warning",
+  "status": "open",
+  "occurred_at": "2026-11-15T12:00:00Z",
+  "created_at": "2026-11-15T12:01:00Z",
+  "updated_at": "2026-11-15T12:01:00Z",
+  "resolved_at": null
+}
+```
+
+The API generates the ID, timestamps, and initial `open` status. Clients cannot
+set these fields on creation. Separate reports may describe the same problem;
+incident creation does not deduplicate on title.
+
+### `GET /incidents`
+
+Return `items`, `total`, `limit`, and `offset`, using the same pagination rules as
+metrics. Each item is a complete incident record. Sort by `created_at` descending,
+then ID ascending. Empty results return `200` with `items: []` and `total: 0`.
+
+Optional filters: `status` (`open`, `investigating`, `resolved`) and `severity`
+(`info`, `warning`, `critical`). Apply supplied filters together before counting
+and pagination. Invalid filters return `422`.
+
+### `GET /incidents/{incident_id}`
+
+Return the complete record with `200 OK`. A valid UUID that does not exist returns
+`404 Not Found`; a malformed UUID returns `422 Unprocessable Entity`.
+
+### `PATCH /incidents/{incident_id}`
+
+Accept one or more of `title`, `description`, `severity`, and `status`. Reuse the
+creation constraints for title, description, and severity. Status must be `open`,
+`investigating`, or `resolved`. Omitted fields keep their current values; explicit
+nulls, empty objects, and unknown or read-only fields return `422`.
+
+```json
+{
+  "status": "resolved",
+  "description": "Removed old logs and confirmed normal disk usage."
+}
+```
+
+All transitions between the three valid statuses are allowed. When moving into
+`resolved`, set `resolved_at` to current UTC time. When reopening to `open` or
+`investigating`, clear it. Updating an already resolved record without changing
+its status preserves its existing resolution time. Set `updated_at` on every
+successful update and return the complete record with `200 OK`.
+
+Validate the entire change before writing; invalid input must not partially
+update a record. Missing incidents return `404`.
+
+### `DELETE /incidents/{incident_id}`
+
+Permanently remove the record and return `204 No Content` with no response body.
+A subsequent read or delete returns `404`. A malformed ID returns `422`. Do not
+accept a request body or query parameters.
+
+## Validation and error-handling rules
+
+Every endpoint accepting input must validate its body, path, and query parameters
+before performing side effects. Reject unexpected query parameters and request
+bodies on endpoints that do not support them.
+
+| Status | Meaning |
+| --- | --- |
+| 400 | Malformed JSON |
+| 401 | Missing or invalid credentials; include `WWW-Authenticate: Bearer` |
+| 403 | Authenticated caller lacks the required permission |
+| 404 | Incident does not exist |
+| 405 | Method is not supported |
+| 409 | Duplicate metric collection timestamp |
+| 415 | Request body uses an unsupported content type |
+| 422 | Valid JSON with invalid fields, types, constraints, path, or query values |
+| 500 | Unexpected internal error |
+| 503 | Required dependency or server information is unavailable |
+
+Use a consistent error response for all errors except the health check's
+structured unhealthy response:
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "Request validation failed.",
+    "details": [
+      {
+        "field": "body.cpu_percent",
+        "message": "Must be a finite number between 0 and 100."
+      }
+    ]
+  }
+}
+```
+
+Use stable machine-readable codes, for example `not_found`, `conflict`,
+`internal_error`, and `service_unavailable`. Use `details: []` when no field-level
+information applies. Do not echo submitted credentials or sensitive values.
+FastAPI's default error format differs: implementation must normalize framework
+validation and HTTP errors to this contract, including malformed JSON as `400`.
+
+Catch expected domain and persistence errors explicitly. Roll back failed
+transactions and avoid partial writes. Log unexpected failures internally with
+sanitized context; return a generic `500` message without stack traces, SQL,
+connection strings, or secrets. Do not turn failures into successful empty data.
+
+## Required tests
+
+Write backend unit tests under `backend/tests/` using `pytest`, plus API contract
+tests using FastAPI's test client when the backend is implemented. Unit tests
+should isolate services using injected repositories, clocks, and health probes.
+API tests should verify routing, validation, serialization, and error translation.
+
+| Area | Required coverage |
+| --- | --- |
+| Health | Healthy `200`; failed and timed-out checks give `503`; works with database down |
+| Metrics creation | Valid creation; 0 and 100 boundaries; missing fields; negative, over-100, nonfinite, boolean and string values; invalid/future timestamps; duplicate timestamp |
+| Metrics reading | Empty results; latest sample; ordering; pagination and bounds; time filters; reversed time range |
+| Server | Expected identity fields; actual host metadata source; unavailable source returns `503` |
+| Incident creation/read | Valid creation and generated fields; list/get; filters; pagination; empty results; invalid UUID and missing record |
+| Incident validation | Blank/oversized text; invalid severity/status; missing fields; explicit nulls; future timestamps; unknown/read-only fields |
+| Incident updates | Partial update preserves omitted fields; empty update rejected; resolution/reopening timestamps; invalid update leaves data unchanged |
+| Incident deletion | `204` has no body; deleted record cannot be read; repeated delete gives `404` |
+| Shared behavior | Authentication and permissions; `405` and `Allow`; malformed JSON; wrong content type; unsupported inputs; consistent errors |
+| Failure handling | Repository failure rolls back; unavailable dependency gives `503`; unexpected failures give sanitized `500` |
+
+Use fixed clocks for time assertions and isolated fixtures for each test. Tests
+must not call a live EC2 instance or production database. Add separate persistence
+integration tests against an isolated database for constraints, transaction
+rollback, and CRUD persistence. Run `pytest backend/tests` once dependencies and
+tests exist; no executable backend or tests are included by this document.
+
+## Code comments and multiline explanations
+
+- Use docstrings to explain each route/service's purpose, inputs, return value,
+  and important error behavior.
+- Add comments explaining intent, assumptions, and non-obvious decisions,
+  especially health checks, timestamp rules, transaction handling, and incident
+  status transitions.
+- Use multiline docstrings for explanations spanning several steps. Use multiline
+  formatting for long signatures, calls, conditions, and data structures.
+- Keep explanations accurate as behavior changes; avoid comments that simply
+  repeat an obvious line of code.
+
+Illustrative service documentation (not an implementation):
+
+```python
+def update_incident(incident_id, changes, repository, clock):
+    """Update the supplied fields of an existing incident.
+
+    Validate all changes before persistence. Use the injected clock to manage
+    resolution timestamps consistently and keep time-dependent tests repeatable.
+    Raise a domain not-found error when the incident does not exist.
+    """
+    # Preserve resolution time when editing an already resolved incident.
+    # Clear it when reopening so the timestamp reflects the current status.
+    ...
+```

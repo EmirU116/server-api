@@ -25,6 +25,44 @@ Avoid introducing Kubernetes, microservices, RDS, Terraform, message brokers, or
 
 When requirements are unclear, choose a conservative, reversible implementation and make assumptions explicit. Do not silently invent product requirements.
 
+### Documentation references
+
+Read the documents relevant to the task before editing code. These references
+describe requirements and conventions; verify implementation status separately.
+
+| Document | When to read it |
+|---|---|
+| [Project overview](README.md) | Starting work and finding project documentation. |
+| [Folder structure](docs/FOLDER_STRUCTURE.md) | Creating, moving, or organizing files and modules. |
+| [API specification](docs/api.md) | Implementing or changing health, metrics, server information, incident CRUD, validation, error handling, API tests, or code comments. The current contract targets one monitored server. |
+| [Secrets management](docs/SECRETS_MANAGEMENT.md) | Handling credentials, authentication configuration, containers, monitoring, or deployment; use its storage and approval rules. |
+
+Use `docs/api.md` for the proposed HTTP paths, methods, payloads, and authentication
+contract. Deployment snippets in other guides may be illustrative or older; do
+not copy a conflicting route or header into an implementation. Report unresolved
+conflicts rather than silently changing security requirements. The broader
+capabilities in section 5 remain architectural goals, not additional endpoints
+required by the current API contract.
+
+### Keep agent instructions aligned with documentation
+
+Apply the repository skill
+[sync-agent-docs](.agents/skills/sync-agent-docs/SKILL.md) whenever a task adds,
+renames, moves, or removes a documentation file, or materially changes documented
+requirements. Update this reference table and any affected instructions in the
+same task, without waiting for a separate user request. Include relevant project
+guides outside `docs/`, such as `README.md`; exclude placeholders and generated
+documentation artifacts.
+
+A material change affects API contracts, architecture, security rules, folder
+ownership, development or testing requirements, deployment procedures, or demo
+constraints. Typo fixes and formatting-only changes do not require an `AGENT.md`
+edit unless they fix a reference. Keep detailed requirements in their owning
+documents and link to them here instead of copying whole sections.
+
+This is an agent workflow rule, not a background file watcher. Agents following
+this file must perform the synchronization during relevant tasks.
+
 ## 3. Canonical folder ownership
 
 Place files by **responsibility**, not solely by extension.
