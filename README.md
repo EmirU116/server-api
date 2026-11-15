@@ -17,6 +17,9 @@ manifests, and deployment configurations have not been implemented yet.
 Everything below describes the planned system. There is currently no application
 startup command or working API to run from this repository.
 
+See the [project plan and progress tracker](docs/project-plan.md) for the current
+stage, implementation milestones, and assignment coverage.
+
 ## API scope
 
 All routes use the `/api/v1` prefix and target a single monitored server.
@@ -50,6 +53,7 @@ remain on a private network.
 | Area | Intended tools |
 | --- | --- |
 | API and validation | Python, FastAPI, Pydantic |
+| Frontend | React with TypeScript |
 | Persistence | PostgreSQL, SQLAlchemy, Alembic |
 | Host automation | Ubuntu EC2, Bash, Cron |
 | Service and containers | systemd for the native service demonstration; Docker Compose for the final container deployment |
@@ -113,6 +117,9 @@ installation, startup, migration, and test commands here when those workflows
 exist and have been verified.
 
 ## Documentation
+
+- [Project plan and progress](docs/project-plan.md): current status, milestones,
+  assignment coverage, and next steps.
 
 - [API specification](docs/api.md): endpoint contracts, examples, errors, testing,
   and code explanation requirements.

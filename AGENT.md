@@ -10,6 +10,8 @@ Build a small, understandable, production-style application that monitors an Ubu
 
 **Primary goal:** Satisfy the course's G/VG deployment requirements while keeping the code secure, maintainable, easy to explain, and useful in a portfolio.
 
+**Application languages:** Use Python only for backend/API application code and React with TypeScript for the frontend. Bash remains available for host automation.
+
 **Preferred stack:** Python / FastAPI, Pydantic, SQLAlchemy, Alembic, PostgreSQL, Docker Compose, Ubuntu EC2, Bash, Cron, Nginx, Certbot, GitHub Actions. A React frontend is an optional later extension.
 
 Avoid introducing Kubernetes, microservices, RDS, Terraform, message brokers, or additional cloud services unless explicitly requested and justified. RDS is optional bonus work, not a prerequisite.
@@ -33,6 +35,7 @@ describe requirements and conventions; verify implementation status separately.
 | Document | When to read it |
 |---|---|
 | [Project overview](README.md) | Starting work and finding project documentation. |
+| [Project plan and progress](docs/project-plan.md) | Checking the current stage, choosing the next milestone, and tracking assignment completion. Update it with evidence after milestone completion or material scope changes. |
 | [Folder structure](docs/FOLDER_STRUCTURE.md) | Creating, moving, or organizing files and modules. |
 | [API specification](docs/api.md) | Implementing or changing health, metrics, server information, incident CRUD, validation, error handling, API tests, or code comments. The current contract targets one monitored server. |
 | [Secrets management](docs/SECRETS_MANAGEMENT.md) | Handling credentials, authentication configuration, containers, monitoring, or deployment; use its storage and approval rules. |
