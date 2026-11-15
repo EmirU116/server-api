@@ -105,6 +105,8 @@ Keep HTTP validation and serialization in API/schema modules. Put domain decisio
 
 ## 6. Coding and naming conventions
 
+- **Comments:** Add clear comments to explain intent, non-obvious logic, assumptions and important decisions so contributors can understand the code. Keep comments accurate and avoid restating obvious operations.
+- **Readable formatting:** Use multiline formatting for long function calls, conditions, collections and commands when it improves readability. Separate logical steps with blank lines and avoid dense one-liners; follow the project's formatter and language conventions.
 - **Python:** Use type hints, small functions, explicit error handling and descriptive `snake_case` filenames. Prefer dependency injection for database sessions and external services.
 - **Pydantic:** Separate input and output schemas; never expose password hashes or internal secrets.
 - **Database:** Use migrations, parameterized queries/ORM, explicit relationships and constraints, and UTC timestamps. Avoid unreviewed destructive migrations.
