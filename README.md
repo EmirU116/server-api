@@ -10,15 +10,76 @@ the implementation understandable, maintainable, and suitable for a portfolio.
 
 ## Current status
 
-The repository contains documentation, agent instructions, and directory
-scaffolding. API handlers, database models, executable tests, dependency
-manifests, and deployment configurations have not been implemented yet.
+The FastAPI foundation now includes an application factory, validated runtime
+settings, consistent error handling, dependency manifests, and automated tests.
+Local interactive documentation is available at `/docs` and `/redoc`.
 
-Everything below describes the planned system. There is currently no application
-startup command or working API to run from this repository.
+The four business API groups below are still planned. Database models,
+migrations, authentication, monitoring, containers, and deployment configuration
+have not been implemented. The application does not yet report server health.
 
 See the [project plan and progress tracker](docs/project-plan.md) for the current
 stage, implementation milestones, and assignment coverage.
+
+## Local backend setup (Python, FastAPI)
+
+Use Python 3.11 or newer. Run these commands from the repository root on
+Linux/WSL:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r backend/requirements-dev.txt
+python -m uvicorn app.main:create_app --factory --app-dir backend --reload --host 127.0.0.1 --port 8000
+```
+
+Open [Swagger UI](http://127.0.0.1:8000/docs),
+[ReDoc](http://127.0.0.1:8000/redoc), or
+[OpenAPI JSON](http://127.0.0.1:8000/openapi.json).
+The route list is intentionally empty until the business endpoints are
+implemented. A `404` at `/` or `/api/v1/health` is expected at this stage.
+Use `--reload` for local development only. Stop the server with `Ctrl+C`.
+
+No database or credentials are needed for this foundation. Settings come from
+environment variables:
+
+| Variable | Default | Allowed values |
+| --- | --- | --- |
+| `SERVERWATCH_APP_NAME` | `ServerWatch` | Nonblank name, at most 100 characters |
+| `SERVERWATCH_ENVIRONMENT` | `development` | `development`, `test`, `production` |
+
+Invalid settings prevent startup with a sanitized error. There are no required
+credentials yet; add fail-fast validation when database/authentication settings
+are introduced. Production mode disables Swagger, ReDoc, and OpenAPI endpoints.
+It does not turn this foundation into a complete production deployment.
+
+For optional local overrides, copy `.env.example` to an ignored `.env` and load
+it explicitly:
+
+```bash
+cp .env.example .env
+python -m uvicorn app.main:create_app --factory --app-dir backend --env-file .env --reload --host 127.0.0.1 --port 8000
+```
+
+Only copy the template when creating a new local configuration; preserve any
+existing `.env`. Never commit real credentials. Tests do not load dotenv files.
+
+Run checks from the repository root with the virtual environment active:
+
+```bash
+python -m pytest backend/tests -q
+python -m ruff check backend
+python -m ruff format --check backend
+python -m pip check
+```
+
+Tests cover documentation exposure, configuration, shared HTTP errors, malformed
+JSON, validation, and sanitized unexpected route failures. Sample routes exist
+only in tests. Persistence and the full API test matrix remain future work.
+Shared handlers follow [FastAPI's exception handling guidance](https://fastapi.tiangolo.com/tutorial/handling-errors/);
+configuration uses [Pydantic Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
+Streaming responses and background jobs, if introduced, will need separate
+failure handling because they can fail after response headers have been sent.
 
 ## API scope
 
@@ -82,12 +143,17 @@ authoritative assessment criteria. CI/CD and a frontend are optional extensions.
 
 ```text
 backend/
+  app/main.py          FastAPI application factory
+  app/core/            Runtime settings and shared error handling
   app/api/             API route scaffold
   app/models/          Database model scaffold
   app/schemas/         Request and response schema scaffold
   app/services/        Business logic scaffold
   alembic/             Migration scaffold
-  tests/               Backend test scaffold
+  tests/               Foundation unit and API tests
+  requirements.txt     Runtime dependencies
+  requirements-dev.txt Test and lint dependencies
+  pyproject.toml       pytest and Ruff configuration
 frontend/              Reserved for an optional UI
 infrastructure/        Nginx, Cron, systemd, and script scaffolds
 .github/workflows/     Reserved for CI/CD
@@ -112,9 +178,8 @@ and the recommended structure as implementation grows.
 - Keep documentation and relevant [agent instructions](AGENT.md) synchronized
   when requirements change.
 
-Start implementation with the [API specification](docs/api.md). Add dependency
-installation, startup, migration, and test commands here when those workflows
-exist and have been verified.
+Use the [API specification](docs/api.md) when adding business routes. Add
+verified migration and deployment commands here when those workflows exist.
 
 ## Documentation
 

@@ -66,6 +66,15 @@ documents and link to them here instead of copying whole sections.
 This is an agent workflow rule, not a background file watcher. Agents following
 this file must perform the synchronization during relevant tasks.
 
+### Implemented backend foundation
+
+Use the local startup and verification commands in [README.md](README.md#local-backend-setup-python-fastapi).
+The factory is `backend/app/main.py:create_app`; settings and shared errors live
+under `backend/app/core/`. Run `python -m pytest backend/tests -q` and the Ruff
+checks from the repository root with the virtual environment active. The four
+business API groups, persistence, and authentication remain unimplemented; do
+not treat interactive documentation availability as a server readiness check.
+
 ## 3. Canonical folder ownership
 
 Place files by **responsibility**, not solely by extension.

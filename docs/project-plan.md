@@ -6,19 +6,22 @@ EC2 audit. This is the progress tracker; endpoint details remain in
 
 ## Current position
 
-**Stage: planning and scaffolding. Next milestone: a runnable local backend.**
+**Stage: local FastAPI foundation verified. Next milestone: persistence and read endpoints.**
 
-The project has a defined API contract, architecture guidance, and placeholder
-directories. There is no executable application, dependency manifest, database
-migration, test suite, container configuration, or deployment automation yet.
-No cloud deployment or assignment demonstration has been verified.
+The project has a runnable FastAPI application factory, validated settings,
+shared error handling, dependency manifests, and a passing foundation test suite.
+Swagger/ReDoc and OpenAPI are available locally; the four business API groups
+remain unimplemented. There are no database migrations, container configuration,
+or deployment automation yet. No cloud deployment or assignment demonstration
+has been verified.
 
 | Workstream | Current status | Evidence |
 | --- | --- | --- |
 | Project scope and API design | Documented; not implemented | `README.md`, `docs/api.md` |
 | Organization and security guidance | Documented | `docs/FOLDER_STRUCTURE.md`, `docs/SECRETS_MANAGEMENT.md` |
 | Agent workflows | Instructions present | `AGENT.md`, `.agents/skills/` |
-| Backend, persistence, and tests | Not started | Only `.gitkeep` files in backend directories |
+| Backend foundation and tests | Verified | `backend/app/main.py`, `backend/app/core/`, `backend/tests/`; verification below |
+| Business endpoints and persistence | Not started | API/model/migration directories remain placeholders |
 | React frontend | Not started | `frontend/.gitkeep` |
 | Infrastructure and CI/CD | Not started | Placeholder directories only |
 | Deployment and demo | Not verified | No runbook or recorded verification evidence |
@@ -45,20 +48,20 @@ assumed by this plan.
 
 ## Implementation milestones
 
-All milestones below are **not started**. Complete each with observable evidence,
-not only source files. Phases express dependencies, not calendar estimates;
-owners and deadlines have not been assigned.
+Phase 1 is **Verified**; phases 2–8 are **Not started**. Complete each with
+observable evidence, not only source files. Phases express dependencies, not
+calendar estimates; owners and deadlines have not been assigned.
 
-| Phase | Deliverables | Completion evidence |
-| --- | --- | --- |
-| 1. Local backend foundation (Python, FastAPI, pytest) | Python dependency manifest, application entry point, configuration, structured error handling, test setup, documented local startup | App starts locally; smoke tests run; missing configuration fails clearly without exposing secrets |
-| 2. Persistence and read endpoints (Python, PostgreSQL, Alembic) | PostgreSQL connection, SQLAlchemy models, Alembic migrations, health and server GET routes | Migrations apply to an isolated database; health reports dependency failure; server identity describes the host correctly |
-| 3. Metrics and incidents (Python, FastAPI, pytest) | Auth/permissions, metrics GET/POST, full incident CRUD, pagination and validation | Unit and API contract tests cover the matrix in `api.md`; database integration tests prove persistence and rollback |
-| 4. Monitoring and recovery (Bash, Cron, Python, PostgreSQL) | Host collector, Cron schedules, threshold detection, alert delivery, PostgreSQL/log backup and restore scripts | A collected sample is stored; a controlled breach produces an incident and alert without duplicate open incidents; isolated restore succeeds |
-| 5. Native EC2 deployment — G (AWS EC2, Bash, systemd, Nginx) | Bootstrap via SCP, repository setup, independent student SSH access, native service, Nginx, scheduled operations | Rehearsed fresh-instance deployment; API/database connectivity, restart behavior, monitoring, and backups demonstrated |
-| 6. Containers and HTTPS — VG (Docker, Docker Compose, DNS, Certbot) | API Dockerfile, separate API/PostgreSQL Compose services, persistent volume, domain, Certbot | Compose validation and health checks pass; records survive restart; HTTPS and renewal checks pass; native service stopped before port reuse |
-| 7. Frontend (React, TypeScript) | React/TypeScript app, typed API client, health/metrics/server views, incident management | Type checking/build pass; UI handles loading, empty, validation, permission, and unavailable states; core flows work against the API |
-| 8. Demo preparation (Documentation, Deployment, Presentation) | Deployment runbook, requirement checklist, timed rehearsal, evidence and speaking roles | Both students complete and explain a fresh-instance rehearsal within the 60-minute limit |
+| Phase | Deliverables | Completion evidence | Status |
+| --- | --- | --- | --- |
+| 1. Local backend foundation (Python, FastAPI, pytest) | Python dependency manifest, application entry point, configuration, structured error handling, test setup, documented local startup | App starts locally; smoke tests pass; invalid configuration fails without exposing values. No required credentials exist at this stage | Verified |
+| 2. Persistence and read endpoints (Python, PostgreSQL, Alembic) | PostgreSQL connection, SQLAlchemy models, Alembic migrations, health and server GET routes | Migrations apply to an isolated database; health reports dependency failure; server identity describes the host correctly | Not started |
+| 3. Metrics and incidents (Python, FastAPI, pytest) | Auth/permissions, metrics GET/POST, full incident CRUD, pagination and validation | Unit and API contract tests cover the matrix in `api.md`; database integration tests prove persistence and rollback | Not started |
+| 4. Monitoring and recovery (Bash, Cron, Python, PostgreSQL) | Host collector, Cron schedules, threshold detection, alert delivery, PostgreSQL/log backup and restore scripts | A collected sample is stored; a controlled breach produces an incident and alert without duplicate open incidents; isolated restore succeeds | Not started |
+| 5. Native EC2 deployment — G (AWS EC2, Bash, systemd, Nginx) | Bootstrap via SCP, repository setup, independent student SSH access, native service, Nginx, scheduled operations | Rehearsed fresh-instance deployment; API/database connectivity, restart behavior, monitoring, and backups demonstrated | Not started |
+| 6. Containers and HTTPS — VG (Docker, Docker Compose, DNS, Certbot) | API Dockerfile, separate API/PostgreSQL Compose services, persistent volume, domain, Certbot | Compose validation and health checks pass; records survive restart; HTTPS and renewal checks pass; native service stopped before port reuse | Not started |
+| 7. Frontend (React, TypeScript) | React/TypeScript app, typed API client, health/metrics/server views, incident management | Type checking/build pass; UI handles loading, empty, validation, permission, and unavailable states; core flows work against the API | Not started |
+| 8. Demo preparation (Documentation, Deployment, Presentation) | Deployment runbook, requirement checklist, timed rehearsal, evidence and speaking roles | Both students complete and explain a fresh-instance rehearsal within the 60-minute limit | Not started |
 
 Frontend work depends on a stable API contract and working endpoints. A minimal
 UI may be developed after phase 3 if it does not delay G/VG delivery. GitHub
@@ -70,39 +73,39 @@ regardless of whether CI exists.
 Each row is a task within the corresponding milestone. Topics identify the
 language, tool, or work area involved and appear in parentheses beside each
 task name. A task can involve several topics.
-All tasks below are **not started** and use the completion evidence for their
-parent milestone above.
+Tasks 1.1–1.3 are **Verified**; the remaining tasks are **Not started**. Each
+task uses the completion evidence for its parent milestone above.
 
-| Task (topics) | Work to complete |
-| --- | --- |
-| 1.1 Backend setup (Python, FastAPI) | Add dependencies, application entry point, and local configuration. |
-| 1.2 Errors and test foundation (Python, Pydantic, pytest) | Add structured error handling and test setup; verify startup and configuration failure paths. |
-| 1.3 Local development guide (Documentation) | Document verified installation, startup, and test commands. |
-| 2.1 Database connection and schema (Python, PostgreSQL, SQLAlchemy, Alembic) | Add database sessions, models, and versioned migrations. |
-| 2.2 Health and server endpoints (Python, FastAPI, Linux) | Implement health and server GET routes, including dependency failure and correct host identity. |
-| 2.3 Persistence verification (Python, pytest, PostgreSQL) | Test migrations and database connectivity using an isolated database. |
-| 3.1 Authentication and validation (Python, FastAPI, Pydantic, Security) | Implement the documented roles, input constraints, and consistent errors. |
-| 3.2 Metrics endpoints (Python, FastAPI, PostgreSQL) | Implement metrics GET/POST, filtering, pagination, and persistence. |
-| 3.3 Incident endpoints (Python, FastAPI, PostgreSQL) | Implement incident create, read, update, and delete behavior. |
-| 3.4 API and business logic tests (Python, pytest, PostgreSQL) | Cover the API contract, permissions, validation, transactions, and rollback. |
-| 4.1 Host metrics collection (Bash, Linux, HTTP) | Collect host statistics and submit them to the authenticated metrics endpoint. |
-| 4.2 Scheduled collection (Cron, Linux) | Configure collection schedules and verify execution. |
-| 4.3 Incident detection and alerts (Python, Monitoring) | Detect threshold breaches, avoid duplicate open incidents, and deliver alerts through the selected channel. |
-| 4.4 Backup and restore (Bash, PostgreSQL, Cron) | Script database/log backups, schedule them, and verify an isolated restore. |
-| 5.1 EC2 and student access (AWS EC2, Linux, SSH) | Prepare the instance configuration and independent access for both students. |
-| 5.2 Server bootstrap (Bash, SCP, Git, Linux) | Transfer and run bootstrap automation, install prerequisites, and clone the repository. |
-| 5.3 Native service and reverse proxy (systemd, Nginx, Linux) | Run FastAPI as a native service and configure public request forwarding. |
-| 5.4 Native deployment verification (Bash, Linux, Testing) | Verify connectivity, restarts, scheduled monitoring, and backups on a fresh instance. |
-| 6.1 API image (Docker, Python) | Create the API Dockerfile and build a runnable image. |
-| 6.2 Container services and storage (Docker Compose, PostgreSQL) | Configure separate API/database services, private networking, health checks, and persistent storage. |
-| 6.3 Domain and TLS (DNS, Nginx, Certbot, HTTPS) | Configure the custom domain, certificate, redirects, and renewal. |
-| 6.4 Container deployment verification (Docker Compose, Testing) | Validate configuration, health, and persistence; stop the native API before reusing its port. |
-| 7.1 Frontend foundation (React, TypeScript) | Set up the frontend project and typed API client. |
-| 7.2 Dashboard and incident management (React, TypeScript, CSS) | Build health, metrics, server, and incident views with the required UI states. |
-| 7.3 Frontend verification (TypeScript, Frontend testing) | Run type checking/build and verify core UI flows against the API. |
-| 8.1 Runbook and assessment checklist (Documentation) | Record deployment steps, requirement evidence, and speaking roles. |
-| 8.2 Timed pair rehearsal (AWS EC2, Deployment, Presentation) | Rehearse from a fresh instance within 60 minutes, with both students explaining their work. |
-| Optional: CI/CD (GitHub Actions, YAML, Testing, Docker) | Automate verified tests/builds after the required milestones are stable; deployment remains subject to approval. |
+| Task (topics) | Work to complete | Status |
+| --- | --- | --- |
+| 1.1 Backend setup (Python, FastAPI) | Add dependencies, application entry point, and local configuration. | Verified |
+| 1.2 Errors and test foundation (Python, Pydantic, pytest) | Add structured error handling and test setup; verify startup and configuration failure paths. | Verified |
+| 1.3 Local development guide (Documentation) | Document verified installation, startup, and test commands. | Verified |
+| 2.1 Database connection and schema (Python, PostgreSQL, SQLAlchemy, Alembic) | Add database sessions, models, and versioned migrations. | Not started |
+| 2.2 Health and server endpoints (Python, FastAPI, Linux) | Implement health and server GET routes, including dependency failure and correct host identity. | Not started |
+| 2.3 Persistence verification (Python, pytest, PostgreSQL) | Test migrations and database connectivity using an isolated database. | Not started |
+| 3.1 Authentication and validation (Python, FastAPI, Pydantic, Security) | Implement the documented roles, input constraints, and consistent errors. | Not started |
+| 3.2 Metrics endpoints (Python, FastAPI, PostgreSQL) | Implement metrics GET/POST, filtering, pagination, and persistence. | Not started |
+| 3.3 Incident endpoints (Python, FastAPI, PostgreSQL) | Implement incident create, read, update, and delete behavior. | Not started |
+| 3.4 API and business logic tests (Python, pytest, PostgreSQL) | Cover the API contract, permissions, validation, transactions, and rollback. | Not started |
+| 4.1 Host metrics collection (Bash, Linux, HTTP) | Collect host statistics and submit them to the authenticated metrics endpoint. | Not started |
+| 4.2 Scheduled collection (Cron, Linux) | Configure collection schedules and verify execution. | Not started |
+| 4.3 Incident detection and alerts (Python, Monitoring) | Detect threshold breaches, avoid duplicate open incidents, and deliver alerts through the selected channel. | Not started |
+| 4.4 Backup and restore (Bash, PostgreSQL, Cron) | Script database/log backups, schedule them, and verify an isolated restore. | Not started |
+| 5.1 EC2 and student access (AWS EC2, Linux, SSH) | Prepare the instance configuration and independent access for both students. | Not started |
+| 5.2 Server bootstrap (Bash, SCP, Git, Linux) | Transfer and run bootstrap automation, install prerequisites, and clone the repository. | Not started |
+| 5.3 Native service and reverse proxy (systemd, Nginx, Linux) | Run FastAPI as a native service and configure public request forwarding. | Not started |
+| 5.4 Native deployment verification (Bash, Linux, Testing) | Verify connectivity, restarts, scheduled monitoring, and backups on a fresh instance. | Not started |
+| 6.1 API image (Docker, Python) | Create the API Dockerfile and build a runnable image. | Not started |
+| 6.2 Container services and storage (Docker Compose, PostgreSQL) | Configure separate API/database services, private networking, health checks, and persistent storage. | Not started |
+| 6.3 Domain and TLS (DNS, Nginx, Certbot, HTTPS) | Configure the custom domain, certificate, redirects, and renewal. | Not started |
+| 6.4 Container deployment verification (Docker Compose, Testing) | Validate configuration, health, and persistence; stop the native API before reusing its port. | Not started |
+| 7.1 Frontend foundation (React, TypeScript) | Set up the frontend project and typed API client. | Not started |
+| 7.2 Dashboard and incident management (React, TypeScript, CSS) | Build health, metrics, server, and incident views with the required UI states. | Not started |
+| 7.3 Frontend verification (TypeScript, Frontend testing) | Run type checking/build and verify core UI flows against the API. | Not started |
+| 8.1 Runbook and assessment checklist (Documentation) | Record deployment steps, requirement evidence, and speaking roles. | Not started |
+| 8.2 Timed pair rehearsal (AWS EC2, Deployment, Presentation) | Rehearse from a fresh instance within 60 minutes, with both students explaining their work. | Not started |
+| Optional: CI/CD (GitHub Actions, YAML, Testing, Docker) | Automate verified tests/builds after the required milestones are stable; deployment remains subject to approval. | Not started |
 
 Python tasks include unit tests and clear comments or multiline docstrings for
 non-obvious behavior. Bash tasks include syntax checks and failure-path checks;
@@ -145,9 +148,33 @@ Rehearsal instances are separate from the final demonstration instance.
 
 ## Immediate next task
 
-Implement phase 1: create the Python backend foundation and test setup, then add
-verified local installation, startup, and test commands to the README. Do not
-add frontend or live deployment work to that first task.
+Start task **2.1 Database connection and schema (Python, PostgreSQL, SQLAlchemy,
+Alembic)**: add isolated local database configuration, sessions, models, and
+migrations. Follow with real health/server endpoints and persistence checks.
+Authentication, frontend, and live deployment remain later tasks.
+
+## Verified foundation evidence (2026-11-16)
+
+- Runtime: Python 3.14.4 in the local `.venv`; direct dependencies pinned in
+  `backend/requirements.txt` and `backend/requirements-dev.txt`.
+- `python -m pytest backend/tests -q`: **20 passed**. Covers app/docs startup,
+  production documentation disabling, settings validation, shared HTTP errors,
+  malformed JSON, validation, and sanitized failures. Test routes are not
+  registered in the production application.
+- `python -m ruff check backend` and `python -m ruff format --check backend`:
+  passed.
+- `python -m pip check`: no broken requirements.
+- Uvicorn factory startup on `127.0.0.1:8000` succeeded; an HTTP request to
+  `/openapi.json` returned `200` with an empty business-route list. The temporary
+  verification server was stopped afterward.
+- Local secret/environment paths and `.venv/` are excluded by `.gitignore`;
+  `.env.example` contains non-secret configuration only.
+
+The restricted agent sandbox blocked socket binding and stalled the test client;
+HTTP tests and the startup check passed outside that sandbox. No PostgreSQL,
+full business endpoints, authentication, Docker, AWS, or frontend checks have
+been performed. See [the README](../README.md#local-backend-setup-python-fastapi)
+for local setup and verification commands.
 
 ## Maintaining progress
 

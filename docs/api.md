@@ -1,7 +1,9 @@
 # ServerWatch API specification
 
-Status: proposed contract. The backend is currently a scaffold; these endpoints
-are requirements for implementation, not a claim that a running API exists.
+Status: proposed contract. A runnable FastAPI foundation and shared error
+handlers exist, but the business endpoints below remain unimplemented. See
+[local setup](../README.md#local-backend-setup-python-fastapi) for the current
+startup and test commands.
 
 ## Conventions
 
@@ -331,8 +333,10 @@ API tests should verify routing, validation, serialization, and error translatio
 Use fixed clocks for time assertions and isolated fixtures for each test. Tests
 must not call a live EC2 instance or production database. Add separate persistence
 integration tests against an isolated database for constraints, transaction
-rollback, and CRUD persistence. Run `pytest backend/tests` once dependencies and
-tests exist; no executable backend or tests are included by this document.
+rollback, and CRUD persistence. The foundation has executable shared-error and
+configuration tests. Run
+`python -m pytest backend/tests -q` after installing development dependencies.
+The endpoint and persistence coverage above remains to be implemented.
 
 ## Code comments and multiline explanations
 
