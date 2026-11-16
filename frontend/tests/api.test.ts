@@ -1,0 +1,153 @@
+import { describe, expect, it, vi } from 'vitest';
+import { createApi } from '../src/services/api';
+import { createDemoSnapshot } from '../src/services/demo';
+
+describe('typed API client', () => {
+  it('uses contract paths and authenticates all requests except public health', async () => {
+    const demo = createDemoSnapshot();
+    const fetch = vi.fn().mockImplementation(async (path: string) => {
+      const value = path.endsWith('/health')
+        ? demo.health
+        : path.endsWith('/server')
+          ? demo.server
+          : path.includes('/metrics')
+            ? { items: demo.metrics, total: 96, limit: 100, offset: 0 }
+            : { items: demo.incidents, total: 3, limit: 100, offset: 0 };
+      return Response.json(value);
+    });
+    vi.stubGlobal('fetch', fetch);
+
+    const result = await createApi('dummy-test-token').snapshot();
+
+    expect(result.server.hostname).toBe('serverwatch-01');
+    expect(fetch).toHaveBeenCalledTimes(4);
+    for (const [path, options] of fetch.mock.calls) {
+      expect(path).toMatch(/^\/api\/v1\//);
+      expect(options.headers.get('Authorization')).toBe(
+        path.endsWith('/health') ? null : 'Bearer dummy-test-token',
+      );
+    }
+  });
+
+  it('handles an unhealthy 503 response without treating it as healthy', async () => {
+    const demo = createDemoSnapshot();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (path: string) => {
+        if (path.endsWith('/health'))
+          return Response.json(
+            {
+              ...demo.health,
+              status: 'unhealthy',
+              checks: { server: 'up', database: 'down' },
+            },
+            { status: 503 },
+          );
+        if (path.endsWith('/server')) return Response.json(demo.server);
+        return Response.json({ items: [], total: 0, limit: 100, offset: 0 });
+      }),
+    );
+
+    const result = await createApi('dummy-test-token').snapshot();
+    expect(result.health.status).toBe('unhealthy');
+    expect(result.health.checks.database).toBe('down');
+  });
+
+  it.each([401, 403, 404, 422, 500, 503])(
+    'surfaces HTTP %s failures without raw server details',
+    async (status) => {
+      vi.stubGlobal(
+        'fetch',
+        vi
+          .fn()
+          .mockResolvedValue(
+            new Response('dummy-sensitive-server-message', { status }),
+          ),
+      );
+      const error = await createApi('dummy-test-token')
+        .deleteIncident('record-id')
+        .catch((failure: unknown) => failure);
+
+      expect(error).toMatchObject({ status });
+      expect((error as Error).message).not.toContain('dummy-sensitive');
+    },
+  );
+
+  it('does not try to parse an empty 204 delete response', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetch);
+
+    await expect(
+      createApi('dummy-test-token').deleteIncident('record-id'),
+    ).resolves.toBeUndefined();
+    expect(fetch.mock.calls[0][1].method).toBe('DELETE');
+  });
+
+  it('reports network failures without exposing exception text', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new Error('dummy-sensitive-network-error')),
+    );
+    await expect(
+      createApi('dummy-test-token').deleteIncident('record-id'),
+    ).rejects.toThrow('Cannot reach the API.');
+  });
+
+  it('rejects malformed JSON and invalid response shapes safely', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockImplementation(
+          async () => new Response('not json', { status: 200 }),
+        ),
+    );
+    await expect(createApi('dummy-test-token').snapshot()).rejects.toThrow(
+      'unreadable response',
+    );
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async () => Response.json({})),
+    );
+    await expect(createApi('dummy-test-token').snapshot()).rejects.toThrow(
+      'expected contract',
+    );
+  });
+
+  it('rejects invalid token formatting without exposing the token', async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect(
+      createApi('dummy\nsensitive-token').deleteIncident('record-id'),
+    ).rejects.toThrow('without whitespace');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('uses POST for creation and PATCH for updates', async () => {
+    const record = createDemoSnapshot().incidents[0];
+    const fetch = vi.fn().mockImplementation(async () => Response.json(record));
+    vi.stubGlobal('fetch', fetch);
+    const api = createApi('dummy-test-token');
+    await api.createIncident({
+      title: record.title,
+      description: record.description,
+      severity: record.severity,
+      occurred_at: record.occurred_at,
+    });
+    await api.updateIncident(record.id, {
+      title: record.title,
+      description: record.description,
+      severity: record.severity,
+      status: 'resolved',
+    });
+
+    expect(fetch.mock.calls[0][1].method).toBe('POST');
+    expect(fetch.mock.calls[1][1].method).toBe('PATCH');
+    expect(fetch.mock.calls[0][1].headers.get('Content-Type')).toBe(
+      'application/json',
+    );
+  });
+});

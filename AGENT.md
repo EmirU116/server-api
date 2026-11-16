@@ -37,6 +37,7 @@ describe requirements and conventions; verify implementation status separately.
 | [Project overview](README.md) | Starting work and finding project documentation. |
 | [Project plan and progress](docs/project-plan.md) | Checking the current stage, choosing the next milestone, and tracking assignment completion. Update it with evidence after milestone completion or material scope changes. |
 | [Folder structure](docs/FOLDER_STRUCTURE.md) | Creating, moving, or organizing files and modules. |
+| [Frontend development](docs/frontend.md) | Working on the React/TypeScript UI, demo/live data separation, API client, local development proxy, or frontend checks. |
 | [API specification](docs/api.md) | Implementing or changing health, metrics, server information, incident CRUD, validation, error handling, API tests, or code comments. The current contract targets one monitored server. |
 | [Secrets management](docs/SECRETS_MANAGEMENT.md) | Handling credentials, authentication configuration, containers, monitoring, or deployment; use its storage and approval rules. |
 
@@ -74,6 +75,18 @@ under `backend/app/core/`. Run `python -m pytest backend/tests -q` and the Ruff
 checks from the repository root with the virtual environment active. The four
 business API groups, persistence, and authentication remain unimplemented; do
 not treat interactive documentation availability as a server readiness check.
+
+### Implemented frontend workspace
+
+Frontend development is the current user-selected priority; backend work is
+currently deferred. Use the [frontend guide](docs/frontend.md) and its verification
+commands. The React/TypeScript app starts in labeled demo mode; its incidents
+are in-memory examples. Keep demo data separate from API responses and never
+embed bearer tokens in build variables or browser storage. The typed client uses
+same-origin `/api/v1`, with a development-only Vite proxy to FastAPI. Business
+endpoint integration and browser visual verification remain pending. Resume
+backend work when requested; do not infer that the phase numbering requires it
+before authorized frontend work.
 
 ## 3. Canonical folder ownership
 

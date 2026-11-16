@@ -18,6 +18,9 @@ The four business API groups below are still planned. Database models,
 migrations, authentication, monitoring, containers, and deployment configuration
 have not been implemented. The application does not yet report server health.
 
+The React/TypeScript frontend now provides a demo dashboard and typed API
+client. Backend development is deferred while frontend work continues.
+
 See the [project plan and progress tracker](docs/project-plan.md) for the current
 stage, implementation milestones, and assignment coverage.
 
@@ -80,6 +83,26 @@ Shared handlers follow [FastAPI's exception handling guidance](https://fastapi.t
 configuration uses [Pydantic Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
 Streaming responses and background jobs, if introduced, will need separate
 failure handling because they can fail after response headers have been sent.
+
+## Local frontend setup (React, TypeScript)
+
+Use Node.js 22.12+ on the Node 22 release line (or a newer supported release):
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open <http://127.0.0.1:5173>. The frontend starts in a clearly labeled demo
+workspace with sample server data. It includes overview, metrics, server details,
+and incident management. Demo incident edits reset on page reload or a data-source
+switch. No backend is needed for demo mode.
+
+Run `npm run typecheck`, `npm test`, `npm run build`, and
+`npm run format:check` inside `frontend/` to verify it. See the
+[frontend guide](docs/frontend.md) for the API connection workflow, file ownership,
+data limitations, and test scope. Live integration is pending the backend routes.
 
 ## API scope
 
@@ -154,7 +177,7 @@ backend/
   requirements.txt     Runtime dependencies
   requirements-dev.txt Test and lint dependencies
   pyproject.toml       pytest and Ruff configuration
-frontend/              Reserved for an optional UI
+frontend/              React/TypeScript dashboard, API client, and frontend tests
 infrastructure/        Nginx, Cron, systemd, and script scaffolds
 .github/workflows/     Reserved for CI/CD
 .agents/skills/        Repository agent workflows
@@ -186,6 +209,8 @@ verified migration and deployment commands here when those workflows exist.
 - [Project plan and progress](docs/project-plan.md): current status, milestones,
   assignment coverage, and next steps.
 
+- [Frontend development](docs/frontend.md): startup, demo/live data, verification,
+  and integration limitations.
 - [API specification](docs/api.md): endpoint contracts, examples, errors, testing,
   and code explanation requirements.
 - [Folder structure](docs/FOLDER_STRUCTURE.md): file ownership and organization.

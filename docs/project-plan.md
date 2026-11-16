@@ -6,14 +6,16 @@ EC2 audit. This is the progress tracker; endpoint details remain in
 
 ## Current position
 
-**Stage: local FastAPI foundation verified. Next milestone: persistence and read endpoints.**
+**Stage: frontend development in progress. Backend work is deferred at the user’s request.**
 
 The project has a runnable FastAPI application factory, validated settings,
 shared error handling, dependency manifests, and a passing foundation test suite.
 Swagger/ReDoc and OpenAPI are available locally; the four business API groups
 remain unimplemented. There are no database migrations, container configuration,
-or deployment automation yet. No cloud deployment or assignment demonstration
-has been verified.
+or deployment automation yet. A React/TypeScript frontend now provides a tested
+demo workspace and a typed API client. Live API integration and browser visual
+review remain pending. No cloud deployment or assignment demonstration has been
+verified.
 
 | Workstream | Current status | Evidence |
 | --- | --- | --- |
@@ -22,7 +24,7 @@ has been verified.
 | Agent workflows | Instructions present | `AGENT.md`, `.agents/skills/` |
 | Backend foundation and tests | Verified | `backend/app/main.py`, `backend/app/core/`, `backend/tests/`; verification below |
 | Business endpoints and persistence | Not started | API/model/migration directories remain placeholders |
-| React frontend | Not started | `frontend/.gitkeep` |
+| React frontend | In progress; foundation verified | `frontend/src/`, typed API client, 21 passing tests, successful production build; evidence below |
 | Infrastructure and CI/CD | Not started | Placeholder directories only |
 | Deployment and demo | Not verified | No runbook or recorded verification evidence |
 
@@ -40,6 +42,7 @@ deployment requirements before dashboard polish.
 - Bash/Cron for host monitoring and backups; Nginx/Certbot for public HTTPS.
 - Credential handling: [secrets management](SECRETS_MANAGEMENT.md).
 - File placement: [folder structure](FOLDER_STRUCTURE.md).
+- Frontend setup and data modes: [frontend development](frontend.md).
 
 Course requirements below are taken from the project's agent instructions. The
 original assignment brief is not present in the repository; confirm assessment
@@ -48,9 +51,11 @@ assumed by this plan.
 
 ## Implementation milestones
 
-Phase 1 is **Verified**; phases 2–8 are **Not started**. Complete each with
-observable evidence, not only source files. Phases express dependencies, not
-calendar estimates; owners and deadlines have not been assigned.
+Phase 1 is **Verified**; phase 7 is **In progress**. Phases 2–6 and 8 remain
+**Not started**. Backend work is currently deferred. Complete each with observable
+evidence, not only source files. Phase numbering records the original dependency
+plan, not a requirement to resume backend work before the authorized frontend
+work. Owners and deadlines have not been assigned.
 
 | Phase | Deliverables | Completion evidence | Status |
 | --- | --- | --- | --- |
@@ -60,21 +65,24 @@ calendar estimates; owners and deadlines have not been assigned.
 | 4. Monitoring and recovery (Bash, Cron, Python, PostgreSQL) | Host collector, Cron schedules, threshold detection, alert delivery, PostgreSQL/log backup and restore scripts | A collected sample is stored; a controlled breach produces an incident and alert without duplicate open incidents; isolated restore succeeds | Not started |
 | 5. Native EC2 deployment — G (AWS EC2, Bash, systemd, Nginx) | Bootstrap via SCP, repository setup, independent student SSH access, native service, Nginx, scheduled operations | Rehearsed fresh-instance deployment; API/database connectivity, restart behavior, monitoring, and backups demonstrated | Not started |
 | 6. Containers and HTTPS — VG (Docker, Docker Compose, DNS, Certbot) | API Dockerfile, separate API/PostgreSQL Compose services, persistent volume, domain, Certbot | Compose validation and health checks pass; records survive restart; HTTPS and renewal checks pass; native service stopped before port reuse | Not started |
-| 7. Frontend (React, TypeScript) | React/TypeScript app, typed API client, health/metrics/server views, incident management | Type checking/build pass; UI handles loading, empty, validation, permission, and unavailable states; core flows work against the API | Not started |
+| 7. Frontend (React, TypeScript) | React/TypeScript app, typed API client, health/metrics/server views, incident management | Type checking/build pass; UI handles loading, empty, validation, permission, and unavailable states; core flows work against the API | In progress |
 | 8. Demo preparation (Documentation, Deployment, Presentation) | Deployment runbook, requirement checklist, timed rehearsal, evidence and speaking roles | Both students complete and explain a fresh-instance rehearsal within the 60-minute limit | Not started |
 
-Frontend work depends on a stable API contract and working endpoints. A minimal
-UI may be developed after phase 3 if it does not delay G/VG delivery. GitHub
-Actions CI/CD remains an optional follow-up; local verification is required
-regardless of whether CI exists.
+At the user’s request, frontend development has started before phases 2–3,
+using the documented contract and clearly labeled demo data. Live integration
+remains dependent on working endpoints and authentication. The deployment
+requirements still apply when backend/infrastructure work resumes. GitHub Actions
+CI/CD remains optional; local verification is required regardless of CI.
 
 ### Tasks by topic
 
 Each row is a task within the corresponding milestone. Topics identify the
 language, tool, or work area involved and appear in parentheses beside each
 task name. A task can involve several topics.
-Tasks 1.1–1.3 are **Verified**; the remaining tasks are **Not started**. Each
-task uses the completion evidence for its parent milestone above.
+Tasks 1.1–1.3 and 7.1 are **Verified**. Tasks 7.2–7.3 are **In progress**, with
+demo behavior and automated checks passing but live integration/browser review
+pending. Other tasks remain **Not started**. Each task uses the completion
+evidence for its parent milestone above.
 
 | Task (topics) | Work to complete | Status |
 | --- | --- | --- |
@@ -100,9 +108,9 @@ task uses the completion evidence for its parent milestone above.
 | 6.2 Container services and storage (Docker Compose, PostgreSQL) | Configure separate API/database services, private networking, health checks, and persistent storage. | Not started |
 | 6.3 Domain and TLS (DNS, Nginx, Certbot, HTTPS) | Configure the custom domain, certificate, redirects, and renewal. | Not started |
 | 6.4 Container deployment verification (Docker Compose, Testing) | Validate configuration, health, and persistence; stop the native API before reusing its port. | Not started |
-| 7.1 Frontend foundation (React, TypeScript) | Set up the frontend project and typed API client. | Not started |
-| 7.2 Dashboard and incident management (React, TypeScript, CSS) | Build health, metrics, server, and incident views with the required UI states. | Not started |
-| 7.3 Frontend verification (TypeScript, Frontend testing) | Run type checking/build and verify core UI flows against the API. | Not started |
+| 7.1 Frontend foundation (React, TypeScript) | Set up the frontend project and typed API client. | Verified |
+| 7.2 Dashboard and incident management (React, TypeScript, CSS) | Build health, metrics, server, and incident views with the required UI states. | In progress |
+| 7.3 Frontend verification (TypeScript, Frontend testing) | Run type checking/build and verify core UI flows against the API. | In progress |
 | 8.1 Runbook and assessment checklist (Documentation) | Record deployment steps, requirement evidence, and speaking roles. | Not started |
 | 8.2 Timed pair rehearsal (AWS EC2, Deployment, Presentation) | Rehearse from a fresh instance within 60 minutes, with both students explaining their work. | Not started |
 | Optional: CI/CD (GitHub Actions, YAML, Testing, Docker) | Automate verified tests/builds after the required milestones are stable; deployment remains subject to approval. | Not started |
@@ -148,10 +156,14 @@ Rehearsal instances are separate from the final demonstration instance.
 
 ## Immediate next task
 
-Start task **2.1 Database connection and schema (Python, PostgreSQL, SQLAlchemy,
-Alembic)**: add isolated local database configuration, sessions, models, and
-migrations. Follow with real health/server endpoints and persistence checks.
-Authentication, frontend, and live deployment remain later tasks.
+Continue **7.2 Dashboard and incident management (React, TypeScript, CSS)** and
+**7.3 Frontend verification (TypeScript, Frontend testing)**: review the four
+views in a real browser at desktop/mobile widths and check keyboard navigation
+and native dialogs. Refine the UI based on that review. Keep live integration
+pending until the backend is resumed and its endpoints exist.
+
+When backend work resumes, task **2.1 Database connection and schema (Python,
+PostgreSQL, SQLAlchemy, Alembic)** remains its next task.
 
 ## Verified foundation evidence (2026-11-16)
 
@@ -172,9 +184,36 @@ Authentication, frontend, and live deployment remain later tasks.
 
 The restricted agent sandbox blocked socket binding and stalled the test client;
 HTTP tests and the startup check passed outside that sandbox. No PostgreSQL,
-full business endpoints, authentication, Docker, AWS, or frontend checks have
-been performed. See [the README](../README.md#local-backend-setup-python-fastapi)
+full business endpoints, authentication, Docker, or AWS checks have been
+performed. See [the README](../README.md#local-backend-setup-python-fastapi)
 for local setup and verification commands.
+
+## Frontend progress and evidence (2026-11-16)
+
+- User-selected priority: defer backend implementation and develop the frontend.
+  No backend application files were changed in this task.
+- React/TypeScript/Vite foundation, modular views/components, typed API client,
+  response validation, and a committed npm lockfile are present under `frontend/`.
+- Overview, metrics, server details, and incident management work with explicitly
+  labeled sample data. Demo incidents support create/read/update/delete,
+  resolution/reopening, search, status filtering, and deletion confirmation.
+- API mode uses bearer authentication in memory and shows failures without demo
+  fallback. Readiness 503 responses remain unhealthy; failed writes retain the
+  editor and its input. Requests use the documented paths/methods.
+- `npm run typecheck`: passed.
+- `npm test`: **21 passed** across API client, demo lifecycle, and rendered UI
+  tests. Responses and tokens are dummy values; this is not live integration.
+- `npm run build`: passed and emitted the static bundle to ignored
+  `frontend/dist/`.
+- `npm run format:check`: passed.
+- Vite started on `127.0.0.1:5173`; an HTTP request returned the app entry page
+  with `200`. This verifies serving, not browser rendering.
+- Remaining: real browser visual/responsive/keyboard checks, real backend
+  integration, server-side pagination beyond loaded records, and production
+  frontend/reverse proxy deployment. Phase 7 is not fully verified.
+
+Use [the frontend guide](frontend.md) for startup, test commands, sample-data
+limitations, and the future connection workflow.
 
 ## Maintaining progress
 
