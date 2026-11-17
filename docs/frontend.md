@@ -2,7 +2,7 @@
 
 The frontend is a local React application under `frontend/`. Backend work has
 resumed with `GET /api/v1/health?server_id=1`; its default database check reports down.
-Metrics, server information, and incident routes remain unimplemented, so the
+Reader-authenticated server information is implemented. Metrics and incident routes remain unimplemented, so the
 full live workspace is not available yet.
 
 ## Run locally (Node.js, npm)
@@ -59,7 +59,7 @@ The client in `frontend/src/services/api.ts` follows [the API contract](api.md):
 
 - Reads public health for registered local server ID `1` using
   `/api/v1/health?server_id=1`, and authenticated server, metrics, and incident endpoints.
-  Numeric health lookup IDs are separate from the proposed UUID server identity.
+  Health and server identity now use the same positive numeric ID (default `1`).
 - Sends POST/PATCH/DELETE for incident changes; administrator permission will
   be enforced by the future backend. Permission failures are shown in the UI.
 - Uses same-origin `/api/v1` paths. The Vite development proxy forwards `/api`
@@ -75,7 +75,7 @@ The client in `frontend/src/services/api.ts` follows [the API contract](api.md):
 
 API mode never silently substitutes demo data. An initial load requires all
 four read endpoints; if one fails, the workspace displays an error with retry
-and return-to-demo actions. FastAPI now serves health, but the other read
+and return-to-demo actions. FastAPI now serves health and reader-authenticated server information, but metrics and incident read
 routes still return missing-route errors, so full live integration remains
 pending.
 

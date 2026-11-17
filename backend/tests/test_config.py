@@ -53,3 +53,18 @@ def test_invalid_configuration_prevents_startup_without_echoing_values(
     assert "input_value=" not in rendered
     if value.strip():
         assert value not in rendered
+
+
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("SERVERWATCH_SERVER_ID", "0"),
+        ("SERVERWATCH_SERVER_ID", "-1"),
+        ("SERVERWATCH_SERVER_NAME", " "),
+    ],
+)
+def test_invalid_server_identity_prevents_startup(monkeypatch, name, value):
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(RuntimeError, match="Invalid ServerWatch configuration"):
+        create_app()

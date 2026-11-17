@@ -1,6 +1,6 @@
 # ServerWatch API specification
 
-Status: health GET is implemented; metrics, server information, and incidents
+Status: health and server GET are implemented; metrics and incidents
 remain proposed contracts. Shared errors and the health endpoint have tests. See
 [local setup](../README.md#local-backend-setup-python-fastapi) for the current
 startup and test commands.
@@ -14,8 +14,8 @@ startup and test commands.
 - Send `Content-Type: application/json` for requests with a body.
 - Timestamps use RFC 3339 with a timezone; normalize stored and returned values to
   UTC, for example `2026-11-15T12:00:00Z`.
-- Resource IDs are server-generated UUIDs, except the health lookup uses a numeric
-  server ID. Reject unknown input fields.
+- Metric and incident IDs are server-generated UUIDs. Server identity and the
+  health lookup use the same configured positive numeric server ID. Reject unknown input fields.
 - Health is public and reveals only operational status. All other endpoints
   require `Authorization: Bearer <token>`. Readers can read; collectors can post
   metrics; administrators can create, update, and delete incidents. Credential
@@ -196,14 +196,19 @@ Response shape (each item has the fields shown in the POST response):
 
 ### `GET /server`
 
-Return identity and operating system information only. Accept no request body or
-query parameters. Metric values and incident records are served by their own APIs.
+Return identity and operating system information only. Accept an optional
+`server_id` query parameter, for example `GET /api/v1/server?server_id=1`.
+When omitted, return the configured local server. Use the same positive integer
+validation as health: conversion with `int()`, minimum `1`, no duplicate values.
+Accept no request body or other query parameters. Metric values and incident
+records are served by their own APIs. Selection does not add remote probing or
+registration of additional servers.
 
 Response (`200 OK`):
 
 ```json
 {
-  "id": "529a234e-b07f-44ee-ae2e-95b272cceced",
+  "id": 1,
   "name": "ServerWatch production server",
   "hostname": "serverwatch-01",
   "os_type": "Linux",
@@ -216,8 +221,72 @@ Response (`200 OK`):
 The example values are illustrative. Read actual host information from the
 configured monitored server; a container's hostname or OS must not accidentally
 be reported as the host's identity. `id` is stable across restarts; `name` is a
-configured display name. Return `503` if server information is unavailable.
+configured display name. Defaults are ID `1` and name `ServerWatch server`;
+configure them with `SERVERWATCH_SERVER_ID` and `SERVERWATCH_SERVER_NAME`.
+Health uses that same configured ID. Return `503` if server information is unavailable.
 There are no server creation, update, or deletion endpoints in this scope.
+
+Implemented error handling:
+
+| Situation | Response |
+| --- | --- |
+| Valid reader token and complete host metadata | `200` |
+| Invalid, zero, negative, or repeated `server_id` | `400` |
+| Valid `server_id` is not registered | `404` |
+| Missing, wrong, or non-Bearer credentials | `401`, with `WWW-Authenticate: Bearer` |
+| Unknown query parameters or a request body | `422` (after authentication) |
+| Unsupported HTTP method | `405`, with `Allow: GET` |
+| Unreadable/incomplete host metadata or detected container without host source | `503` |
+| Reader credential is unconfigured and a bearer token is supplied | `503`, fail closed |
+| Unexpected application failure | Sanitized `500` |
+
+This endpoint selects the one configured server by default or by matching its ID.
+Unknown IDs return `404` before metadata is read. A missing metadata source for a
+known server is `503`, not `404`. Normal unknown routes still return `404`.
+Responses contain only the documented identity fields and disable caching.
+
+Reader authentication uses one configured read-only bearer token, not a user
+account or a complete role system. Supply `SERVERWATCH_READER_TOKEN` locally or
+`SERVERWATCH_READER_TOKEN_FILE` for a protected mounted file (file takes precedence).
+Missing credentials never make the endpoint public. Blank/whitespace-containing
+tokens and unreadable secret files prevent startup with a sanitized error.
+No real token is created or committed by this implementation. Collector/admin
+permissions remain planned for their respective endpoints.
+
+Native host metadata comes from Python's `platform` module; Linux distribution
+name/version come from `freedesktop_os_release()`. Common container markers are
+rejected to avoid reporting a container as the host. This is not exhaustive
+container detection. WSL reports its Linux environment, not the Windows host;
+future container deployment needs an explicitly supplied host metadata source.
+No database, shell commands, SSH, or cloud requests are needed.
+
+### Testing the server endpoint
+
+Recommended and implemented approach: test the service with fixed metadata, then
+test HTTP behavior using FastAPI TestClient. Patch the OS metadata source so a
+Windows developer and Linux CI receive the same test results; do not assert that
+the test machine is Ubuntu or require a live EC2 instance.
+
+- Service tests: configured ID/name, Linux distribution extraction, non-Linux
+  metadata, and rejecting container metadata as host identity.
+- HTTP tests: exact `200` fields and stable identity across requests; no metric
+  or incident fields; optional matching IDs give `200`, invalid/duplicate IDs
+  give `400`, and unknown IDs give `404` without reading host metadata;
+  `401` for invalid credentials; `422` for unsupported input;
+  `405` for unsupported methods; `503` for missing/unreadable metadata and missing
+  credential configuration; sanitized `500` for unexpected bugs.
+- Configuration/security tests: invalid server settings, token file precedence,
+  hidden token representation, invalid tokens, and unreadable files. Use dummy
+  credentials and temporary test files exclusively.
+- Deployment smoke test still needed: verify the reported ID, hostname, and OS
+  against the actual native EC2 host, and later the container host metadata source.
+
+This test selection is our project recommendation based on official guidance:
+[FastAPI testing](https://fastapi.tiangolo.com/tutorial/testing/),
+[dependency overrides](https://fastapi.tiangolo.com/advanced/testing-dependencies/),
+and [Python platform metadata](https://docs.python.org/3/library/platform.html).
+Dependency overrides can isolate service/auth dependencies; source patching is
+used here to also exercise the real service and authentication code.
 
 ## Incident API
 

@@ -10,6 +10,18 @@ from app.core.config import Settings
 from app.main import create_app
 
 
+@pytest.fixture(autouse=True)
+def isolate_server_configuration(monkeypatch):
+    """Never load a developer's reader token file or host identity in tests."""
+    for name in (
+        "SERVERWATCH_SERVER_ID",
+        "SERVERWATCH_SERVER_NAME",
+        "SERVERWATCH_READER_TOKEN",
+        "SERVERWATCH_READER_TOKEN_FILE",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+
 @pytest.fixture
 def app() -> FastAPI:
     return create_app(Settings(app_name="ServerWatch tests", environment="test"))

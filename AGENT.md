@@ -81,8 +81,14 @@ only proves local API-process availability. Health requires a positive numeric
 IDs return 404, and failed checks return 503. Missing input returns 422. See
 [the API contract](docs/api.md#health-api) for validation rules. Prefer readable
 `int()` conversion and explicit checks over regex or arbitrary ID limits. This does not
-implement remote monitoring. Metrics, server information,
-incidents, persistence, and authentication remain unimplemented. Keep these
+implement remote monitoring. `GET /api/v1/server` returns native host identity
+through its router/schema/service, using the same numeric ID as health.
+Requests may optionally select `server_id`; invalid IDs return 400 and
+unregistered IDs return 404. Omitted IDs select the configured local server. Reader
+bearer authentication uses a configured secret or mounted secret file; see the
+[server API contract](docs/api.md#server-api) and README for configuration and errors.
+Do not expose container metadata as host identity. Metrics, incidents, persistence,
+and collector/admin role authentication remain unimplemented. Keep these
 limits explicit instead of reporting unconfigured dependencies as healthy.
 Health probes use a 150 ms default timeout and run concurrently to target a
 response p95 below 200 ms. Timeouts return structured 503 responses. Keep probes
@@ -99,7 +105,7 @@ embed bearer tokens in build variables or browser storage. The typed client uses
 same-origin `/api/v1`, with a development-only Vite proxy to FastAPI. Business
 endpoint integration and browser visual verification remain pending. The
 health route alone does not make the full frontend snapshot available; the
-other three API groups are still pending.
+metrics and incident API groups are still pending.
 
 ## 3. Canonical folder ownership
 

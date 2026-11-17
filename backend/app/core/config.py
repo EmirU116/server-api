@@ -1,8 +1,9 @@
-"""Validate non-secret runtime settings before the application starts."""
+"""Validate runtime settings and keep configured credentials hidden."""
 
+from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, ValidationError
+from pydantic import Field, SecretStr, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,6 +24,10 @@ class Settings(BaseSettings):
 
     app_name: str = Field(default="ServerWatch", min_length=1, max_length=100)
     environment: Literal["development", "test", "production"] = "development"
+    server_id: int = Field(default=1, ge=1)
+    server_name: str = Field(default="ServerWatch server", min_length=1, max_length=200)
+    reader_token: SecretStr | None = Field(default=None, repr=False)
+    reader_token_file: Path | None = Field(default=None, repr=False)
 
 
 def load_settings() -> Settings:
@@ -32,6 +37,6 @@ def load_settings() -> Settings:
     except ValidationError:
         # Do not chain Pydantic errors: future configuration may contain secrets.
         raise RuntimeError(
-            "Invalid ServerWatch configuration. Check SERVERWATCH_APP_NAME "
-            "and SERVERWATCH_ENVIRONMENT against .env.example."
+            "Invalid ServerWatch configuration. Check SERVERWATCH_* settings "
+            "against .env.example."
         ) from None

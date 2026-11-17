@@ -5,13 +5,10 @@ from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 
 from app.schemas.health import HealthChecks, HealthReport
+from app.services.errors import UnknownServer
 
 Probe = Callable[[], Awaitable[bool]]
 Clock = Callable[[], datetime]
-
-
-class UnknownServer(LookupError):
-    """The requested ID has no registered probe target."""
 
 
 def utc_now() -> datetime:

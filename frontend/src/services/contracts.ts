@@ -20,8 +20,10 @@ export function isHealth(value: unknown): value is Health {
 export function isServer(value: unknown): value is ServerInfo {
   return (
     record(value) &&
+    typeof value.id === 'number' &&
+    Number.isInteger(value.id) &&
+    value.id >= 1 &&
     [
-      'id',
       'name',
       'hostname',
       'os_type',

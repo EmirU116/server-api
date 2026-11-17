@@ -7,13 +7,21 @@ from app.core.config import Settings
 from app.main import create_app
 
 
-def test_openapi_describes_only_the_implemented_health_endpoint(client):
+def test_openapi_describes_the_implemented_endpoints(client):
     response = client.get("/openapi.json")
 
     assert response.status_code == 200
     assert response.json()["info"]["title"] == "ServerWatch tests"
     paths = response.json()["paths"]
-    assert set(paths) == {"/api/v1/health"}
+    assert set(paths) == {"/api/v1/health", "/api/v1/server"}
+    assert set(paths["/api/v1/server"]) == {"get"}
+    server_operation = paths["/api/v1/server"]["get"]
+    assert {"400", "404"} <= set(server_operation["responses"])
+    assert server_operation["parameters"][0]["name"] == "server_id"
+    assert server_operation["parameters"][0]["required"] is False
+    assert {"200", "401", "422", "500", "503"} <= set(
+        paths["/api/v1/server"]["get"]["responses"]
+    )
     assert set(paths["/api/v1/health"]) == {"get"}
     operation = paths["/api/v1/health"]["get"]
     assert {"200", "400", "404", "422", "503"} <= set(operation["responses"])

@@ -4,8 +4,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
+from app.api.validation import parse_server_id
 from app.schemas.health import HealthReport
-from app.services.health import HealthService, UnknownServer
+from app.services.errors import UnknownServer
+from app.services.health import HealthService
 
 router = APIRouter(prefix="/api/v1", tags=["Health"])
 
@@ -26,18 +28,7 @@ def validate_server_id(
     Missing input uses FastAPI's standard required-parameter 422.
     Duplicate IDs are rejected because the target would be ambiguous.
     """
-    if len(request.query_params.getlist("server_id")) != 1:
-        raise HTTPException(status_code=400)
-
-    try:
-        value = int(server_id)
-    except ValueError:
-        raise HTTPException(status_code=400) from None
-
-    if value < 1:
-        raise HTTPException(status_code=400)
-
-    return value
+    return parse_server_id(request, server_id)
 
 
 @router.get(

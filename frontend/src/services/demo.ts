@@ -18,7 +18,7 @@ export function createDemoSnapshot(): Snapshot {
       checks: { server: 'up', database: 'up' },
     },
     server: {
-      id: '529a234e-b07f-44ee-ae2e-95b272cceced',
+      id: 1,
       name: 'ServerWatch demo server',
       hostname: 'serverwatch-01',
       os_type: 'Linux',

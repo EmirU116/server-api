@@ -10,7 +10,7 @@ export interface Health {
 }
 
 export interface ServerInfo {
-  id: string;
+  id: number;
   name: string;
   hostname: string;
   os_type: string;

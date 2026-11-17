@@ -16,8 +16,9 @@ Local interactive documentation is available at `/docs` and `/redoc`.
 
 The public `GET /api/v1/health?server_id=1` endpoint is implemented. It currently reports
 `server: up`, `database: down`, and HTTP `503` because the database is not yet
-configured. Metrics, server information, and incident endpoints remain planned.
-Database models, migrations, authentication, monitoring, containers, and
+configured. The GET-only `/api/v1/server` endpoint now returns identity and OS
+information with reader bearer authentication. Metrics and incident endpoints remain planned.
+Database models, migrations, collector/admin authentication, monitoring, containers, and
 deployment configuration have not been implemented.
 
 The React/TypeScript frontend now provides a demo dashboard and typed API
@@ -58,17 +59,38 @@ each; exceptions become `down` without exposing their messages. At this stage,
 host or all operating-system resources have been verified. The database probe
 deliberately returns `down` until persistence work supplies a real check.
 
-No database or credentials are needed for this foundation. Settings come from
+Health requires no database or credentials. Server information requires a reader
+bearer token configured through `SERVERWATCH_READER_TOKEN`, or a protected file
+via `SERVERWATCH_READER_TOKEN_FILE` (takes precedence). Set a private token locally;
+no credential is generated or committed. Use `Authorization: Bearer <token>` in
+Swagger UI or your HTTP client. An omitted/invalid token returns `401`. A supplied
+token with no reader configuration returns `503`. Configure a reader token before
+starting the app; `.env` requires the explicit `--env-file .env` startup option.
+
+`GET /api/v1/server` returns the configured server by default. Optionally use
+`GET /api/v1/server?server_id=1` to select it explicitly. Invalid, zero, negative,
+or repeated IDs return `400`; unregistered IDs return `404`. Request bodies and
+unknown query parameters return `422`. Native host metadata
+includes numeric ID, display name, hostname, OS type/name/version, and architecture.
+Common container environments return `503` until a host metadata source is added;
+WSL describes its Linux environment. See the [server API contract](docs/api.md#server-api)
+for errors and the testing strategy.
+
+Settings come from
 environment variables:
 
 | Variable | Default | Allowed values |
 | --- | --- | --- |
 | `SERVERWATCH_APP_NAME` | `ServerWatch` | Nonblank name, at most 100 characters |
 | `SERVERWATCH_ENVIRONMENT` | `development` | `development`, `test`, `production` |
+| `SERVERWATCH_SERVER_ID` | `1` | Positive integer; shared by health and server |
+| `SERVERWATCH_SERVER_NAME` | `ServerWatch server` | Nonblank display name, at most 200 characters |
+| `SERVERWATCH_READER_TOKEN` | Unset | Private reader bearer token without whitespace |
+| `SERVERWATCH_READER_TOKEN_FILE` | Unset | Protected token file; takes precedence over token environment value |
 
-Invalid settings prevent startup with a sanitized error. There are no required
-credentials yet; add fail-fast validation when database/authentication settings
-are introduced. Production mode disables Swagger, ReDoc, and OpenAPI endpoints.
+Invalid settings and invalid configured reader credentials prevent startup with a
+sanitized error. Without a configured token, health remains available while server
+information fails closed. Production mode disables Swagger, ReDoc, and OpenAPI endpoints.
 It does not turn this foundation into a complete production deployment.
 
 For optional local overrides, copy `.env.example` to an ignored `.env` and load
@@ -183,10 +205,10 @@ authoritative assessment criteria. CI/CD and a frontend are optional extensions.
 backend/
   app/main.py          FastAPI application factory
   app/core/            Runtime settings and shared error handling
-  app/api/             Health router; other routes pending
+  app/api/             Health and server routers; metrics/incidents pending
   app/models/          Database model scaffold
-  app/schemas/         Health response contracts
-  app/services/        Readiness probes and health service
+  app/schemas/         Health and server response contracts
+  app/services/        Readiness probes and native host identity
   alembic/             Migration scaffold
   tests/               Foundation unit and API tests
   requirements.txt     Runtime dependencies

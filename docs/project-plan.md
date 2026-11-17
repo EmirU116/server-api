@@ -6,14 +6,14 @@ EC2 audit. This is the progress tracker; endpoint details remain in
 
 ## Current position
 
-**Stage: first backend API implemented — health. Other API groups remain planned.**
+**Stage: health and server GET implemented. Metrics and incidents remain planned.**
 
 The project has a runnable FastAPI application factory, validated settings,
 shared error handling, dependency manifests, and a passing foundation test suite.
 Swagger/ReDoc and OpenAPI are available locally. The health GET route now
 requires a numeric `server_id` and returns structured readiness; its database check is down until persistence
-is configured. Metrics, server information, and incident routes remain
-unimplemented. There are no database migrations, container configuration,
+is configured. Server GET returns native host identity with reader authentication.
+Metrics and incident routes remain unimplemented. There are no database migrations, container configuration,
 or deployment automation yet. A React/TypeScript frontend now provides a tested
 demo workspace and a typed API client. Live API integration and browser visual
 review remain pending. No cloud deployment or assignment demonstration has been
@@ -26,7 +26,8 @@ verified.
 | Agent workflows | Instructions present | `AGENT.md`, `.agents/skills/` |
 | Backend foundation and tests | Verified | `backend/app/main.py`, `backend/app/core/`, `backend/tests/`; verification below |
 | Health API | Verified route/service behavior; real DB check pending | `backend/app/api/health.py`, schemas/services, and `backend/tests/test_health.py` |
-| Other business endpoints and persistence | Not started | No metrics, server, incident, or database implementation |
+| Server API | Implemented; native EC2/container verification pending | Server router/schema/service and tests; reader token authentication |
+| Other business endpoints and persistence | Not started | No metrics, incident, or database implementation |
 | React frontend | In progress; foundation verified | `frontend/src/`, typed API client, 21 passing tests, successful production build; evidence below |
 | Infrastructure and CI/CD | Not started | Placeholder directories only |
 | Deployment and demo | Not verified | No runbook or recorded verification evidence |
@@ -55,8 +56,8 @@ assumed by this plan.
 ## Implementation milestones
 
 Phase 1 is **Verified**; phases 2 and 7 are **In progress**. Phases 3–6 and 8
-remain **Not started**. The user resumed backend work with health only. Phase 2
-is not complete: its database work and server endpoint remain pending. Complete
+remain **Not started**. Health and server GET are implemented. Phase 2
+is not complete: database work and real host/container verification remain pending. Complete
 each milestone with observable evidence. Owners and deadlines are unassigned.
 
 | Phase | Deliverables | Completion evidence | Status |
@@ -83,7 +84,7 @@ language, tool, or work area involved and appear in parentheses beside each
 task name. A task can involve several topics.
 Tasks 1.1–1.3 and 7.1 are **Verified**. Tasks 7.2–7.3 are **In progress**, with
 demo behavior and automated checks passing but live integration/browser review
-pending. Task 2.2 is **In progress** with only health implemented. Other tasks
+pending. Task 2.2 is **In progress** with both routes implemented and host verification pending. Other tasks
 remain **Not started**. Each task uses the completion
 evidence for its parent milestone above.
 
@@ -146,10 +147,11 @@ Rehearsal instances are separate from the final demonstration instance.
 
 - Confirm the original assignment brief, deadline, and division of work between
   the two students.
-- Choose credential provisioning for the roles defined by `api.md`. That contract
+- Reader token environment/file provisioning is implemented. Choose provisioning
+  for collector/admin roles defined by `api.md`. That contract
   specifies bearer authentication; the secrets guide contains an older
   `X-API-Key`/unversioned metrics example. Align collector documentation with the
-  contract before implementing authentication.
+  contract before implementing collector/admin authentication.
 - Define metric collection frequency, incident thresholds, resolution policy,
   retention, and the chosen notification channel. These are not yet specified.
 - Choose how a containerized API obtains the monitored host's identity and
@@ -159,12 +161,11 @@ Rehearsal instances are separate from the final demonstration instance.
 
 ## Immediate next task
 
-The requested health route is implemented and tested. The next planned backend
+Health and server GET are implemented and tested locally. The next planned backend
 step is **2.1 Database connection and schema (Python, PostgreSQL, SQLAlchemy,
 Alembic)**, including replacing the deliberately failing database health probe
-with a real bounded dependency check. The server endpoint follows separately.
-Metrics and incident APIs remain later tasks; this health-only task does not
-implement them.
+with a real bounded dependency check. Host/container verification remains pending.
+Metrics and incident APIs remain later tasks.
 
 Frontend browser review and full API integration remain pending.
 
@@ -269,6 +270,40 @@ Verification: **55 backend tests passed**; Ruff lint and formatting checks passe
 - This verifies local behavior with injected probes. Deployment/network latency
   and real database performance remain unverified; 200 ms is a target, not a
   hard deadline under every load or network condition.
+
+## Server API evidence (2026-11-17)
+
+- Implemented GET-only `/api/v1/server` with a router, response schema, native
+  metadata service, and reader bearer authentication. Numeric server ID/name
+  are configured in settings; health uses the same ID. No creation API added.
+- Client failures: missing/invalid credentials `401`, unsupported inputs `422`,
+  unsupported methods `405`. Missing/unreadable/incomplete host metadata and
+  detected container metadata return `503`; unexpected failures return sanitized
+  `500`. Host reads run in a worker thread rather than blocking the event loop.
+- Reader credentials support an environment variable or protected mounted file
+  with file precedence. Tests use dummy tokens and temporary files. No real
+  credential was created or read. Ignore rules cover `.env` and secret files.
+- **97 backend tests passed**; Ruff lint/format checks passed. Tests include
+  service metadata extraction and HTTP contract/error cases, plus configured ID
+  consistency with health. Documentation links and scoped whitespace checks pass.
+- Frontend types/demo/response validation now use numeric server IDs. Type checks
+  and Prettier pass. Frontend tests could not start because the local install
+  lacks `@rollup/rollup-linux-x64-gnu`; no new frontend test pass is claimed.
+- Native EC2 verification, an explicit container host metadata source, full
+  frontend integration, database persistence, and collector/admin roles remain
+  pending. Phase 2 and task 2.2 remain in progress.
+
+## Optional server selection update (2026-11-17)
+
+- `/api/v1/server` still returns the configured server when no ID is supplied.
+  Optional `?server_id=1` explicitly selects a registered server. Only the local
+  configured ID is registered; remote discovery/registration is not implemented.
+- Shared readable ID validation serves health and server information: invalid,
+  zero, negative, or repeated IDs return `400`. Unregistered IDs return `404`
+  before host metadata is read. Known-server metadata failures remain `503`.
+- **110 backend tests passed**, including optional selection, invalid/duplicate
+  IDs, missing resources, and selected-server failure cases. Ruff lint and
+  formatting passed; documentation links and scoped whitespace checks passed.
 
 ## Maintaining progress
 
