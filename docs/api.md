@@ -87,8 +87,23 @@ belong to the metrics API.
 
 The health route is public and GET-only, rejects bodies/unknown query parameters, and
 sets `Cache-Control: no-store`. Independent asynchronous probes run concurrently
-with a one-second timeout each. Tests inject probes and a fixed UTC clock to
+with a 150 ms timeout each. Tests inject probes and a fixed UTC clock to
 verify healthy, failed, exception, and timeout behavior.
+
+Response-time target: most requests should complete within 150–200 ms under
+normal conditions (95th percentile below 200 ms). Each probe has a 150 ms budget
+and runs concurrently, leaving approximately 50 ms for request handling. A
+timed-out probe is marked `down` and produces a structured `503`, even if the
+dependency might otherwise succeed later. This is a performance target, not a
+hard deadline: network delay, scheduling, heavy load, or probes that block the
+event loop or suppress cancellation can exceed it. Future database probes must
+use nonblocking I/O, respect cancellation, and fit this budget.
+
+Local tests measure the 95th percentile of 20 warmed-up requests for both
+healthy and unconfigured-database responses. Additional tests verify default
+timeouts return `503` within 200 ms and cancel slow server/database probes,
+including when both are slow. These tests do not establish deployed latency;
+deployment requires measurement through the actual proxy and network.
 
 The default server probe proves that the local API process can respond. It does
 not inspect a remote host or report OS resource measurements. The default

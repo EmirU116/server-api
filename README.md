@@ -52,7 +52,7 @@ and `checks` for the server and database. It requires no token and supports GET
 only. Supply the required `server_id=1` query parameter for the registered local
 server. Invalid IDs (including negative numbers and zero) return `400`, unknown
 positive IDs return `404`, and an omitted ID returns `422`. Bodies and unknown
-query parameters return `422`. Probes run concurrently with a one-second timeout
+query parameters return `422`. Probes run concurrently with a 150 ms timeout
 each; exceptions become `down` without exposing their messages. At this stage,
 `server: up` means the local API process is responding, not that a remote EC2
 host or all operating-system resources have been verified. The database probe

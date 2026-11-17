@@ -38,7 +38,7 @@ class HealthService:
         server_probe: Probe = server_process_ready,
         database_probe: Probe = database_not_configured,
         *,
-        timeout_seconds: float = 1.0,
+        timeout_seconds: float = 0.15,
         clock: Clock = utc_now,
         local_server_id: int = 1,
     ) -> None:
@@ -53,7 +53,8 @@ class HealthService:
         """Run independent checks concurrently and mark failures as down.
 
         Probes must use nonblocking async I/O and respect cancellation. Each
-        gets its own timeout so a database outage cannot prevent a response.
+        gets 150 ms by default, leaving room for a response within the 200 ms
+        target. Concurrent checks share that time rather than adding it up.
         Exception strings are deliberately neither returned nor logged.
         """
         if server_id != self.local_server_id:
@@ -76,6 +77,9 @@ class HealthService:
     async def _probe(self, probe: Probe) -> bool:
         try:
             return await asyncio.wait_for(probe(), self.timeout_seconds) is True
+        except TimeoutError:
+            # A slow dependency is unhealthy; the route returns a structured 503.
+            return False
         except Exception:
-            # A failed or timed-out dependency is an expected readiness result.
+            # Other dependency failures must not leak internal exception details.
             return False

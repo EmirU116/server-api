@@ -84,6 +84,10 @@ IDs return 404, and failed checks return 503. Missing input returns 422. See
 implement remote monitoring. Metrics, server information,
 incidents, persistence, and authentication remain unimplemented. Keep these
 limits explicit instead of reporting unconfigured dependencies as healthy.
+Health probes use a 150 ms default timeout and run concurrently to target a
+response p95 below 200 ms. Timeouts return structured 503 responses. Keep probes
+nonblocking and cancellation-aware; local timing tests do not verify deployment
+latency. See the API specification for the response-time target and limits.
 
 ### Implemented frontend workspace
 

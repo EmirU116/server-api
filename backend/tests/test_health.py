@@ -2,6 +2,7 @@
 
 import asyncio
 from datetime import UTC, datetime
+from time import perf_counter
 
 import pytest
 
@@ -203,3 +204,61 @@ def test_unexpected_health_failure_returns_sanitized_500(app, client):
     response = client.get("/api/v1/health?server_id=1")
     assert response.status_code == 500
     assert "dummy-sensitive" not in response.text
+
+
+@pytest.mark.parametrize("healthy", [True, False])
+def test_health_usually_responds_within_200_ms(app, client, healthy):
+    """Measure local request latency, excluding TestClient startup.
+
+    Check the 95th percentile of 20 requests: the target is for most responses,
+    not a guarantee about every request on a busy machine or a remote network.
+    """
+    if healthy:
+        app.state.health_service = HealthService(up, up)
+    expected_status = 200 if healthy else 503
+    client.get("/api/v1/health?server_id=1")  # Warm up routing and worker threads.
+
+    durations = []
+    for _ in range(20):
+        start = perf_counter()
+        response = client.get("/api/v1/health?server_id=1")
+        durations.append(perf_counter() - start)
+        assert response.status_code == expected_status
+
+    # The 19th sorted sample is the nearest-rank 95th percentile of 20 samples.
+    p95 = sorted(durations)[18]
+    assert p95 < 0.2, f"Health response p95 was {p95 * 1000:.1f} ms"
+
+
+@pytest.mark.parametrize(
+    "slow_server,slow_database", [(True, False), (False, True), (True, True)]
+)
+def test_default_timeout_returns_503_within_200_ms(
+    app, client, slow_server, slow_database
+):
+    """Slow probes must time out concurrently using the production default."""
+    cancelled = []
+
+    async def slow():
+        try:
+            await asyncio.sleep(60)
+            return True
+        finally:
+            cancelled.append(True)
+
+    app.state.health_service = HealthService(
+        slow if slow_server else up,
+        slow if slow_database else up,
+    )
+
+    start = perf_counter()
+    response = client.get("/api/v1/health?server_id=1")
+    elapsed = perf_counter() - start
+
+    assert response.status_code == 503
+    assert response.json()["checks"] == {
+        "server": "down" if slow_server else "up",
+        "database": "down" if slow_database else "up",
+    }
+    assert len(cancelled) == int(slow_server) + int(slow_database)
+    assert elapsed < 0.2, f"Timed-out health response took {elapsed * 1000:.1f} ms"

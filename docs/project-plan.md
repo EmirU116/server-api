@@ -257,6 +257,19 @@ and a simple minimum check. The regex and application-specific maximum were
 removed. Extra query parameters and request bodies are checked separately.
 Verification: **55 backend tests passed**; Ruff lint and formatting checks passed.
 
+## Health response speed verification (2026-11-17)
+
+- Reduced the default per-probe timeout from one second to 150 ms. Probes run
+  concurrently; slow probes are cancelled and marked down, returning `503`.
+- Added local latency checks: healthy and default-unhealthy responses have p95
+  below 200 ms across 20 warmed-up requests each. Server-only, database-only,
+  and combined slow probes returned `503` within 200 ms using the default timeout.
+- **60 backend tests passed**; Ruff lint and formatting passed. Documentation
+  links resolve and scoped whitespace checks passed with existing CRLF endings.
+- This verifies local behavior with injected probes. Deployment/network latency
+  and real database performance remain unverified; 200 ms is a target, not a
+  hard deadline under every load or network condition.
+
 ## Maintaining progress
 
 After a milestone or material scope change:
