@@ -1,8 +1,9 @@
 # Frontend development (React, TypeScript, Vite)
 
-The frontend is a local React application under `frontend/`. Backend development
-is deferred while this interface is developed. The FastAPI foundation is
-unchanged; its business endpoints are not implemented yet.
+The frontend is a local React application under `frontend/`. Backend work has
+resumed with `GET /api/v1/health?server_id=1`; its default database check reports down.
+Metrics, server information, and incident routes remain unimplemented, so the
+full live workspace is not available yet.
 
 ## Run locally (Node.js, npm)
 
@@ -56,7 +57,9 @@ cleared on reload or return to demo mode, and never put in local storage or a
 
 The client in `frontend/src/services/api.ts` follows [the API contract](api.md):
 
-- Reads public health and authenticated server, metrics, and incident endpoints.
+- Reads public health for registered local server ID `1` using
+  `/api/v1/health?server_id=1`, and authenticated server, metrics, and incident endpoints.
+  Numeric health lookup IDs are separate from the proposed UUID server identity.
 - Sends POST/PATCH/DELETE for incident changes; administrator permission will
   be enforced by the future backend. Permission failures are shown in the UI.
 - Uses same-origin `/api/v1` paths. The Vite development proxy forwards `/api`
@@ -72,8 +75,9 @@ The client in `frontend/src/services/api.ts` follows [the API contract](api.md):
 
 API mode never silently substitutes demo data. An initial load requires all
 four read endpoints; if one fails, the workspace displays an error with retry
-and return-to-demo actions. The current FastAPI foundation will return missing
-route errors, so live integration cannot be verified yet.
+and return-to-demo actions. FastAPI now serves health, but the other read
+routes still return missing-route errors, so full live integration remains
+pending.
 
 Production hosting and same-origin `/api` reverse proxy configuration remain
 future infrastructure work. `npm run preview` previews static build output;

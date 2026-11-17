@@ -14,12 +14,14 @@ The FastAPI foundation now includes an application factory, validated runtime
 settings, consistent error handling, dependency manifests, and automated tests.
 Local interactive documentation is available at `/docs` and `/redoc`.
 
-The four business API groups below are still planned. Database models,
-migrations, authentication, monitoring, containers, and deployment configuration
-have not been implemented. The application does not yet report server health.
+The public `GET /api/v1/health?server_id=1` endpoint is implemented. It currently reports
+`server: up`, `database: down`, and HTTP `503` because the database is not yet
+configured. Metrics, server information, and incident endpoints remain planned.
+Database models, migrations, authentication, monitoring, containers, and
+deployment configuration have not been implemented.
 
 The React/TypeScript frontend now provides a demo dashboard and typed API
-client. Backend development is deferred while frontend work continues.
+client. Backend development has resumed with the health API as the first route.
 
 See the [project plan and progress tracker](docs/project-plan.md) for the current
 stage, implementation milestones, and assignment coverage.
@@ -39,9 +41,22 @@ python -m uvicorn app.main:create_app --factory --app-dir backend --reload --hos
 Open [Swagger UI](http://127.0.0.1:8000/docs),
 [ReDoc](http://127.0.0.1:8000/redoc), or
 [OpenAPI JSON](http://127.0.0.1:8000/openapi.json).
-The route list is intentionally empty until the business endpoints are
-implemented. A `404` at `/` or `/api/v1/health` is expected at this stage.
+The route list includes `GET /api/v1/health`. Open
+<http://127.0.0.1:8000/api/v1/health?server_id=1> to inspect readiness. Its default `503`
+is expected until a real database probe is connected; it is not a startup crash.
+A `404` at `/` is expected.
 Use `--reload` for local development only. Stop the server with `Ctrl+C`.
+
+The health response includes numeric `server_id`, UTC `checked_at`, `status`,
+and `checks` for the server and database. It requires no token and supports GET
+only. Supply the required `server_id=1` query parameter for the registered local
+server. Invalid IDs (including negative numbers and zero) return `400`, unknown
+positive IDs return `404`, and an omitted ID returns `422`. Bodies and unknown
+query parameters return `422`. Probes run concurrently with a one-second timeout
+each; exceptions become `down` without exposing their messages. At this stage,
+`server: up` means the local API process is responding, not that a remote EC2
+host or all operating-system resources have been verified. The database probe
+deliberately returns `down` until persistence work supplies a real check.
 
 No database or credentials are needed for this foundation. Settings come from
 environment variables:
@@ -110,7 +125,7 @@ All routes use the `/api/v1` prefix and target a single monitored server.
 
 | API | Methods and paths | Responsibility |
 | --- | --- | --- |
-| Health | `GET /health` | Report server and required dependency health. |
+| Health | `GET /health?server_id=1` | Report server and required dependency health. |
 | Metrics | `GET /metrics`, `POST /metrics` | Read stored statistics and accept CPU, memory, disk, and uptime samples. |
 | Server | `GET /server` | Return the server name, hostname, operating system, and architecture. |
 | Incidents | `POST /incidents`, `GET /incidents`, `GET /incidents/{incident_id}`, `PATCH /incidents/{incident_id}`, `DELETE /incidents/{incident_id}` | Create, list, read, update, and delete incident records. |
@@ -168,10 +183,10 @@ authoritative assessment criteria. CI/CD and a frontend are optional extensions.
 backend/
   app/main.py          FastAPI application factory
   app/core/            Runtime settings and shared error handling
-  app/api/             API route scaffold
+  app/api/             Health router; other routes pending
   app/models/          Database model scaffold
-  app/schemas/         Request and response schema scaffold
-  app/services/        Business logic scaffold
+  app/schemas/         Health response contracts
+  app/services/        Readiness probes and health service
   alembic/             Migration scaffold
   tests/               Foundation unit and API tests
   requirements.txt     Runtime dependencies

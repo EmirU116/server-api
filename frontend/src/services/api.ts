@@ -81,7 +81,7 @@ export function createApi(token: string) {
   return {
     async snapshot(): Promise<Snapshot> {
       const [health, server, metrics, incidents] = await Promise.all([
-        request<unknown>('/health', {}, true),
+        request<unknown>('/health?server_id=1', {}, true),
         request<unknown>('/server'),
         request<unknown>('/metrics?limit=100'),
         request<unknown>('/incidents?limit=100'),

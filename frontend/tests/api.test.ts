@@ -6,7 +6,7 @@ describe('typed API client', () => {
   it('uses contract paths and authenticates all requests except public health', async () => {
     const demo = createDemoSnapshot();
     const fetch = vi.fn().mockImplementation(async (path: string) => {
-      const value = path.endsWith('/health')
+      const value = path.endsWith('/health?server_id=1')
         ? demo.health
         : path.endsWith('/server')
           ? demo.server
@@ -21,10 +21,11 @@ describe('typed API client', () => {
 
     expect(result.server.hostname).toBe('serverwatch-01');
     expect(fetch).toHaveBeenCalledTimes(4);
+    expect(fetch.mock.calls[0][0]).toBe('/api/v1/health?server_id=1');
     for (const [path, options] of fetch.mock.calls) {
       expect(path).toMatch(/^\/api\/v1\//);
       expect(options.headers.get('Authorization')).toBe(
-        path.endsWith('/health') ? null : 'Bearer dummy-test-token',
+        path.endsWith('/health?server_id=1') ? null : 'Bearer dummy-test-token',
       );
     }
   });
@@ -34,7 +35,7 @@ describe('typed API client', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation(async (path: string) => {
-        if (path.endsWith('/health'))
+        if (path.endsWith('/health?server_id=1'))
           return Response.json(
             {
               ...demo.health,

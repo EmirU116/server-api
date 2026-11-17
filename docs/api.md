@@ -1,7 +1,7 @@
 # ServerWatch API specification
 
-Status: proposed contract. A runnable FastAPI foundation and shared error
-handlers exist, but the business endpoints below remain unimplemented. See
+Status: health GET is implemented; metrics, server information, and incidents
+remain proposed contracts. Shared errors and the health endpoint have tests. See
 [local setup](../README.md#local-backend-setup-python-fastapi) for the current
 startup and test commands.
 
@@ -14,7 +14,8 @@ startup and test commands.
 - Send `Content-Type: application/json` for requests with a body.
 - Timestamps use RFC 3339 with a timezone; normalize stored and returned values to
   UTC, for example `2026-11-15T12:00:00Z`.
-- Resource IDs are server-generated UUIDs. Reject unknown input fields.
+- Resource IDs are server-generated UUIDs, except the health lookup uses a numeric
+  server ID. Reject unknown input fields.
 - Health is public and reveals only operational status. All other endpoints
   require `Authorization: Bearer <token>`. Readers can read; collectors can post
   metrics; administrators can create, update, and delete incidents. Credential
@@ -25,7 +26,7 @@ startup and test commands.
 
 | API | Method | Path | Purpose | Success |
 | --- | --- | --- | --- | --- |
-| Health | GET | `/health` | Current server health | 200 or 503 |
+| Health | GET | `/health?server_id=1` | Current server health | 200 or 503 |
 | Metrics | GET | `/metrics` | Read stored server statistics | 200 |
 | Metrics | POST | `/metrics` | Store a metric sample | 201 |
 | Server | GET | `/server` | Read server identity and OS information | 200 |
@@ -43,14 +44,30 @@ for full incident CRUD; PUT is not part of this contract.
 ### `GET /health`
 
 Return the current health of the monitored server and the API's required
-dependencies. Accept no request body or query parameters. Use lightweight checks
+dependencies. Require the query parameter `server_id`, for example
+`GET /api/v1/health?server_id=1`. Accept no request body or other query parameters.
+Use lightweight checks
 with bounded timeouts; do not perform a lengthy metric collection on each call.
 This is a readiness check, not a historical metrics endpoint.
+
+Server ID validation and lookup rules:
+
+- Convert the ID using Python's `int()` and require a value of at least `1`.
+  Negative numbers, zero, blank values, decimals, nonnumeric text, and repeated
+  `server_id` parameters return `400 Bad Request`. Integer formatting accepted
+  by `int()` (such as surrounding whitespace or a leading plus) is accepted.
+  There is no application-specific 19-digit or 64-bit limit; values that Python
+  cannot convert to an integer return `400`.
+- A missing required `server_id` returns `422 Unprocessable Content`.
+- A valid ID without a registered server returns `404 Not Found` before probes run.
+- Currently only the local server is registered, with numeric ID `1`. This lookup
+  does not add remote-server probing or a server registration API.
 
 Healthy response (`200 OK`):
 
 ```json
 {
+  "server_id": 1,
   "status": "healthy",
   "checked_at": "2026-11-15T12:00:00Z",
   "checks": {
@@ -65,6 +82,22 @@ same structure, `status: "unhealthy"`, and the failed check marked `"down"`.
 Health must still respond if the database is unavailable. Do not expose internal
 addresses, exception messages, or credentials. CPU, memory, and disk measurements
 belong to the metrics API.
+
+### Current implementation limits
+
+The health route is public and GET-only, rejects bodies/unknown query parameters, and
+sets `Cache-Control: no-store`. Independent asynchronous probes run concurrently
+with a one-second timeout each. Tests inject probes and a fixed UTC clock to
+verify healthy, failed, exception, and timeout behavior.
+
+The default server probe proves that the local API process can respond. It does
+not inspect a remote host or report OS resource measurements. The default
+database probe returns `down` because persistence is not configured. Therefore,
+the application currently returns `503` with `server: up` and `database: down`.
+A real database check must replace that probe during persistence work; do not
+change it to a constant success to make readiness green. If the entire API host
+is offline, no response can be sent; the frontend handles connection failure.
+A failed probe means unhealthy or unreachable, not that the server ID is absent.
 
 ## Metrics API
 
@@ -270,7 +303,7 @@ bodies on endpoints that do not support them.
 
 | Status | Meaning |
 | --- | --- |
-| 400 | Malformed JSON |
+| 400 | Malformed JSON; invalid or repeated health `server_id` |
 | 401 | Missing or invalid credentials; include `WWW-Authenticate: Bearer` |
 | 403 | Authenticated caller lacks the required permission |
 | 404 | Incident does not exist |
@@ -319,7 +352,7 @@ API tests should verify routing, validation, serialization, and error translatio
 
 | Area | Required coverage |
 | --- | --- |
-| Health | Healthy `200`; failed and timed-out checks give `503`; works with database down |
+| Health | Valid registered ID and healthy probes give `200`; invalid IDs give `400`; unknown IDs give `404`; missing ID gives `422`; failed/exception/timed-out probes give `503`; unexpected bugs give sanitized `500` |
 | Metrics creation | Valid creation; 0 and 100 boundaries; missing fields; negative, over-100, nonfinite, boolean and string values; invalid/future timestamps; duplicate timestamp |
 | Metrics reading | Empty results; latest sample; ordering; pagination and bounds; time filters; reversed time range |
 | Server | Expected identity fields; actual host metadata source; unavailable source returns `503` |

@@ -1,17 +1,19 @@
 # ServerWatch project plan and progress
 
-Last reviewed: 2026-11-16. Status is based on repository inspection, not a live
+Last reviewed: 2026-11-17. Status is based on repository inspection, not a live
 EC2 audit. This is the progress tracker; endpoint details remain in
 [the API specification](api.md).
 
 ## Current position
 
-**Stage: frontend development in progress. Backend work is deferred at the user’s request.**
+**Stage: first backend API implemented — health. Other API groups remain planned.**
 
 The project has a runnable FastAPI application factory, validated settings,
 shared error handling, dependency manifests, and a passing foundation test suite.
-Swagger/ReDoc and OpenAPI are available locally; the four business API groups
-remain unimplemented. There are no database migrations, container configuration,
+Swagger/ReDoc and OpenAPI are available locally. The health GET route now
+requires a numeric `server_id` and returns structured readiness; its database check is down until persistence
+is configured. Metrics, server information, and incident routes remain
+unimplemented. There are no database migrations, container configuration,
 or deployment automation yet. A React/TypeScript frontend now provides a tested
 demo workspace and a typed API client. Live API integration and browser visual
 review remain pending. No cloud deployment or assignment demonstration has been
@@ -23,7 +25,8 @@ verified.
 | Organization and security guidance | Documented | `docs/FOLDER_STRUCTURE.md`, `docs/SECRETS_MANAGEMENT.md` |
 | Agent workflows | Instructions present | `AGENT.md`, `.agents/skills/` |
 | Backend foundation and tests | Verified | `backend/app/main.py`, `backend/app/core/`, `backend/tests/`; verification below |
-| Business endpoints and persistence | Not started | API/model/migration directories remain placeholders |
+| Health API | Verified route/service behavior; real DB check pending | `backend/app/api/health.py`, schemas/services, and `backend/tests/test_health.py` |
+| Other business endpoints and persistence | Not started | No metrics, server, incident, or database implementation |
 | React frontend | In progress; foundation verified | `frontend/src/`, typed API client, 21 passing tests, successful production build; evidence below |
 | Infrastructure and CI/CD | Not started | Placeholder directories only |
 | Deployment and demo | Not verified | No runbook or recorded verification evidence |
@@ -51,16 +54,15 @@ assumed by this plan.
 
 ## Implementation milestones
 
-Phase 1 is **Verified**; phase 7 is **In progress**. Phases 2–6 and 8 remain
-**Not started**. Backend work is currently deferred. Complete each with observable
-evidence, not only source files. Phase numbering records the original dependency
-plan, not a requirement to resume backend work before the authorized frontend
-work. Owners and deadlines have not been assigned.
+Phase 1 is **Verified**; phases 2 and 7 are **In progress**. Phases 3–6 and 8
+remain **Not started**. The user resumed backend work with health only. Phase 2
+is not complete: its database work and server endpoint remain pending. Complete
+each milestone with observable evidence. Owners and deadlines are unassigned.
 
 | Phase | Deliverables | Completion evidence | Status |
 | --- | --- | --- | --- |
 | 1. Local backend foundation (Python, FastAPI, pytest) | Python dependency manifest, application entry point, configuration, structured error handling, test setup, documented local startup | App starts locally; smoke tests pass; invalid configuration fails without exposing values. No required credentials exist at this stage | Verified |
-| 2. Persistence and read endpoints (Python, PostgreSQL, Alembic) | PostgreSQL connection, SQLAlchemy models, Alembic migrations, health and server GET routes | Migrations apply to an isolated database; health reports dependency failure; server identity describes the host correctly | Not started |
+| 2. Persistence and read endpoints (Python, PostgreSQL, Alembic) | PostgreSQL connection, SQLAlchemy models, Alembic migrations, health and server GET routes | Migrations apply to an isolated database; health reports dependency failure; server identity describes the host correctly | In progress |
 | 3. Metrics and incidents (Python, FastAPI, pytest) | Auth/permissions, metrics GET/POST, full incident CRUD, pagination and validation | Unit and API contract tests cover the matrix in `api.md`; database integration tests prove persistence and rollback | Not started |
 | 4. Monitoring and recovery (Bash, Cron, Python, PostgreSQL) | Host collector, Cron schedules, threshold detection, alert delivery, PostgreSQL/log backup and restore scripts | A collected sample is stored; a controlled breach produces an incident and alert without duplicate open incidents; isolated restore succeeds | Not started |
 | 5. Native EC2 deployment — G (AWS EC2, Bash, systemd, Nginx) | Bootstrap via SCP, repository setup, independent student SSH access, native service, Nginx, scheduled operations | Rehearsed fresh-instance deployment; API/database connectivity, restart behavior, monitoring, and backups demonstrated | Not started |
@@ -71,7 +73,7 @@ work. Owners and deadlines have not been assigned.
 At the user’s request, frontend development has started before phases 2–3,
 using the documented contract and clearly labeled demo data. Live integration
 remains dependent on working endpoints and authentication. The deployment
-requirements still apply when backend/infrastructure work resumes. GitHub Actions
+requirements still apply as backend/infrastructure work continues. GitHub Actions
 CI/CD remains optional; local verification is required regardless of CI.
 
 ### Tasks by topic
@@ -81,7 +83,8 @@ language, tool, or work area involved and appear in parentheses beside each
 task name. A task can involve several topics.
 Tasks 1.1–1.3 and 7.1 are **Verified**. Tasks 7.2–7.3 are **In progress**, with
 demo behavior and automated checks passing but live integration/browser review
-pending. Other tasks remain **Not started**. Each task uses the completion
+pending. Task 2.2 is **In progress** with only health implemented. Other tasks
+remain **Not started**. Each task uses the completion
 evidence for its parent milestone above.
 
 | Task (topics) | Work to complete | Status |
@@ -90,7 +93,7 @@ evidence for its parent milestone above.
 | 1.2 Errors and test foundation (Python, Pydantic, pytest) | Add structured error handling and test setup; verify startup and configuration failure paths. | Verified |
 | 1.3 Local development guide (Documentation) | Document verified installation, startup, and test commands. | Verified |
 | 2.1 Database connection and schema (Python, PostgreSQL, SQLAlchemy, Alembic) | Add database sessions, models, and versioned migrations. | Not started |
-| 2.2 Health and server endpoints (Python, FastAPI, Linux) | Implement health and server GET routes, including dependency failure and correct host identity. | Not started |
+| 2.2 Health and server endpoints (Python, FastAPI, Linux) | Implement health and server GET routes, including dependency failure and correct host identity. | In progress |
 | 2.3 Persistence verification (Python, pytest, PostgreSQL) | Test migrations and database connectivity using an isolated database. | Not started |
 | 3.1 Authentication and validation (Python, FastAPI, Pydantic, Security) | Implement the documented roles, input constraints, and consistent errors. | Not started |
 | 3.2 Metrics endpoints (Python, FastAPI, PostgreSQL) | Implement metrics GET/POST, filtering, pagination, and persistence. | Not started |
@@ -156,14 +159,14 @@ Rehearsal instances are separate from the final demonstration instance.
 
 ## Immediate next task
 
-Continue **7.2 Dashboard and incident management (React, TypeScript, CSS)** and
-**7.3 Frontend verification (TypeScript, Frontend testing)**: review the four
-views in a real browser at desktop/mobile widths and check keyboard navigation
-and native dialogs. Refine the UI based on that review. Keep live integration
-pending until the backend is resumed and its endpoints exist.
+The requested health route is implemented and tested. The next planned backend
+step is **2.1 Database connection and schema (Python, PostgreSQL, SQLAlchemy,
+Alembic)**, including replacing the deliberately failing database health probe
+with a real bounded dependency check. The server endpoint follows separately.
+Metrics and incident APIs remain later tasks; this health-only task does not
+implement them.
 
-When backend work resumes, task **2.1 Database connection and schema (Python,
-PostgreSQL, SQLAlchemy, Alembic)** remains its next task.
+Frontend browser review and full API integration remain pending.
 
 ## Verified foundation evidence (2026-11-16)
 
@@ -214,6 +217,45 @@ for local setup and verification commands.
 
 Use [the frontend guide](frontend.md) for startup, test commands, sample-data
 limitations, and the future connection workflow.
+
+## Health API evidence (2026-11-16)
+
+- Implemented only `GET /api/v1/health`, with separate router, response schemas,
+  and a service containing injectable asynchronous probes and a UTC clock.
+- Default behavior: `503`, `status: unhealthy`, `server: up`, `database: down`.
+  No database configuration or credential is required for this first endpoint.
+  Local API availability is not proof of complete host/EC2 health.
+- Verified injected successful probes return `200`; failures/exceptions/timeouts
+  return `503` and remain sanitized. Timeout tests verify probe cancellation.
+- Verified no authentication is required, only GET is accepted, `Allow: GET` is
+  preserved, input bodies/query parameters were rejected (updated below), timestamps are UTC,
+  and health responses disable caching.
+- `python -m pytest backend/tests -q`: **36 passed**, including the foundation
+  regression tests and new health coverage. No live database or EC2 calls.
+- `python -m ruff check backend` and formatting checks passed.
+- Real database connectivity, persistence, and host/container metadata remain
+  unverified and unimplemented. Phase 2 is still in progress.
+
+## Health server lookup update (2026-11-17)
+
+- Health now requires `server_id`; the single registered local server has ID `1`.
+- Invalid, negative, zero, malformed, or duplicate IDs return `400`;
+  valid unregistered IDs return `404`; missing input returns `422`.
+- Responses identify the server. Failed, exceptional, or timed-out probes return
+  structured `503`; unexpected application bugs return sanitized `500`.
+- The frontend client supplies `server_id=1`. Remote monitoring and a real
+  database check remain pending; default readiness remains `503`.
+- Verification: **53 backend tests passed**; Ruff lint and formatting checks
+  passed. Frontend type checking and Prettier checks passed. Frontend tests
+  could not start because the local installation lacks
+  `@rollup/rollup-linux-x64-gnu`; no new frontend test pass is claimed.
+- Documentation links resolve; scoped whitespace checks passed with CRLF
+  recognized as the existing Markdown line ending.
+
+Readability update: health ID validation now uses `int()` with `try`/`except`
+and a simple minimum check. The regex and application-specific maximum were
+removed. Extra query parameters and request bodies are checked separately.
+Verification: **55 backend tests passed**; Ruff lint and formatting checks passed.
 
 ## Maintaining progress
 

@@ -72,21 +72,30 @@ this file must perform the synchronization during relevant tasks.
 Use the local startup and verification commands in [README.md](README.md#local-backend-setup-python-fastapi).
 The factory is `backend/app/main.py:create_app`; settings and shared errors live
 under `backend/app/core/`. Run `python -m pytest backend/tests -q` and the Ruff
-checks from the repository root with the virtual environment active. The four
-business API groups, persistence, and authentication remain unimplemented; do
-not treat interactive documentation availability as a server readiness check.
+checks from the repository root with the virtual environment active.
+`GET /api/v1/health?server_id=1` is implemented through `app/api/health.py`,
+`app/services/health.py`, and `app/schemas/health.py`. Its default database
+probe fails closed until a real persistence check is supplied. The server check
+only proves local API-process availability. Health requires a positive numeric
+`server_id`: local ID `1` is registered; invalid IDs return 400, unregistered
+IDs return 404, and failed checks return 503. Missing input returns 422. See
+[the API contract](docs/api.md#health-api) for validation rules. Prefer readable
+`int()` conversion and explicit checks over regex or arbitrary ID limits. This does not
+implement remote monitoring. Metrics, server information,
+incidents, persistence, and authentication remain unimplemented. Keep these
+limits explicit instead of reporting unconfigured dependencies as healthy.
 
 ### Implemented frontend workspace
 
-Frontend development is the current user-selected priority; backend work is
-currently deferred. Use the [frontend guide](docs/frontend.md) and its verification
+The user has resumed backend work with the health API first. Use the
+[frontend guide](docs/frontend.md) and its verification
 commands. The React/TypeScript app starts in labeled demo mode; its incidents
 are in-memory examples. Keep demo data separate from API responses and never
 embed bearer tokens in build variables or browser storage. The typed client uses
 same-origin `/api/v1`, with a development-only Vite proxy to FastAPI. Business
-endpoint integration and browser visual verification remain pending. Resume
-backend work when requested; do not infer that the phase numbering requires it
-before authorized frontend work.
+endpoint integration and browser visual verification remain pending. The
+health route alone does not make the full frontend snapshot available; the
+other three API groups are still pending.
 
 ## 3. Canonical folder ownership
 
@@ -170,7 +179,7 @@ Keep HTTP validation and serialization in API/schema modules. Put domain decisio
 
 - **Comments:** Add clear comments to explain intent, non-obvious logic, assumptions and important decisions so contributors can understand the code. Keep comments accurate and avoid restating obvious operations.
 - **Readable formatting:** Use multiline formatting for long function calls, conditions, collections and commands when it improves readability. Separate logical steps with blank lines and avoid dense one-liners; follow the project's formatter and language conventions.
-- **Python:** Use type hints, small functions, explicit error handling and descriptive `snake_case` filenames. Prefer dependency injection for database sessions and external services.
+- **Python:** Prioritize simple, Pythonic code that is easy to read and explain. Prefer standard built-ins, clear names, and straightforward control flow. Avoid clever one-liners, unnecessary regex, and abstractions when a simpler approach meets the requirements. Keep required validation and error handling. Use type hints, small functions, and descriptive `snake_case` filenames. Prefer dependency injection for database sessions and external services.
 - **Pydantic:** Separate input and output schemas; never expose password hashes or internal secrets.
 - **Database:** Use migrations, parameterized queries/ORM, explicit relationships and constraints, and UTC timestamps. Avoid unreviewed destructive migrations.
 - **Bash:** Start scripts with `#!/usr/bin/env bash`; use `set -euo pipefail` where appropriate; quote variables; check prerequisites; avoid relying on the current working directory; make provisioning idempotent where practical.
