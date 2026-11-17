@@ -29,7 +29,7 @@ verified.
 | Server API | Implemented; native EC2/container verification pending | Server router/schema/service and tests; reader token authentication |
 | Other business endpoints and persistence | Not started | No metrics, incident, or database implementation |
 | React frontend | In progress; foundation verified | `frontend/src/`, typed API client, 21 passing tests, successful production build; evidence below |
-| Infrastructure and CI/CD | Not started | Placeholder directories only |
+| Infrastructure and CI/CD | Native testing scripts added; EC2 run pending | Ubuntu setup, systemd test template, and verification script; broader deployment/CI pending |
 | Deployment and demo | Not verified | No runbook or recorded verification evidence |
 
 The application language decisions are **Python for the backend/API** and
@@ -55,8 +55,9 @@ assumed by this plan.
 
 ## Implementation milestones
 
-Phase 1 is **Verified**; phases 2 and 7 are **In progress**. Phases 3–6 and 8
-remain **Not started**. Health and server GET are implemented. Phase 2
+Phase 1 is **Verified**; phases 2, 5, and 7 are **In progress**. Phases 3, 4, 6, and 8
+remain **Not started**. Phase 5 has native test scripts but no EC2 verification.
+Health and server GET are implemented. Phase 2
 is not complete: database work and real host/container verification remain pending. Complete
 each milestone with observable evidence. Owners and deadlines are unassigned.
 
@@ -66,7 +67,7 @@ each milestone with observable evidence. Owners and deadlines are unassigned.
 | 2. Persistence and read endpoints (Python, PostgreSQL, Alembic) | PostgreSQL connection, SQLAlchemy models, Alembic migrations, health and server GET routes | Migrations apply to an isolated database; health reports dependency failure; server identity describes the host correctly | In progress |
 | 3. Metrics and incidents (Python, FastAPI, pytest) | Auth/permissions, metrics GET/POST, full incident CRUD, pagination and validation | Unit and API contract tests cover the matrix in `api.md`; database integration tests prove persistence and rollback | Not started |
 | 4. Monitoring and recovery (Bash, Cron, Python, PostgreSQL) | Host collector, Cron schedules, threshold detection, alert delivery, PostgreSQL/log backup and restore scripts | A collected sample is stored; a controlled breach produces an incident and alert without duplicate open incidents; isolated restore succeeds | Not started |
-| 5. Native EC2 deployment — G (AWS EC2, Bash, systemd, Nginx) | Bootstrap via SCP, repository setup, independent student SSH access, native service, Nginx, scheduled operations | Rehearsed fresh-instance deployment; API/database connectivity, restart behavior, monitoring, and backups demonstrated | Not started |
+| 5. Native EC2 deployment — G (AWS EC2, Bash, systemd, Nginx) | Bootstrap via SCP, repository setup, independent student SSH access, native service, Nginx, scheduled operations | Rehearsed fresh-instance deployment; API/database connectivity, restart behavior, monitoring, and backups demonstrated | In progress |
 | 6. Containers and HTTPS — VG (Docker, Docker Compose, DNS, Certbot) | API Dockerfile, separate API/PostgreSQL Compose services, persistent volume, domain, Certbot | Compose validation and health checks pass; records survive restart; HTTPS and renewal checks pass; native service stopped before port reuse | Not started |
 | 7. Frontend (React, TypeScript) | React/TypeScript app, typed API client, health/metrics/server views, incident management | Type checking/build pass; UI handles loading, empty, validation, permission, and unavailable states; core flows work against the API | In progress |
 | 8. Demo preparation (Documentation, Deployment, Presentation) | Deployment runbook, requirement checklist, timed rehearsal, evidence and speaking roles | Both students complete and explain a fresh-instance rehearsal within the 60-minute limit | Not started |
@@ -84,7 +85,8 @@ language, tool, or work area involved and appear in parentheses beside each
 task name. A task can involve several topics.
 Tasks 1.1–1.3 and 7.1 are **Verified**. Tasks 7.2–7.3 are **In progress**, with
 demo behavior and automated checks passing but live integration/browser review
-pending. Task 2.2 is **In progress** with both routes implemented and host verification pending. Other tasks
+pending. Tasks 5.2–5.4 are **In progress** with test scripts and a service template.
+Task 2.2 is **In progress** with both routes implemented and host verification pending. Other tasks
 remain **Not started**. Each task uses the completion
 evidence for its parent milestone above.
 
@@ -105,9 +107,9 @@ evidence for its parent milestone above.
 | 4.3 Incident detection and alerts (Python, Monitoring) | Detect threshold breaches, avoid duplicate open incidents, and deliver alerts through the selected channel. | Not started |
 | 4.4 Backup and restore (Bash, PostgreSQL, Cron) | Script database/log backups, schedule them, and verify an isolated restore. | Not started |
 | 5.1 EC2 and student access (AWS EC2, Linux, SSH) | Prepare the instance configuration and independent access for both students. | Not started |
-| 5.2 Server bootstrap (Bash, SCP, Git, Linux) | Transfer and run bootstrap automation, install prerequisites, and clone the repository. | Not started |
-| 5.3 Native service and reverse proxy (systemd, Nginx, Linux) | Run FastAPI as a native service and configure public request forwarding. | Not started |
-| 5.4 Native deployment verification (Bash, Linux, Testing) | Verify connectivity, restarts, scheduled monitoring, and backups on a fresh instance. | Not started |
+| 5.2 Server bootstrap (Bash, SCP, Git, Linux) | Test setup script prepares an already cloned repository; real SCP/clone/bootstrap verification remains pending. | In progress |
+| 5.3 Native service and reverse proxy (systemd, Nginx, Linux) | Test service template added; native EC2 startup and Nginx forwarding remain pending. | In progress |
+| 5.4 Native deployment verification (Bash, Linux, Testing) | Localhost smoke verifier added; fresh-instance verification, restarts, scheduled monitoring, and backups remain pending. | In progress |
 | 6.1 API image (Docker, Python) | Create the API Dockerfile and build a runnable image. | Not started |
 | 6.2 Container services and storage (Docker Compose, PostgreSQL) | Configure separate API/database services, private networking, health checks, and persistent storage. | Not started |
 | 6.3 Domain and TLS (DNS, Nginx, Certbot, HTTPS) | Configure the custom domain, certificate, redirects, and renewal. | Not started |
@@ -304,6 +306,23 @@ Verification: **55 backend tests passed**; Ruff lint and formatting checks passe
 - **110 backend tests passed**, including optional selection, invalid/duplicate
   IDs, missing resources, and selected-server failure cases. Ruff lint and
   formatting passed; documentation links and scoped whitespace checks passed.
+
+## Native EC2 testing scripts (2026-11-17)
+
+- Added Ubuntu setup under `infrastructure/bootstrap/`, a localhost-only
+  `serverwatch-ec2-test.service` template, and a read-only API/setup verifier under
+  `scripts/verification/`. Usage and scope: [EC2 testing guide](ec2-testing.md).
+- Setup installs runtime prerequisites into an existing checkout, creates a
+  private reader token outside Git, and enables/restarts the dedicated service.
+  It does not provision EC2, clone/update Git, or configure the full deployment.
+- Verification prints PASS/FAIL/WARN and a summary; expected database-down health
+  is a warning. Failed checks return a nonzero exit code. Authenticated HTTP
+  credentials go through stdin, not process arguments or printed output.
+- Bash syntax and help checks passed. Three simulated verification tests passed,
+  covering working setup, server HTTP failure, and a missing token without leaks.
+  Rendered systemd unit verification returned exit 0 (sandbox socket warnings).
+- ShellCheck is unavailable locally. Package installation and actual systemd
+  startup on native EC2 remain unverified; no AWS resources were accessed.
 
 ## Maintaining progress
 
