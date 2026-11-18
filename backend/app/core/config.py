@@ -12,7 +12,7 @@ class Settings(BaseSettings):
 
     Dotenv loading is explicit through Uvicorn's --env-file option. Tests can
     inject settings without reading a developer's local credential files.
-    Database credentials become required when persistence is implemented.
+    Database credentials are optional until PostgreSQL readiness is enabled.
     """
 
     model_config = SettingsConfigDict(
@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     server_name: str = Field(default="ServerWatch server", min_length=1, max_length=200)
     reader_token: SecretStr | None = Field(default=None, repr=False)
     reader_token_file: Path | None = Field(default=None, repr=False)
+    database_host: str = Field(default="localhost", min_length=1)
+    database_port: int = Field(default=5432, ge=1, le=65535)
+    database_name: str = Field(default="serverwatch", min_length=1)
+    database_user: str = Field(default="serverwatch_app", min_length=1)
+    database_password: SecretStr | None = Field(default=None, repr=False)
+    database_password_file: Path | None = Field(default=None, repr=False)
 
 
 def load_settings() -> Settings:

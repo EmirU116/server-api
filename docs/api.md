@@ -106,11 +106,11 @@ including when both are slow. These tests do not establish deployed latency;
 deployment requires measurement through the actual proxy and network.
 
 The default server probe proves that the local API process can respond. It does
-not inspect a remote host or report OS resource measurements. The default
-database probe returns `down` because persistence is not configured. Therefore,
-the application currently returns `503` with `server: up` and `database: down`.
-A real database check must replace that probe during persistence work; do not
-change it to a constant success to make readiness green. If the entire API host
+not inspect a remote host or report OS resource measurements. The application
+database probe executes asynchronous PostgreSQL `SELECT 1` when configured.
+Without credentials, or on connection/query failure or timeout, it reports
+`database: down` and returns `503`. A successful query allows `200`.
+See [local PostgreSQL setup](local-postgresql.md). Tables and migrations remain pending. If the entire API host
 is offline, no response can be sent; the frontend handles connection failure.
 A failed probe means unhealthy or unreachable, not that the server ID is absent.
 

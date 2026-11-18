@@ -34,6 +34,7 @@ describe requirements and conventions; verify implementation status separately.
 
 | Document | When to read it |
 |---|---|
+| [Local PostgreSQL](docs/local-postgresql.md) | Database settings, Windows startup, and connectivity checks. |
 | [Project overview](README.md) | Starting work and finding project documentation. |
 | [Project plan and progress](docs/project-plan.md) | Checking the current stage, choosing the next milestone, and tracking assignment completion. Update it with evidence after milestone completion or material scope changes. |
 | [Folder structure](docs/FOLDER_STRUCTURE.md) | Creating, moving, or organizing files and modules. |
@@ -76,7 +77,8 @@ under `backend/app/core/`. Run `python -m pytest backend/tests -q` and the Ruff
 checks from the repository root with the virtual environment active.
 `GET /api/v1/health?server_id=1` is implemented through `app/api/health.py`,
 `app/services/health.py`, and `app/schemas/health.py`. Its default database
-probe fails closed until a real persistence check is supplied. The server check
+probe executes asynchronous PostgreSQL `SELECT 1` when configured, and fails
+closed without credentials. Tables, migrations, and live verification remain pending. The server check
 only proves local API-process availability. Health requires a positive numeric
 `server_id`: local ID `1` is registered; invalid IDs return 400, unregistered
 IDs return 404, and failed checks return 503. Missing input returns 422. See
@@ -113,7 +115,8 @@ metrics and incident API groups are still pending.
 Place files by **responsibility**, not solely by extension.
 
 | Location | Belongs here | Does **not** belong here |
-|---|---|---|
+|---|---|
+| [Local PostgreSQL](docs/local-postgresql.md) | Database settings, Windows startup, and connectivity checks. |---|
 | `backend/app/api/` | FastAPI routers, request handling, dependencies | Complex business logic, host administration scripts |
 | `backend/app/models/` | SQLAlchemy entities and relationships | HTTP routes, UI |
 | `backend/app/schemas/` | Pydantic request/response contracts | Raw database access |

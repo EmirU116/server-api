@@ -18,6 +18,12 @@ def isolate_server_configuration(monkeypatch):
         "SERVERWATCH_SERVER_NAME",
         "SERVERWATCH_READER_TOKEN",
         "SERVERWATCH_READER_TOKEN_FILE",
+        "SERVERWATCH_DATABASE_HOST",
+        "SERVERWATCH_DATABASE_PORT",
+        "SERVERWATCH_DATABASE_NAME",
+        "SERVERWATCH_DATABASE_USER",
+        "SERVERWATCH_DATABASE_PASSWORD",
+        "SERVERWATCH_DATABASE_PASSWORD_FILE",
     ):
         monkeypatch.delenv(name, raising=False)
 

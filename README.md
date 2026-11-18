@@ -15,8 +15,9 @@ settings, consistent error handling, dependency manifests, and automated tests.
 Local interactive documentation is available at `/docs` and `/redoc`.
 
 The public `GET /api/v1/health?server_id=1` endpoint is implemented. It currently reports
-`server: up`, `database: down`, and HTTP `503` because the database is not yet
-configured. The GET-only `/api/v1/server` endpoint now returns identity and OS
+`server: up`, `database: down`, and HTTP `503` without database credentials.
+Configured PostgreSQL is checked with `SELECT 1`; success allows HTTP `200`.
+See [local PostgreSQL setup](docs/local-postgresql.md) for Windows instructions. The GET-only `/api/v1/server` endpoint now returns identity and OS
 information with reader bearer authentication. Metrics and incident endpoints remain planned.
 Database models, migrations, collector/admin authentication, monitoring, containers, and
 deployment configuration have not been implemented.
@@ -44,7 +45,7 @@ Open [Swagger UI](http://127.0.0.1:8000/docs),
 [OpenAPI JSON](http://127.0.0.1:8000/openapi.json).
 The route list includes `GET /api/v1/health`. Open
 <http://127.0.0.1:8000/api/v1/health?server_id=1> to inspect readiness. Its default `503`
-is expected until a real database probe is connected; it is not a startup crash.
+is expected until PostgreSQL is configured; it is not a startup crash.
 A `404` at `/` is expected.
 Use `--reload` for local development only. Stop the server with `Ctrl+C`.
 
@@ -57,7 +58,8 @@ query parameters return `422`. Probes run concurrently with a 150 ms timeout
 each; exceptions become `down` without exposing their messages. At this stage,
 `server: up` means the local API process is responding, not that a remote EC2
 host or all operating-system resources have been verified. The database probe
-deliberately returns `down` until persistence work supplies a real check.
+executes an asynchronous PostgreSQL query when credentials are configured.
+Without credentials it returns `down`. Tables and migrations remain pending.
 
 Health requires no database or credentials. Server information requires a reader
 bearer token configured through `SERVERWATCH_READER_TOKEN`, or a protected file
@@ -242,6 +244,9 @@ Use the [API specification](docs/api.md) when adding business routes. Add
 verified migration and deployment commands here when those workflows exist.
 
 ## Documentation
+
+- [Local PostgreSQL](docs/local-postgresql.md): Windows startup, private settings,
+  and database readiness verification.
 
 - [Native EC2 setup and verification](docs/ec2-testing.md): Bash setup, protected
   reader token, localhost systemd service, and checks with PASS/FAIL/WARN feedback.

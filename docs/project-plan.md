@@ -11,8 +11,8 @@ EC2 audit. This is the progress tracker; endpoint details remain in
 The project has a runnable FastAPI application factory, validated settings,
 shared error handling, dependency manifests, and a passing foundation test suite.
 Swagger/ReDoc and OpenAPI are available locally. The health GET route now
-requires a numeric `server_id` and returns structured readiness; its database check is down until persistence
-is configured. Server GET returns native host identity with reader authentication.
+requires a numeric `server_id` and returns structured readiness; its database check
+uses PostgreSQL `SELECT 1` when configured. Live database verification remains pending. Server GET returns native host identity with reader authentication.
 Metrics and incident routes remain unimplemented. There are no database migrations, container configuration,
 or deployment automation yet. A React/TypeScript frontend now provides a tested
 demo workspace and a typed API client. Live API integration and browser visual
@@ -25,9 +25,9 @@ verified.
 | Organization and security guidance | Documented | `docs/FOLDER_STRUCTURE.md`, `docs/SECRETS_MANAGEMENT.md` |
 | Agent workflows | Instructions present | `AGENT.md`, `.agents/skills/` |
 | Backend foundation and tests | Verified | `backend/app/main.py`, `backend/app/core/`, `backend/tests/`; verification below |
-| Health API | Verified route/service behavior; real DB check pending | `backend/app/api/health.py`, schemas/services, and `backend/tests/test_health.py` |
+| Health API | Verified route/service behavior; live DB verification pending | `backend/app/api/health.py`, schemas/services, and `backend/tests/test_health.py` |
 | Server API | Implemented; native EC2/container verification pending | Server router/schema/service and tests; reader token authentication |
-| Other business endpoints and persistence | Not started | No metrics, incident, or database implementation |
+| Other business endpoints and persistence | Connectivity in progress; business storage pending | Connectivity implemented; tables, metrics, and incidents pending |
 | React frontend | In progress; foundation verified | `frontend/src/`, typed API client, 21 passing tests, successful production build; evidence below |
 | Infrastructure and CI/CD | Native testing scripts added; EC2 run pending | Ubuntu setup, systemd test template, and verification script; broader deployment/CI pending |
 | Deployment and demo | Not verified | No runbook or recorded verification evidence |
@@ -95,7 +95,7 @@ evidence for its parent milestone above.
 | 1.1 Backend setup (Python, FastAPI) | Add dependencies, application entry point, and local configuration. | Verified |
 | 1.2 Errors and test foundation (Python, Pydantic, pytest) | Add structured error handling and test setup; verify startup and configuration failure paths. | Verified |
 | 1.3 Local development guide (Documentation) | Document verified installation, startup, and test commands. | Verified |
-| 2.1 Database connection and schema (Python, PostgreSQL, SQLAlchemy, Alembic) | Add database sessions, models, and versioned migrations. | Not started |
+| 2.1 Database connection and schema (Python, PostgreSQL, SQLAlchemy, Alembic) | Psycopg connectivity added; sessions, models, and migrations pending. | In progress |
 | 2.2 Health and server endpoints (Python, FastAPI, Linux) | Implement health and server GET routes, including dependency failure and correct host identity. | In progress |
 | 2.3 Persistence verification (Python, pytest, PostgreSQL) | Test migrations and database connectivity using an isolated database. | Not started |
 | 3.1 Authentication and validation (Python, FastAPI, Pydantic, Security) | Implement the documented roles, input constraints, and consistent errors. | Not started |
@@ -165,8 +165,8 @@ Rehearsal instances are separate from the final demonstration instance.
 
 Health and server GET are implemented and tested locally. The next planned backend
 step is **2.1 Database connection and schema (Python, PostgreSQL, SQLAlchemy,
-Alembic)**, including replacing the deliberately failing database health probe
-with a real bounded dependency check. Host/container verification remains pending.
+Alembic)**, with live verification of the new bounded PostgreSQL probe, followed by
+models and versioned migrations. Host/container verification remains pending.
 Metrics and incident APIs remain later tasks.
 
 Frontend browser review and full API integration remain pending.
@@ -338,3 +338,14 @@ Use `Not started`, `In progress`, `Blocked` (with a concrete reason), or `Verifi
 for future status updates. A milestone becomes verified only when its completion
 checks have actually passed. Local documentation changes do not authorize cloud
 provisioning, deployment, or credential operations.
+
+## PostgreSQL connectivity (Python, Psycopg) — 2026-11-18
+
+- Added optional private database settings and password-file precedence.
+- Health now executes asynchronous `SELECT 1` against configured PostgreSQL.
+  Missing configuration, failed connections, and timeouts remain unhealthy.
+- Added Windows setup instructions in [local PostgreSQL](local-postgresql.md).
+- Verified 118 backend tests, Ruff lint/format, and dependency consistency.
+  Tests use fake database connections and dummy credentials.
+- Live Windows PostgreSQL connectivity, tables, migrations, persistence APIs,
+  pooling, and EC2 database deployment remain unverified or unimplemented.
