@@ -80,17 +80,22 @@ export function createApi(token: string) {
 
   return {
     async snapshot(): Promise<Snapshot> {
-      const [health, server, metrics, incidents] = await Promise.all([
-        request<unknown>('/health?server_id=1', {}, true),
-        request<unknown>('/server'),
+      const server = await request<unknown>('/server');
+      if (!isServer(server)) {
+        throw new ApiError(
+          502,
+          'The API returned data that does not match the expected contract.',
+        );
+      }
+      // Select the same configured server instead of assuming its ID is 1.
+      const [health, metrics] = await Promise.all([
+        request<unknown>(`/health?server_id=${server.id}`, {}, true),
         request<unknown>('/metrics?limit=100'),
-        request<unknown>('/incidents?limit=100'),
       ]);
       if (
         !isHealth(health) ||
-        !isServer(server) ||
-        !isPage(metrics, isMetric) ||
-        !isPage(incidents, isIncident)
+        health.server_id !== server.id ||
+        !isPage(metrics, isMetric)
       ) {
         throw new ApiError(
           502,
@@ -101,8 +106,8 @@ export function createApi(token: string) {
         health,
         server,
         metrics: metrics.items,
-        incidents: incidents.items,
-        incidentTotal: incidents.total,
+        incidents: null,
+        incidentTotal: null,
       };
     },
     createIncident: (input: IncidentInput) =>

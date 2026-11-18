@@ -20,14 +20,102 @@ describe('typed API client', () => {
     const result = await createApi('dummy-test-token').snapshot();
 
     expect(result.server.hostname).toBe('serverwatch-01');
-    expect(fetch).toHaveBeenCalledTimes(4);
-    expect(fetch.mock.calls[0][0]).toBe('/api/v1/health?server_id=1');
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(fetch.mock.calls[0][0]).toBe('/api/v1/server');
+    expect(fetch.mock.calls[1][0]).toBe('/api/v1/health?server_id=1');
+    expect(fetch.mock.calls[2][0]).toBe('/api/v1/metrics?limit=100');
+    expect(result.metrics).toEqual(demo.metrics);
+    expect(result.incidents).toBeNull();
+    expect(result.incidentTotal).toBeNull();
     for (const [path, options] of fetch.mock.calls) {
       expect(path).toMatch(/^\/api\/v1\//);
       expect(options.headers.get('Authorization')).toBe(
         path.endsWith('/health?server_id=1') ? null : 'Bearer dummy-test-token',
       );
     }
+  });
+
+  it('checks the configured server ID and never calls unimplemented incidents', async () => {
+    const demo = createDemoSnapshot();
+    const fetch = vi.fn().mockImplementation(async (path: string) => {
+      if (path.endsWith('/server'))
+        return Response.json({ ...demo.server, id: 7 });
+      if (path.endsWith('/health?server_id=7'))
+        return Response.json({ ...demo.health, server_id: 7 });
+      if (path.endsWith('/metrics?limit=100'))
+        return Response.json({ items: [], total: 0, limit: 100, offset: 0 });
+      throw new Error('Unexpected route');
+    });
+    vi.stubGlobal('fetch', fetch);
+
+    const result = await createApi('dummy-test-token').snapshot();
+
+    expect(result.server.id).toBe(7);
+    expect(result.metrics).toEqual([]);
+    expect(result.incidents).toBeNull();
+    expect(fetch.mock.calls.some(([path]) => path.includes('/incidents'))).toBe(
+      false,
+    );
+  });
+
+  it('surfaces a metrics dependency failure instead of manufacturing empty data', async () => {
+    const demo = createDemoSnapshot();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (path: string) => {
+        if (path.endsWith('/server')) return Response.json(demo.server);
+        if (path.includes('/health?')) return Response.json(demo.health);
+        return new Response('dummy-sensitive-database-error', { status: 503 });
+      }),
+    );
+
+    await expect(
+      createApi('dummy-test-token').snapshot(),
+    ).rejects.toMatchObject({
+      status: 503,
+      message: 'The server is temporarily unavailable. Try again shortly.',
+    });
+  });
+
+  it('rejects invalid metric measurements before rendering', async () => {
+    const demo = createDemoSnapshot();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (path: string) => {
+        if (path.endsWith('/server')) return Response.json(demo.server);
+        if (path.includes('/health?')) return Response.json(demo.health);
+        return Response.json({
+          items: [{ ...demo.metrics[0], cpu_percent: 101 }],
+          total: 1,
+          limit: 100,
+          offset: 0,
+        });
+      }),
+    );
+
+    await expect(createApi('dummy-test-token').snapshot()).rejects.toThrow(
+      'expected contract',
+    );
+  });
+
+  it('rejects a health report for a different server', async () => {
+    const demo = createDemoSnapshot();
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockImplementation(async (path: string) =>
+          Response.json(
+            path.endsWith('/server')
+              ? demo.server
+              : { ...demo.health, server_id: 99 },
+          ),
+        ),
+    );
+
+    await expect(createApi('dummy-test-token').snapshot()).rejects.toThrow(
+      'expected contract',
+    );
   });
 
   it('handles an unhealthy 503 response without treating it as healthy', async () => {

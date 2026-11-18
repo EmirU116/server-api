@@ -9,6 +9,9 @@ const timestamp = (value: unknown): value is string =>
 export function isHealth(value: unknown): value is Health {
   return (
     record(value) &&
+    typeof value.server_id === 'number' &&
+    Number.isInteger(value.server_id) &&
+    value.server_id >= 1 &&
     ['healthy', 'unhealthy'].includes(String(value.status)) &&
     timestamp(value.checked_at) &&
     record(value.checks) &&

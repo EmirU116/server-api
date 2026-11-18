@@ -17,16 +17,35 @@ Local interactive documentation is available at `/docs` and `/redoc`.
 The public `GET /api/v1/health?server_id=1` endpoint is implemented. It currently reports
 `server: up`, `database: down`, and HTTP `503` without database credentials.
 Configured PostgreSQL is checked with `SELECT 1`; success allows HTTP `200`.
-See [local PostgreSQL setup](docs/local-postgresql.md) for Windows instructions. The GET-only `/api/v1/server` endpoint now returns identity and OS
-information with reader bearer authentication. Metrics and incident endpoints remain planned.
-Database models, migrations, collector/admin authentication, monitoring, containers, and
-deployment configuration have not been implemented.
+See [local PostgreSQL setup](docs/local-postgresql.md) for Windows instructions.
+The GET-only `/api/v1/server` endpoint now returns identity and OS
+information with reader bearer authentication. Metrics GET/POST now use PostgreSQL
+storage, a SQLAlchemy model, and an Alembic migration. Reader tokens can read;
+separate collector tokens can submit samples. Incidents, automated collection,
+admin authentication, containers, and full deployment remain pending.
 
 The React/TypeScript frontend now provides a demo dashboard and typed API
-client. Backend development has resumed with the health API as the first route.
+client. Live mode loads health, server information, and stored metrics; incidents
+are explicitly unavailable. Demo mode remains separate from real API data.
 
 See the [project plan and progress tracker](docs/project-plan.md) for the current
 stage, implementation milestones, and assignment coverage.
+
+## Start the local stack (Bash, Windows)
+
+After the database, private `.env`, metrics migration, and Windows dependencies
+are prepared, stop any manually started API/frontend instances. From the project
+root in Git Bash or WSL:
+
+```bash
+bash scripts/setup/start_local.sh
+```
+
+The launcher starts/reuses Windows PostgreSQL, checks database/schema access,
+and starts Windows FastAPI and React. Open <http://127.0.0.1:5173> and connect
+with your reader token. Ctrl+C stops its app processes; PostgreSQL stays running.
+See [local launcher setup and troubleshooting](docs/local-development.md).
+This does not collect measurements automatically.
 
 ## Local backend setup (Python, FastAPI)
 
@@ -59,7 +78,8 @@ each; exceptions become `down` without exposing their messages. At this stage,
 `server: up` means the local API process is responding, not that a remote EC2
 host or all operating-system resources have been verified. The database probe
 executes an asynchronous PostgreSQL query when credentials are configured.
-Without credentials it returns `down`. Tables and migrations remain pending.
+Without credentials it returns `down`. Health verifies connectivity, not schema
+version; apply the metrics migration separately before using metrics endpoints.
 
 Health requires no database or credentials. Server information requires a reader
 bearer token configured through `SERVERWATCH_READER_TOKEN`, or a protected file
@@ -89,6 +109,12 @@ environment variables:
 | `SERVERWATCH_SERVER_NAME` | `ServerWatch server` | Nonblank display name, at most 200 characters |
 | `SERVERWATCH_READER_TOKEN` | Unset | Private reader bearer token without whitespace |
 | `SERVERWATCH_READER_TOKEN_FILE` | Unset | Protected token file; takes precedence over token environment value |
+| `SERVERWATCH_COLLECTOR_TOKEN` | Unset | Private metric-write token; must differ from reader token |
+| `SERVERWATCH_COLLECTOR_TOKEN_FILE` | Unset | Protected collector token file; takes precedence |
+| `SERVERWATCH_DATABASE_HOST` / `SERVERWATCH_DATABASE_PORT` | `localhost` / `5432` | PostgreSQL address; port 1–65535 |
+| `SERVERWATCH_DATABASE_NAME` / `SERVERWATCH_DATABASE_USER` | `serverwatch` / `serverwatch_app` | Nonblank database and login names |
+| `SERVERWATCH_DATABASE_PASSWORD` | Unset | Private database password |
+| `SERVERWATCH_DATABASE_PASSWORD_FILE` | Unset | Protected password file; takes precedence |
 
 Invalid settings and invalid configured reader credentials prevent startup with a
 sanitized error. Without a configured token, health remains available while server
@@ -116,8 +142,9 @@ python -m pip check
 ```
 
 Tests cover documentation exposure, configuration, shared HTTP errors, malformed
-JSON, validation, and sanitized unexpected route failures. Sample routes exist
-only in tests. Persistence and the full API test matrix remain future work.
+JSON, validation, metrics read/write permissions, and sanitized failures. Metrics
+integration tests start a private disposable PostgreSQL cluster if server tools
+are installed; otherwise those tests skip. Incident coverage remains future work.
 Shared handlers follow [FastAPI's exception handling guidance](https://fastapi.tiangolo.com/tutorial/handling-errors/);
 configuration uses [Pydantic Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
 Streaming responses and background jobs, if introduced, will need separate
@@ -141,7 +168,8 @@ switch. No backend is needed for demo mode.
 Run `npm run typecheck`, `npm test`, `npm run build`, and
 `npm run format:check` inside `frontend/` to verify it. See the
 [frontend guide](docs/frontend.md) for the API connection workflow, file ownership,
-data limitations, and test scope. Live integration is pending the backend routes.
+data limitations, and test scope. Live mode requires the metrics migration and
+a reader token. See [database and metrics setup](docs/local-postgresql.md#enable-metrics-storage-python-postgresql-alembic).
 
 ## API scope
 
@@ -207,7 +235,7 @@ authoritative assessment criteria. CI/CD and a frontend are optional extensions.
 backend/
   app/main.py          FastAPI application factory
   app/core/            Runtime settings and shared error handling
-  app/api/             Health and server routers; metrics/incidents pending
+  app/api/             Health, server, and metrics routers; incidents pending
   app/models/          Database model scaffold
   app/schemas/         Health and server response contracts
   app/services/        Readiness probes and native host identity
@@ -244,6 +272,9 @@ Use the [API specification](docs/api.md) when adding business routes. Add
 verified migration and deployment commands here when those workflows exist.
 
 ## Documentation
+
+- [Local stack launcher](docs/local-development.md): one Bash entry point for
+  Windows PostgreSQL, FastAPI, and React, with prerequisite checks and cleanup.
 
 - [Local PostgreSQL](docs/local-postgresql.md): Windows startup, private settings,
   and database readiness verification.

@@ -1,9 +1,9 @@
 # Frontend development (React, TypeScript, Vite)
 
-The frontend is a local React application under `frontend/`. Backend work has
-resumed with `GET /api/v1/health?server_id=1`; its default database check reports down.
-Reader-authenticated server information is implemented. Metrics and incident routes remain unimplemented, so the
-full live workspace is not available yet.
+The frontend is a local React application under `frontend/`. Live mode supports
+reader-authenticated server information and stored metrics, plus public health
+with the real PostgreSQL readiness check. Incidents are labeled unavailable
+instead of blocking the available views or substituting demo data.
 
 ## Run locally (Node.js, npm)
 
@@ -28,7 +28,7 @@ Node/Vite are frontend development tools; the application backend remains Python
 | Overview | CPU/memory/disk cards, open incident count, utilization chart, server/database health, recent incidents, server summary |
 | Metrics | Chart ranges relative to the newest sample, toggles for each metric, hover values, paginated table of loaded measurements |
 | Server details | Server display name, hostname, OS, architecture, stable ID, health and reported uptime |
-| Incidents | Search, status filters, record details, create/edit forms, resolution/reopening, and deletion confirmation |
+| Incidents | Demo-only search, filters, CRUD, and resolution/reopening; live mode explicitly unavailable |
 
 The layout adapts to narrow screens with a horizontal navigation menu and
 scrollable data tables. Forms use native dialogs, labeled inputs, required
@@ -51,33 +51,47 @@ The demo is available without running Python or PostgreSQL.
 
 ## API workspace (TypeScript, HTTP)
 
-Select **Connect API** and supply a bearer token. The token is kept in memory,
-cleared on reload or return to demo mode, and never put in local storage or a
+Run FastAPI on `127.0.0.1:8000` and Vite on `127.0.0.1:5173`.
+Configure a private `SERVERWATCH_READER_TOKEN` in the backend environment before
+starting FastAPI (see [backend setup](../README.md#local-backend-setup-python-fastapi)).
+This token is separate from your PostgreSQL password.
+
+Select **Connect API** and supply that reader bearer token. The token is kept in
+memory, cleared on reload or return to demo mode, and never put in local storage or a
 `VITE_*` build variable. Do not put real tokens in tracked files.
 
 The client in `frontend/src/services/api.ts` follows [the API contract](api.md):
 
-- Reads public health for registered local server ID `1` using
-  `/api/v1/health?server_id=1`, and authenticated server, metrics, and incident endpoints.
-  Health and server identity now use the same positive numeric ID (default `1`).
-- Sends POST/PATCH/DELETE for incident changes; administrator permission will
-  be enforced by the future backend. Permission failures are shown in the UI.
+- Reads authenticated `/server`, then public `/health?server_id=<id>` using
+  the returned server ID. No bearer token is sent with the health request.
+- Incidents are explicitly unavailable in API mode until their backend is
+  implemented. No incident read requests are sent, counts display unavailable,
+  and incident creation/editing is disabled. Demo incident editing remains local.
+- Reads the latest 100 stored measurements from authenticated
+  `/metrics?limit=100`. Cards, charts, history, and reported uptime use those
+  records. Empty results display no measurements rather than sample values.
+  A failed metrics request is an error, not a successful empty collection.
+- The dashboard uses the reader token only. Metric POST requests belong to a
+  separately authorized collector; collector credentials never belong in the UI.
+  Apply the backend migration before connecting; see
+  [local PostgreSQL setup](local-postgresql.md).
 - Uses same-origin `/api/v1` paths. The Vite development proxy forwards `/api`
   to `http://127.0.0.1:8000`, avoiding a backend CORS change.
 - Applies a request timeout, validates response shapes before rendering, and
   shows safe error messages for connection, authentication, permission,
   validation, and server failures. A structured unhealthy health response with
   HTTP 503 is displayed as unhealthy.
-- Loads the latest 100 metrics and incidents. Incident search/status filters and
-  metric table pagination apply to loaded records; the UI discloses truncated
-  incident lists. Fetching further server-side pages is future work.
+- Demo incident search/status filters and metric table pagination apply to
+  loaded records; the API workspace loads at most the latest 100 measurements.
+  Fetching further server-side pages is future work.
 - Fetches on connection or explicit refresh. There is no automatic polling.
 
-API mode never silently substitutes demo data. An initial load requires all
-four read endpoints; if one fails, the workspace displays an error with retry
-and return-to-demo actions. FastAPI now serves health and reader-authenticated server information, but metrics and incident read
-routes still return missing-route errors, so full live integration remains
-pending.
+API mode never silently substitutes demo data. Server, health, and metrics
+requests must succeed and match their response contracts; failures display an
+error with retry and return-to-demo actions. Unimplemented capabilities are represented
+explicitly as unavailable, not as successful empty collections. A valid empty
+metrics response means no measurements have been recorded. Refresh fetches
+updated data; there is no automatic monitoring collector in the frontend.
 
 Production hosting and same-origin `/api` reverse proxy configuration remain
 future infrastructure work. `npm run preview` previews static build output;
@@ -97,7 +111,8 @@ npm run format:check
 `npm run format` applies readable multiline formatting. Tests use Vitest,
 Testing Library, and jsdom. They exercise navigation, measurement pagination,
 incident search/filtering/CRUD, input validation, demo/live separation, API
-paths and headers, HTTP failures, response validation, and resolution timestamps.
+paths and headers, HTTP failures, response validation, configured server IDs,
+real metric refresh, empty metrics, unavailable incidents, and resolution timestamps.
 Tests use dummy tokens and simulated responses, with no live server or database.
 Native dialog methods are stubbed in jsdom, so these tests do not prove browser
 focus trapping or visual layout.

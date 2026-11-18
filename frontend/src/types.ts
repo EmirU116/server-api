@@ -4,6 +4,7 @@ export type IncidentStatus = 'open' | 'investigating' | 'resolved';
 export type View = 'overview' | 'metrics' | 'server' | 'incidents';
 
 export interface Health {
+  server_id: number;
   status: 'healthy' | 'unhealthy';
   checked_at: string;
   checks: { server: 'up' | 'down'; database: 'up' | 'down' };
@@ -63,6 +64,12 @@ export interface Snapshot {
   health: Health;
   server: ServerInfo;
   metrics: Metric[];
+  // Null means this capability is unavailable, rather than an empty result.
+  incidents: Incident[] | null;
+  incidentTotal: number | null;
+}
+
+export type DemoSnapshot = Snapshot & {
   incidents: Incident[];
   incidentTotal: number;
-}
+};

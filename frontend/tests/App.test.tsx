@@ -7,6 +7,7 @@ import {
 } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
+import { createDemoSnapshot } from '../src/services/demo';
 
 describe('demo workspace', () => {
   it('labels sample data and makes no network calls on startup', () => {
@@ -167,5 +168,78 @@ describe('demo workspace', () => {
         'You’re viewing sample data. No live server is connected.',
       ),
     ).toBeInTheDocument();
+  });
+
+  it('displays live health and identity without claiming incidents are empty', async () => {
+    const demo = createDemoSnapshot();
+    const fetch = vi.fn().mockImplementation(async (path: string) => {
+      if (path.endsWith('/server'))
+        return Response.json({ ...demo.server, hostname: 'real-local-host' });
+      if (path.includes('/health?')) return Response.json(demo.health);
+      if (path.endsWith('/metrics?limit=100'))
+        return Response.json({ items: [], total: 0, limit: 100, offset: 0 });
+      throw new Error('Unexpected route');
+    });
+    vi.stubGlobal('fetch', fetch);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Connect API' }));
+    fireEvent.change(screen.getByLabelText('Bearer token'), {
+      target: { value: 'dummy-test-token' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+
+    expect(await screen.findByText('real-local-host')).toBeInTheDocument();
+    expect(screen.getByText('All systems operational')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Incidents unavailable' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New incident' })).toBeDisabled();
+    expect(
+      screen.queryByText('No open issues in loaded records'),
+    ).not.toBeInTheDocument();
+    expect(fetch.mock.calls.some(([path]) => path.includes('/incidents'))).toBe(
+      false,
+    );
+    expect(localStorage.length).toBe(0);
+    expect(sessionStorage.length).toBe(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Metrics' }));
+    expect(
+      screen.getByText('No measurements recorded yet.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('27.5')).not.toBeInTheDocument();
+  });
+
+  it('renders stored API metrics and refreshes them without calling incidents', async () => {
+    const demo = createDemoSnapshot();
+    let cpu = 12.3;
+    const fetch = vi.fn().mockImplementation(async (path: string) => {
+      if (path.endsWith('/server')) return Response.json(demo.server);
+      if (path.includes('/health?')) return Response.json(demo.health);
+      if (path.endsWith('/metrics?limit=100')) {
+        return Response.json({
+          items: [{ ...demo.metrics[0], cpu_percent: cpu }],
+          total: 1,
+          limit: 100,
+          offset: 0,
+        });
+      }
+      throw new Error('Unexpected route');
+    });
+    vi.stubGlobal('fetch', fetch);
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Connect API' }));
+    fireEvent.change(screen.getByLabelText('Bearer token'), {
+      target: { value: 'dummy-test-token' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+
+    expect(await screen.findByText('12.3')).toBeInTheDocument();
+    cpu = 19.8;
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    expect(await screen.findByText('19.8')).toBeInTheDocument();
+    expect(screen.queryByText('12.3')).not.toBeInTheDocument();
+    expect(fetch.mock.calls.some(([path]) => path.includes('/incidents'))).toBe(
+      false,
+    );
   });
 });

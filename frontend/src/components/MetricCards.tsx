@@ -91,42 +91,54 @@ export function MetricCards({
       <section className="metric-card incident-card">
         <div className="metric-card-top">
           <span>
-            {snapshot.incidents.length < snapshot.incidentTotal
+            {snapshot.incidents &&
+            snapshot.incidentTotal !== null &&
+            snapshot.incidents.length < snapshot.incidentTotal
               ? 'Open incidents (loaded)'
               : 'Open incidents'}
           </span>
           <CircleAlert size={18} />
         </div>
         <div className="metric-value">
-          {openCount.toString().padStart(2, '0')}
+          {snapshot.incidents === null
+            ? '—'
+            : openCount.toString().padStart(2, '0')}
           <span className="incident-value-label">
-            {openCount === 1 ? 'incident' : 'incidents'}
+            {snapshot.incidents === null
+              ? 'unavailable'
+              : openCount === 1
+                ? 'incident'
+                : 'incidents'}
           </span>
         </div>
-        <div className="incident-mini-status">
-          {snapshot.incidents.some(
-            (item) =>
-              item.status !== 'resolved' && item.severity === 'critical',
-          ) && (
+        {snapshot.incidents !== null && (
+          <div className="incident-mini-status">
+            {snapshot.incidents.some(
+              (item) =>
+                item.status !== 'resolved' && item.severity === 'critical',
+            ) && (
+              <span>
+                <i className="critical-dot" />
+                Critical
+              </span>
+            )}
             <span>
-              <i className="critical-dot" />
-              Critical
+              <i className="warning-dot" />
+              {
+                snapshot.incidents.filter(
+                  (item) => item.status === 'investigating',
+                ).length
+              }{' '}
+              investigating
             </span>
-          )}
-          <span>
-            <i className="warning-dot" />
-            {
-              snapshot.incidents.filter(
-                (item) => item.status === 'investigating',
-              ).length
-            }{' '}
-            investigating
-          </span>
-        </div>
+          </div>
+        )}
         <div className="metric-caption">
-          {openCount
-            ? 'Some issues need your attention'
-            : 'No open issues in loaded records'}
+          {snapshot.incidents === null
+            ? 'Incident monitoring is not available yet'
+            : openCount
+              ? 'Some issues need your attention'
+              : 'No open issues in loaded records'}
         </div>
       </section>
     </div>

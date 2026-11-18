@@ -1,14 +1,19 @@
 """FastAPI application factory, ready for the planned API routers."""
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
+from starlette.concurrency import run_in_threadpool
 
 from app.api.health import router as health_router
+from app.api.metrics import router as metrics_router
 from app.api.server import router as server_router
 from app.core.config import Settings, load_settings
 from app.core.database import Database
 from app.core.errors import register_error_handlers
-from app.core.security import load_reader_token
+from app.core.security import load_reader_token, load_token
 from app.services.health import HealthService
+from app.services.metrics import MetricsService
 from app.services.server import ServerService
 
 
@@ -17,15 +22,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     Health is available without reader credentials. Its database check stays down
     until PostgreSQL credentials are configured. Server information requires a
-    reader token; metrics and incidents remain future work.
+    reader token; metrics use reader/collector roles. Incidents remain future work.
     """
     settings = settings if settings is not None else load_settings()
+
+    @asynccontextmanager
+    async def lifespan(application: FastAPI):
+        try:
+            yield
+        finally:
+            engine = application.state.database.engine
+            if engine is not None:
+                await run_in_threadpool(engine.dispose)
+
     expose_docs = settings.environment != "production"
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
         description="Server monitoring and incident management API (foundation).",
         debug=False,
+        lifespan=lifespan,
         docs_url="/docs" if expose_docs else None,
         redoc_url="/redoc" if expose_docs else None,
         openapi_url="/openapi.json" if expose_docs else None,
@@ -38,7 +54,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.server_service = ServerService(settings.server_id, settings.server_name)
     app.state.reader_token = load_reader_token(settings)
+    app.state.collector_token = load_token(
+        settings.collector_token, settings.collector_token_file, "Collector"
+    )
+    if (
+        app.state.reader_token is not None
+        and app.state.collector_token is not None
+        and app.state.reader_token == app.state.collector_token
+    ):
+        raise RuntimeError("Reader and collector tokens must be different.")
+    app.state.metrics_service = MetricsService(
+        app.state.database.engine, settings.server_id
+    )
     register_error_handlers(app)
     app.include_router(health_router)
     app.include_router(server_router)
+    app.include_router(metrics_router)
     return app

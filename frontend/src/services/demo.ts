@@ -2,7 +2,7 @@ import type {
   Incident,
   IncidentInput,
   IncidentUpdate,
-  Snapshot,
+  DemoSnapshot,
 } from '../types';
 
 const anchor = new Date('2026-11-16T09:00:00Z').getTime();
@@ -10,9 +10,10 @@ const time = (minutesAgo: number) =>
   new Date(anchor - minutesAgo * 60_000).toISOString();
 
 /** Fixed, deterministic fixtures. These are never presented as real host measurements. */
-export function createDemoSnapshot(): Snapshot {
+export function createDemoSnapshot(): DemoSnapshot {
   return {
     health: {
+      server_id: 1,
       status: 'healthy',
       checked_at: time(0),
       checks: { server: 'up', database: 'up' },

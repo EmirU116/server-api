@@ -1,6 +1,7 @@
-"""Reader bearer authentication; no user accounts or write roles yet."""
+"""Separate read-only dashboard and metric collector bearer credentials."""
 
 import secrets
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request
@@ -14,17 +15,25 @@ bearer = HTTPBearer(auto_error=False)
 
 def load_reader_token(settings: Settings) -> SecretStr | None:
     """Prefer a mounted secret file; use environment configuration locally."""
-    token = settings.reader_token
-    if settings.reader_token_file is not None:
+    return load_token(settings.reader_token, settings.reader_token_file, "Reader")
+
+
+def load_token(
+    token: SecretStr | None, path: Path | None, role: str
+) -> SecretStr | None:
+    """Validate either role's configured secret without exposing its contents."""
+    if path is not None:
         try:
-            token = SecretStr(settings.reader_token_file.read_text().strip())
+            token = SecretStr(path.read_text().strip())
         except (OSError, UnicodeError):
-            raise RuntimeError("Cannot read configured reader token file.") from None
+            raise RuntimeError(
+                f"Cannot read configured {role.lower()} token file."
+            ) from None
 
     if token is not None:
         value = token.get_secret_value()
         if not value or any(character.isspace() for character in value):
-            raise RuntimeError("Reader token must be nonblank without whitespace.")
+            raise RuntimeError(f"{role} token must be nonblank without whitespace.")
     return token
 
 
@@ -33,14 +42,35 @@ def require_reader(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
 ) -> None:
     """Reject unauthenticated requests and fail closed without configuration."""
+    require_role(request, credentials, "reader")
+
+
+def require_collector(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+) -> None:
+    """Only the collector credential may submit measurements."""
+    require_role(request, credentials, "collector")
+
+
+def require_role(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None,
+    role: str,
+) -> None:
     if credentials is None:
         raise HTTPException(status_code=401, headers={"WWW-Authenticate": "Bearer"})
 
-    expected = request.app.state.reader_token
+    expected = getattr(request.app.state, f"{role}_token")
+    other_role = "collector" if role == "reader" else "reader"
+    other = getattr(request.app.state, f"{other_role}_token")
+    supplied = credentials.credentials.encode()
+    if other is not None and secrets.compare_digest(
+        supplied, other.get_secret_value().encode()
+    ):
+        raise HTTPException(status_code=403)
     if expected is None:
         raise HTTPException(status_code=503)
 
-    if not secrets.compare_digest(
-        credentials.credentials.encode(), expected.get_secret_value().encode()
-    ):
+    if not secrets.compare_digest(supplied, expected.get_secret_value().encode()):
         raise HTTPException(status_code=401, headers={"WWW-Authenticate": "Bearer"})

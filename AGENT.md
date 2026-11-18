@@ -34,6 +34,7 @@ describe requirements and conventions; verify implementation status separately.
 
 | Document | When to read it |
 |---|---|
+| [Local stack launcher](docs/local-development.md) | Starting the existing Windows database, FastAPI, and React together from Git Bash/WSL; launcher checks, process cleanup, and Windows-only limitations. |
 | [Local PostgreSQL](docs/local-postgresql.md) | Database settings, Windows startup, and connectivity checks. |
 | [Project overview](README.md) | Starting work and finding project documentation. |
 | [Project plan and progress](docs/project-plan.md) | Checking the current stage, choosing the next milestone, and tracking assignment completion. Update it with evidence after milestone completion or material scope changes. |
@@ -78,7 +79,10 @@ checks from the repository root with the virtual environment active.
 `GET /api/v1/health?server_id=1` is implemented through `app/api/health.py`,
 `app/services/health.py`, and `app/schemas/health.py`. Its default database
 probe executes asynchronous PostgreSQL `SELECT 1` when configured, and fails
-closed without credentials. Tables, migrations, and live verification remain pending. The server check
+closed without credentials. The user verified local Windows database health.
+Metrics use a SQLAlchemy model and explicit Alembic migration; do not auto-create
+tables at startup. See the local PostgreSQL guide for upgrade commands.
+The server check
 only proves local API-process availability. Health requires a positive numeric
 `server_id`: local ID `1` is registered; invalid IDs return 400, unregistered
 IDs return 404, and failed checks return 503. Missing input returns 422. See
@@ -90,33 +94,44 @@ Requests may optionally select `server_id`; invalid IDs return 400 and
 unregistered IDs return 404. Omitted IDs select the configured local server. Reader
 bearer authentication uses a configured secret or mounted secret file; see the
 [server API contract](docs/api.md#server-api) and README for configuration and errors.
-Do not expose container metadata as host identity. Metrics, incidents, persistence,
-and collector/admin role authentication remain unimplemented. Keep these
-limits explicit instead of reporting unconfigured dependencies as healthy.
+Do not expose container metadata as host identity. Metrics GET/POST persist
+CPU, memory, disk, and uptime samples for the configured server. GET requires a
+reader token; POST requires a separate collector token (environment or `_FILE`).
+Wrong roles return 403. Incidents, automatic collection, and admin roles remain
+unimplemented. Keep these limits explicit instead of reporting unconfigured dependencies as healthy.
 Health probes use a 150 ms default timeout and run concurrently to target a
 response p95 below 200 ms. Timeouts return structured 503 responses. Keep probes
 nonblocking and cancellation-aware; local timing tests do not verify deployment
 latency. See the API specification for the response-time target and limits.
 
+### Local development launcher
+
+`scripts/setup/start_local.sh` targets the user's Windows installation. It delegates
+Windows service/process management to `start_local_windows.ps1` and validates
+configuration/storage through `check_local.py`. Use Windows Python/Node even from
+WSL to avoid mixed frontend native dependencies. Reuse private `.env`; never source
+it as Bash, print credentials, install packages, or apply migrations implicitly.
+Stop only app process trees created by this invocation and leave PostgreSQL running.
+Read the local launcher guide for checks, service selection, and verification limits.
+
 ### Implemented frontend workspace
 
-The user has resumed backend work with the health API first. Use the
+Health, server, and metrics are now available to the live frontend. Use the
 [frontend guide](docs/frontend.md) and its verification
 commands. The React/TypeScript app starts in labeled demo mode; its incidents
 are in-memory examples. Keep demo data separate from API responses and never
 embed bearer tokens in build variables or browser storage. The typed client uses
-same-origin `/api/v1`, with a development-only Vite proxy to FastAPI. Business
-endpoint integration and browser visual verification remain pending. The
-health route alone does not make the full frontend snapshot available; the
-metrics and incident API groups are still pending.
+same-origin `/api/v1`, with a development-only Vite proxy to FastAPI. Live mode
+loads health, server information, and metrics with a reader token;
+incidents are explicitly unavailable without blocking those APIs. Do not send
+collector credentials to the frontend. Browser visual verification remains pending.
 
 ## 3. Canonical folder ownership
 
 Place files by **responsibility**, not solely by extension.
 
 | Location | Belongs here | Does **not** belong here |
-|---|---|
-| [Local PostgreSQL](docs/local-postgresql.md) | Database settings, Windows startup, and connectivity checks. |---|
+|---|---|---|
 | `backend/app/api/` | FastAPI routers, request handling, dependencies | Complex business logic, host administration scripts |
 | `backend/app/models/` | SQLAlchemy entities and relationships | HTTP routes, UI |
 | `backend/app/schemas/` | Pydantic request/response contracts | Raw database access |

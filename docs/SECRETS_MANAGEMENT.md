@@ -175,12 +175,18 @@ The same Python code works with local environment variables or the corresponding
 
 ## 6. Cron monitoring and API keys
 
-The host-side `monitor.sh` runs outside Docker and submits health metrics to FastAPI through `http://127.0.0.1:8000/metrics`.
+The planned host-side collector runs outside Docker and submits metrics to
+`http://127.0.0.1:8000/api/v1/metrics`. The collector itself is not implemented yet.
+The application now uses `SERVERWATCH_COLLECTOR_TOKEN` or
+`SERVERWATCH_COLLECTOR_TOKEN_FILE` for POST, and a different reader token for GET.
+Use [local setup](local-postgresql.md) and `.env.example` for the implemented
+`SERVERWATCH_*` settings; older generic configuration examples above are illustrative.
 
 - Give the monitoring script a dedicated API key with limited scope.
 - Read that key from a protected file accessible to the monitoring user; do not paste it directly into the script or crontab.
 - FastAPI must verify the key before accepting submitted metrics.
-- Do not log the `X-API-Key` header or full Discord webhook URL.
+- Send `Authorization: Bearer <collector token>`; never log this header or a full Discord webhook URL.
+- Never give collector credentials or database passwords to the frontend.
 - Handle failed API submissions and avoid repeatedly creating duplicate incidents.
 
 ## 7. GitHub Actions and deployment

@@ -13,7 +13,8 @@ def test_openapi_describes_the_implemented_endpoints(client):
     assert response.status_code == 200
     assert response.json()["info"]["title"] == "ServerWatch tests"
     paths = response.json()["paths"]
-    assert set(paths) == {"/api/v1/health", "/api/v1/server"}
+    assert set(paths) == {"/api/v1/health", "/api/v1/server", "/api/v1/metrics"}
+    assert set(paths["/api/v1/metrics"]) == {"get", "post"}
     assert set(paths["/api/v1/server"]) == {"get"}
     server_operation = paths["/api/v1/server"]["get"]
     assert {"400", "404"} <= set(server_operation["responses"])

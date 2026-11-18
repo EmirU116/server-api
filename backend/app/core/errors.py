@@ -2,6 +2,7 @@
 
 import logging
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from http import HTTPStatus
 
 from fastapi import FastAPI, Request
@@ -113,6 +114,9 @@ async def unexpected_error_middleware(
     own failure handling because their work can outlive the response headers.
     """
     try:
+        # Metric timestamps are compared to receipt time, before body parsing
+        # or database work can make a future-dated sample appear valid.
+        request.state.received_at = datetime.now(UTC)
         return await call_next(request)
     except Exception as exc:
         return await unexpected_error_handler(request, exc)

@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import type { Snapshot } from '../types';
+import type { Metric } from '../types';
 
-export function MetricsTable({ metrics }: { metrics: Snapshot['metrics'] }) {
+export function MetricsTable({ metrics }: { metrics: Metric[] }) {
   const [page, setPage] = useState(0);
   const pageSize = 10;
   return (

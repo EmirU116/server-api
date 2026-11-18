@@ -1,6 +1,6 @@
 # ServerWatch API specification
 
-Status: health and server GET are implemented; metrics and incidents
+Status: health, server GET, and metrics GET/POST are implemented. Incidents
 remain proposed contracts. Shared errors and the health endpoint have tests. See
 [local setup](../README.md#local-backend-setup-python-fastapi) for the current
 startup and test commands.
@@ -116,6 +116,21 @@ A failed probe means unhealthy or unreachable, not that the server ID is absent.
 
 ## Metrics API
 
+Implemented with SQLAlchemy/PostgreSQL and an explicit Alembic upgrade. See
+[local metrics setup](local-postgresql.md#enable-metrics-storage-python-postgresql-alembic).
+GET requires the reader token; POST requires a distinct collector token. Both
+support environment and `_FILE` configuration. A valid token for the other role
+returns `403`; missing role configuration fails closed with `503`. No admin
+credential or automatic collection is implemented yet. Schema/connection failures
+return `503`; unexpected failures return sanitized `500`.
+
+The initial fields cover host statistics, not arbitrary application measurements.
+The server ID comes from configuration and is stored internally on every sample;
+it cannot be supplied in a POST body or GET query. Changing the configured ID
+selects that server's history. The server/time uniqueness index also supports
+filtered history reads. SQLAlchemy handles transactions and pooled connections;
+database work runs in worker threads to keep the API event loop responsive.
+
 ### `POST /metrics`
 
 Store one sample submitted by the authorized collector. This endpoint records
@@ -139,7 +154,7 @@ Request:
 | `cpu_percent` | number | Required, finite, from 0 through 100 |
 | `memory_percent` | number | Required, finite, from 0 through 100 |
 | `disk_percent` | number | Required, finite, from 0 through 100 |
-| `uptime_seconds` | integer | Required, nonnegative |
+| `uptime_seconds` | integer | Required, 0–9223372036854775807 (PostgreSQL BIGINT) |
 
 Reject strings or booleans in numeric fields. Historical samples are allowed.
 Use API receipt time when checking whether a timestamp is in the future; collectors
@@ -171,7 +186,7 @@ Optional query parameters:
 | Parameter | Default | Validation / behavior |
 | --- | --- | --- |
 | `limit` | 50 | Integer, 1–100 |
-| `offset` | 0 | Nonnegative integer |
+| `offset` | 0 | Integer, 0–9223372036854775807 |
 | `start` | Unset | Timezone-aware datetime; inclusive lower collection time |
 | `end` | Unset | Timezone-aware datetime; inclusive upper collection time |
 
@@ -250,8 +265,8 @@ account or a complete role system. Supply `SERVERWATCH_READER_TOKEN` locally or
 `SERVERWATCH_READER_TOKEN_FILE` for a protected mounted file (file takes precedence).
 Missing credentials never make the endpoint public. Blank/whitespace-containing
 tokens and unreadable secret files prevent startup with a sanitized error.
-No real token is created or committed by this implementation. Collector/admin
-permissions remain planned for their respective endpoints.
+No real token is created or committed by this implementation. Collector
+permissions are implemented for metrics POST; admin permissions remain planned.
 
 Native host metadata comes from Python's `platform` module; Linux distribution
 name/version come from `freedesktop_os_release()`. Common container markers are
@@ -453,7 +468,9 @@ integration tests against an isolated database for constraints, transaction
 rollback, and CRUD persistence. The foundation has executable shared-error and
 configuration tests. Run
 `python -m pytest backend/tests -q` after installing development dependencies.
-The endpoint and persistence coverage above remains to be implemented.
+Metrics endpoint and PostgreSQL persistence coverage are implemented. Integration
+tests use a private temporary PostgreSQL cluster and skip if server tools are
+unavailable. Incident endpoint and persistence tests remain to be implemented.
 
 ## Code comments and multiline explanations
 

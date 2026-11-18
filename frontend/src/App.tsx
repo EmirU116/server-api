@@ -59,7 +59,7 @@ export default function App() {
   const generation = useRef(0);
   const api = useMemo(() => createApi(token), [token]);
   const openCount =
-    snapshot?.incidents.filter((item) => item.status !== 'resolved').length ??
+    snapshot?.incidents?.filter((item) => item.status !== 'resolved').length ??
     0;
   const title =
     view === 'overview'
@@ -120,7 +120,7 @@ export default function App() {
     input: IncidentInput | IncidentUpdate,
     id?: string,
   ) {
-    if (!snapshot) return;
+    if (!snapshot?.incidents) return;
     const record =
       mode === 'demo'
         ? id
@@ -132,15 +132,18 @@ export default function App() {
         : id
           ? await api.updateIncident(id, input as IncidentUpdate)
           : await api.createIncident(input as IncidentInput);
-    setSnapshot(
-      (current) =>
-        current && {
-          ...current,
-          incidents: id
-            ? current.incidents.map((item) => (item.id === id ? record : item))
-            : [record, ...current.incidents],
-          incidentTotal: current.incidentTotal + (id ? 0 : 1),
-        },
+    setSnapshot((current) =>
+      current && current.incidents !== null && current.incidentTotal !== null
+        ? {
+            ...current,
+            incidents: id
+              ? current.incidents.map((item) =>
+                  item.id === id ? record : item,
+                )
+              : [record, ...current.incidents],
+            incidentTotal: current.incidentTotal + (id ? 0 : 1),
+          }
+        : current,
     );
     setNotice(
       `${mode === 'demo' ? 'Demo incident' : 'Incident'} ${id ? 'updated' : 'created'} successfully.`,
@@ -149,13 +152,14 @@ export default function App() {
 
   async function deleteIncident(id: string) {
     if (mode === 'api') await api.deleteIncident(id);
-    setSnapshot(
-      (current) =>
-        current && {
-          ...current,
-          incidents: current.incidents.filter((item) => item.id !== id),
-          incidentTotal: current.incidentTotal - 1,
-        },
+    setSnapshot((current) =>
+      current && current.incidents !== null && current.incidentTotal !== null
+        ? {
+            ...current,
+            incidents: current.incidents.filter((item) => item.id !== id),
+            incidentTotal: current.incidentTotal - 1,
+          }
+        : current,
     );
     setNotice(`${mode === 'demo' ? 'Demo incident' : 'Incident'} deleted.`);
   }
@@ -274,7 +278,7 @@ export default function App() {
               </button>
               <button
                 className="button primary"
-                disabled={!snapshot || loading}
+                disabled={!snapshot || snapshot.incidents === null || loading}
                 onClick={() => setEditing(null)}
               >
                 <Plus size={17} />
@@ -312,7 +316,9 @@ export default function App() {
             <div className="loading-state" role="status">
               <RefreshCw className="spin" size={25} />
               <h2>Checking in with your server…</h2>
-              <p>Loading health, metrics, server details, and incidents.</p>
+              <p>
+                Loading server information, health checks, and stored metrics.
+              </p>
             </div>
           ) : error ? (
             <section className="panel connection-error" role="alert">
@@ -320,8 +326,8 @@ export default function App() {
               <h2>We couldn’t load your server</h2>
               <p>{error}</p>
               <p className="muted">
-                The FastAPI foundation does not have business routes yet. No
-                demo data is substituted in API mode.
+                Check that FastAPI is running and your reader token is
+                configured. No demo data is substituted in API mode.
               </p>
               <div>
                 <button
@@ -355,16 +361,28 @@ export default function App() {
                     )}
                   </div>
                 )}
-                {(view === 'overview' || view === 'incidents') && (
-                  <IncidentTable
-                    key={view}
-                    incidents={snapshot.incidents}
-                    total={snapshot.incidentTotal}
-                    full={view === 'incidents'}
-                    onEdit={setEditing}
-                    onViewAll={() => setView('incidents')}
-                  />
-                )}
+                {(view === 'overview' || view === 'incidents') &&
+                  (snapshot.incidents === null ||
+                  snapshot.incidentTotal === null ? (
+                    <section className="panel">
+                      <div className="panel-heading">
+                        <h2>Incidents unavailable</h2>
+                      </div>
+                      <div className="empty-state">
+                        The incident API is not implemented yet. Incident counts
+                        and editing are unavailable in API mode.
+                      </div>
+                    </section>
+                  ) : (
+                    <IncidentTable
+                      key={view}
+                      incidents={snapshot.incidents}
+                      total={snapshot.incidentTotal}
+                      full={view === 'incidents'}
+                      onEdit={setEditing}
+                      onViewAll={() => setView('incidents')}
+                    />
+                  ))}
                 {view === 'metrics' && (
                   <MetricsTable metrics={snapshot.metrics} />
                 )}
@@ -425,8 +443,8 @@ export default function App() {
           }}
         >
           <p className="modal-description">
-            Connect to your ServerWatch API. Until the backend routes are
-            implemented, you can explore the demo instead.
+            Connect to your ServerWatch API with its reader token. Available
+            endpoints display real data; incidents are not available yet.
           </p>
           <form
             onSubmit={(event) => {
