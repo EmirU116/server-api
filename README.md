@@ -23,8 +23,10 @@ information with reader bearer authentication. Metrics GET/POST now use PostgreS
 storage, a SQLAlchemy model, and an Alembic migration. Reader tokens can read;
 separate collector tokens can submit samples. A simple local Python collector
 now submits real measurements with a five-second sleep between attempts.
-Incidents, production collection/scheduling, admin authentication, containers,
-and full deployment remain pending.
+Incident CRUD now persists records in PostgreSQL, with reader GET and a separate
+admin token for POST/PATCH/DELETE. Apply the new migration and configure the
+admin token using [local incident setup](docs/local-postgresql.md#enable-incident-storage-python-postgresql).
+Production collection/scheduling, alerts, containers, and full deployment remain pending.
 
 The React/TypeScript frontend now provides a demo dashboard and typed API
 client. Live mode loads health, server information, and stored metrics; incidents
@@ -189,7 +191,7 @@ All routes use the `/api/v1` prefix and target a single monitored server.
 
 The [API specification](docs/api.md) defines payloads, validation, authentication,
 permissions, pagination, error responses, and required tests. Health is public;
-the remaining endpoints require authentication under the proposed contract.
+the remaining endpoints require authentication under the implemented API contract.
 Automatic threshold detection and alert delivery are broader project goals,
 separate from the initial incident CRUD contract.
 
@@ -240,7 +242,7 @@ authoritative assessment criteria. CI/CD and a frontend are optional extensions.
 backend/
   app/main.py          FastAPI application factory
   app/core/            Runtime settings and shared error handling
-  app/api/             Health, server, and metrics routers; incidents pending
+  app/api/             Health, server, metrics, and incident CRUD routers
   app/models/          Database model scaffold
   app/schemas/         Health and server response contracts
   app/services/        Readiness probes and native host identity

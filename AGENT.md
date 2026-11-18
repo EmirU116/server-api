@@ -99,12 +99,26 @@ CPU, memory, disk, and uptime samples for the configured server. GET requires a
 reader token; POST requires a separate collector token (environment or `_FILE`).
 Wrong roles return 403. `scripts/monitoring/collect_local.py` provides a simple
 local host measurement/POST loop with `time.sleep(5)`, using `psutil` and a local
-collector credential. Production scheduling, incidents, and admin roles remain
-unimplemented. Keep these limits explicit instead of reporting unconfigured dependencies as healthy.
+collector credential. Incident CRUD and separate admin credentials are implemented; production
+scheduling and automatic incident detection remain unimplemented. Keep these limits explicit instead of reporting unconfigured dependencies as healthy.
 Health probes use a 150 ms default timeout and run concurrently to target a
 response p95 below 200 ms. Timeouts return structured 503 responses. Keep probes
 nonblocking and cancellation-aware; local timing tests do not verify deployment
 latency. See the API specification for the response-time target and limits.
+
+### Implemented incident API
+
+`backend/app/api/incidents.py` provides POST/list GET/detail GET/PATCH/DELETE.
+Schemas validate trimmed text, enums, aware occurrence times, and partial updates.
+`IncidentsService` scopes records to the configured server and uses transactions;
+updates/deletes lock rows. Preserve resolution time when editing an already
+resolved incident and clear it when reopening. Migration `0002_incidents` adds
+storage without changing metrics; never apply migrations implicitly at startup.
+Reader GET and admin writes use distinct tokens; admin supports environment or
+`_FILE` settings. All three configured role tokens must differ. Admin does not
+inherit reader/collector permissions. See [incident setup](docs/local-postgresql.md#enable-incident-storage-python-postgresql)
+and [the contract](docs/api.md#incident-api). The live frontend still marks
+incidents unavailable; automatic detection/alerts remain pending.
 
 ### Local development launcher
 

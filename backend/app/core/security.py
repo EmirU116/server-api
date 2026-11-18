@@ -1,4 +1,4 @@
-"""Separate read-only dashboard and metric collector bearer credentials."""
+"""Separate reader, collector, and incident administrator credentials."""
 
 import secrets
 from pathlib import Path
@@ -53,6 +53,14 @@ def require_collector(
     require_role(request, credentials, "collector")
 
 
+def require_admin(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+) -> None:
+    """Only administrators may create, edit, or delete incidents."""
+    require_role(request, credentials, "admin")
+
+
 def require_role(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None,
@@ -62,13 +70,15 @@ def require_role(
         raise HTTPException(status_code=401, headers={"WWW-Authenticate": "Bearer"})
 
     expected = getattr(request.app.state, f"{role}_token")
-    other_role = "collector" if role == "reader" else "reader"
-    other = getattr(request.app.state, f"{other_role}_token")
     supplied = credentials.credentials.encode()
-    if other is not None and secrets.compare_digest(
-        supplied, other.get_secret_value().encode()
-    ):
-        raise HTTPException(status_code=403)
+    for other_role in ("reader", "collector", "admin"):
+        if other_role == role:
+            continue
+        other = getattr(request.app.state, f"{other_role}_token")
+        if other is not None and secrets.compare_digest(
+            supplied, other.get_secret_value().encode()
+        ):
+            raise HTTPException(status_code=403)
     if expected is None:
         raise HTTPException(status_code=503)
 

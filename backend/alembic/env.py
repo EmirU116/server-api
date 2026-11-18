@@ -4,6 +4,7 @@ from alembic import context
 
 from app.core.config import load_settings
 from app.core.database import Database
+from app.models.incident import Incident  # noqa: F401 — register migration metadata
 from app.models.metric import Base
 
 

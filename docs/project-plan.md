@@ -6,7 +6,7 @@ EC2 audit. This is the progress tracker; endpoint details remain in
 
 ## Current position
 
-**Stage: health, server GET, and persistent metrics GET/POST implemented. Incidents remain planned.**
+**Stage: all four backend APIs implemented, including persistent incident CRUD.**
 
 The project has a runnable FastAPI application factory, validated settings,
 shared error handling, dependency manifests, and a passing foundation test suite.
@@ -17,7 +17,7 @@ Server GET returns native host identity with reader authentication. Metrics GET/
 now persist samples through SQLAlchemy with a versioned Alembic migration and
 separate reader/collector credentials. A local collector now submits real host
 measurements with a five-second sleep, and the API dashboard polls every five
-seconds. Incidents and production monitoring/scheduling remain unimplemented. React live mode reads the three available APIs and explicitly marks
+seconds. Incident CRUD now uses reader GET and admin writes; production monitoring/scheduling remains unimplemented. React live mode reads the three available APIs and explicitly marks
 incidents unavailable. Real browser/Windows metrics verification remains pending.
 No cloud deployment or assignment demonstration has been verified.
 
@@ -30,7 +30,7 @@ No cloud deployment or assignment demonstration has been verified.
 | Health API | Verified route/service behavior; user confirmed Windows database health | `backend/app/api/health.py`, schemas/services, and `backend/tests/test_health.py` |
 | Server API | Implemented; native EC2/container verification pending | Server router/schema/service and tests; reader token authentication |
 | Metrics and persistence | Implemented and tested with isolated PostgreSQL | Metrics model, Alembic upgrade, transaction, filtering, and persistence tests; user must apply upgrade locally |
-| Incident endpoints | Not started | Contract documented; no incident implementation |
+| Incident endpoints | Implemented; Windows smoke test pending | CRUD router/schema/service, PostgreSQL migration, role checks and isolated persistence tests |
 | React frontend | Live health/server/metrics integrated; browser check pending | 27 passing frontend tests, successful typecheck/build/format; no incident API calls |
 | Infrastructure and CI/CD | Native testing scripts added; EC2 run pending | Ubuntu setup, systemd test template, and verification script; broader deployment/CI pending |
 | Deployment and demo | Not verified | No runbook or recorded verification evidence |
@@ -58,7 +58,7 @@ assumed by this plan.
 
 ## Implementation milestones
 
-Phase 1 is **Verified**; phases 2, 5, and 7 are **In progress**. Phases 3, 4, 6, and 8
+Phase 1 is **Verified**; phases 2–5 and 7 are **In progress**. Phases 6 and 8
 remain **Not started**. Phase 5 has native test scripts but no EC2 verification.
 Health and server GET are implemented. Phase 2
 is not complete: database work and real host/container verification remain pending. Complete
@@ -89,8 +89,9 @@ task name. A task can involve several topics.
 Tasks 1.1–1.3 and 7.1 are **Verified**. Tasks 7.2–7.3 are **In progress**, with
 demo behavior and automated checks passing but live integration/browser review
 pending. Tasks 5.2–5.4 are **In progress** with test scripts and a service template.
-Task 2.2 is **In progress** with both routes implemented and host verification pending. Other tasks
-remain **Not started**. Each task uses the completion
+Task 2.2 is **In progress** with both routes implemented and host verification pending.
+Database, authentication, metrics, incident CRUD, and local collection are now
+implemented; see their individual status rows and dated verification below. Each task uses the completion
 evidence for its parent milestone above.
 
 | Task (topics) | Work to complete | Status |
@@ -98,13 +99,13 @@ evidence for its parent milestone above.
 | 1.1 Backend setup (Python, FastAPI) | Add dependencies, application entry point, and local configuration. | Verified |
 | 1.2 Errors and test foundation (Python, Pydantic, pytest) | Add structured error handling and test setup; verify startup and configuration failure paths. | Verified |
 | 1.3 Local development guide (Documentation) | Document verified installation, startup, and test commands. | Verified |
-| 2.1 Database connection and schema (Python, PostgreSQL, SQLAlchemy, Alembic) | Connectivity, metrics model, pooled sessions, and initial migration implemented; incident schema remains pending. | In progress |
+| 2.1 Database connection and schema (Python, PostgreSQL, SQLAlchemy, Alembic) | Connectivity, metrics/incident models, pooled sessions, and both migrations implemented; Windows incident upgrade pending. | In progress |
 | 2.2 Health and server endpoints (Python, FastAPI, Linux) | Implement health and server GET routes, including dependency failure and correct host identity. | In progress |
 | 2.3 Persistence verification (Python, pytest, PostgreSQL) | Metrics migration, persistence, rollback, and filtering tested in private temporary PostgreSQL; Windows metrics run pending. | In progress |
-| 3.1 Authentication and validation (Python, FastAPI, Pydantic, Security) | Reader/collector roles implemented; admin role awaits incidents. | In progress |
+| 3.1 Authentication and validation (Python, FastAPI, Pydantic, Security) | Reader/collector/admin roles and request validation implemented; private local admin provisioning pending. | In progress |
 | 3.2 Metrics endpoints (Python, FastAPI, PostgreSQL) | GET/POST, filtering, pagination, database uniqueness, persistence, and frontend reads implemented. | Verified locally |
-| 3.3 Incident endpoints (Python, FastAPI, PostgreSQL) | Implement incident create, read, update, and delete behavior. | Not started |
-| 3.4 API and business logic tests (Python, pytest, PostgreSQL) | Metrics API and PostgreSQL tests implemented; incident tests remain pending. | In progress |
+| 3.3 Incident endpoints (Python, FastAPI, PostgreSQL) | Implement incident create, read, update, and delete behavior. | Implemented; local Windows verification pending |
+| 3.4 API and business logic tests (Python, pytest, PostgreSQL) | Metrics and incident API/PostgreSQL tests implemented; Windows end-to-end verification pending. | In progress |
 | 4.1 Host metrics collection (Python, Bash, Linux, HTTP) | Simple local Python loop implemented; EC2/Cron scheduling and production verification pending. | In progress |
 | 4.2 Scheduled collection (Cron, Linux) | Configure collection schedules and verify execution. | Not started |
 | 4.3 Incident detection and alerts (Python, Monitoring) | Detect threshold breaches, avoid duplicate open incidents, and deliver alerts through the selected channel. | Not started |
@@ -152,13 +153,13 @@ Rehearsal instances are separate from the final demonstration instance.
 
 - Confirm the original assignment brief, deadline, and division of work between
   the two students.
-- Reader token environment/file provisioning is implemented. Choose provisioning
-  for collector/admin roles defined by `api.md`. That contract
-  specifies bearer authentication; the secrets guide contains an older
-  `X-API-Key`/unversioned metrics example. Align collector documentation with the
-  contract before implementing collector/admin authentication.
-- Define metric collection frequency, incident thresholds, resolution policy,
-  retention, and the chosen notification channel. These are not yet specified.
+- Reader/collector/admin environment/file support is implemented. Configure the
+  separate admin credential using `api.md` and the local setup guide. Use current
+  `SERVERWATCH_*` settings and Bearer authentication instead of older generic
+  examples in the secrets guide.
+- Local collection uses a five-second sleep. Define the production collection
+  schedule, incident thresholds, automatic resolution policy, retention, and
+  notification channel.
 - Choose how a containerized API obtains the monitored host's identity and
   health without reporting only its own container metadata.
 - Identify domain/DNS ownership, backup storage location, and recovery procedure.
@@ -166,11 +167,11 @@ Rehearsal instances are separate from the final demonstration instance.
 
 ## Immediate next task
 
-Apply the metrics migration and configure distinct reader/collector tokens using
-[local setup](local-postgresql.md#enable-metrics-storage-python-postgresql-alembic).
-Verify POST followed by GET and the React dashboard on Windows. After that, choose
-between **3.3 Incident endpoints (Python, FastAPI, PostgreSQL)** and
-**4.1 Host metrics collector (Bash, Python)**. Browser and EC2 verification remain pending.
+Apply the latest Alembic upgrade and configure a distinct admin token using
+[local incident setup](local-postgresql.md#enable-incident-storage-python-postgresql).
+Restart FastAPI and verify incident CRUD in Swagger on Windows. Verify the
+five-second collector/dashboard flow, then connect the live incident frontend.
+Automatic detection, alerts, production deployment, and backups remain pending.
 
 ## Verified foundation evidence (2026-11-16)
 
@@ -408,3 +409,28 @@ provisioning, deployment, or credential operations.
   collector token, restart the launcher, and connect the dashboard with the reader
   token. Windows process startup/browser verification still requires a local run.
 - Remaining: durable delivery, EC2/Cron monitoring, alerts, incidents, and backups.
+
+
+## Incident CRUD (Python, FastAPI, PostgreSQL, Security) — 2026-11-18
+
+- Added POST/list GET/detail GET/PATCH/DELETE under `/api/v1/incidents` with
+  strict text/enum/aware-time validation, UUID validation, unsupported-input
+  rejection, filters, pagination, generated fields, and Location/no-store headers.
+- Incident writes require a separate optional admin token with environment/file
+  support; GET remains reader-only. All configured role tokens must differ.
+  Missing admin configuration fails closed for writes without disabling metrics.
+- Added migration `0002_incidents`, transactions, server scoping, update/delete
+  row locks, and resolution/reopening timestamp behavior. PostgreSQL-returned
+  timestamps are normalized to UTC. Existing metrics migration remains unchanged.
+- Verification: **299 backend tests passed**, including isolated PostgreSQL CRUD,
+  rollback, persistence, status transitions, missing-table failures, and a repeated
+  upgrade of an existing metrics-only schema preserving its measurement.
+  The existing **24 launcher/collector/EC2 verification tests** also passed.
+  Ruff lint/format and dependency checks passed. No real local database or secret files were read
+  or changed, and no AWS resources were accessed.
+- Local action: run the documented upgrade, configure the separate admin token
+  privately, restart FastAPI, and verify CRUD in Swagger. See
+  [incident setup](local-postgresql.md#enable-incident-storage-python-postgresql).
+- Live React incident integration, automatic detection, alerts, and production
+  deployment remain pending. The existing dashboard still shows incidents as
+  unavailable in connected mode; demo incidents remain separate.

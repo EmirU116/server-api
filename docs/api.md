@@ -1,7 +1,7 @@
 # ServerWatch API specification
 
-Status: health, server GET, and metrics GET/POST are implemented. Incidents
-remain proposed contracts. Shared errors and the health endpoint have tests. See
+Status: all four APIs are implemented, including persistent incident CRUD.
+HTTP contract and isolated PostgreSQL persistence tests cover the endpoints. See
 [local setup](../README.md#local-backend-setup-python-fastapi) for the current
 startup and test commands.
 
@@ -110,7 +110,7 @@ not inspect a remote host or report OS resource measurements. The application
 database probe executes asynchronous PostgreSQL `SELECT 1` when configured.
 Without credentials, or on connection/query failure or timeout, it reports
 `database: down` and returns `503`. A successful query allows `200`.
-See [local PostgreSQL setup](local-postgresql.md). Tables and migrations remain pending. If the entire API host
+See [local PostgreSQL setup](local-postgresql.md). Metrics and incidents use explicit Alembic migrations. If the entire API host
 is offline, no response can be sent; the frontend handles connection failure.
 A failed probe means unhealthy or unreachable, not that the server ID is absent.
 
@@ -120,8 +120,7 @@ Implemented with SQLAlchemy/PostgreSQL and an explicit Alembic upgrade. See
 [local metrics setup](local-postgresql.md#enable-metrics-storage-python-postgresql-alembic).
 GET requires the reader token; POST requires a distinct collector token. Both
 support environment and `_FILE` configuration. A valid token for the other role
-returns `403`; missing role configuration fails closed with `503`. No admin
-credential or production scheduler is implemented yet. A simple local test
+returns `403`; missing role configuration fails closed with `503`. Admin credentials are implemented for incident writes; production scheduling remains pending. A simple local test
 collector now POSTs real host samples (see [local development](local-development.md)).
 Schema/connection failures
 return `503`; unexpected failures return sanitized `500`.
@@ -268,7 +267,7 @@ account or a complete role system. Supply `SERVERWATCH_READER_TOKEN` locally or
 Missing credentials never make the endpoint public. Blank/whitespace-containing
 tokens and unreadable secret files prevent startup with a sanitized error.
 No real token is created or committed by this implementation. Collector
-permissions are implemented for metrics POST; admin permissions remain planned.
+permissions are implemented for metrics POST; admin permissions are implemented for incident writes.
 
 Native host metadata comes from Python's `platform` module; Linux distribution
 name/version come from `freedesktop_os_release()`. Common container markers are
@@ -311,6 +310,26 @@ Incidents record server errors, outages, or other operational problems. Records
 remain stored until explicitly deleted, including after resolution. This API
 supports recording incidents; automatic incident detection is separate work.
 
+Implemented with PostgreSQL and migration `0002_incidents`. Run the existing
+upgrade command before testing; see [local incident setup](local-postgresql.md#enable-incident-storage-python-postgresql).
+GET uses the reader token. POST/PATCH/DELETE require a distinct
+`SERVERWATCH_ADMIN_TOKEN` or `SERVERWATCH_ADMIN_TOKEN_FILE` (file takes precedence).
+Roles are separate: the admin token does not grant reader or collector access.
+A recognized token for another role returns 403, missing/invalid credentials
+return 401, and an unconfigured required role returns 503. Duplicate role tokens,
+blank tokens, or unreadable configured secret files prevent startup safely.
+
+All operations disable caching. POST/PATCH require JSON and reject query
+parameters. GET-by-ID and DELETE reject query parameters and bodies; list GET
+accepts only the documented filters and pagination, once each. Missing tables,
+connection failures, pool/lock timeouts return sanitized 503; unexpected failures
+return sanitized 500. Writes are transactional; updates/deletes lock their record
+so concurrent changes cannot corrupt status/resolution consistency. Concurrent
+edits serialize, with the last successful edit to a field taking effect.
+
+The current React live dashboard still marks incidents unavailable. This task
+implements the backend; live incident UI integration remains separate work.
+
 ### `POST /incidents`
 
 Request:
@@ -326,8 +345,8 @@ Request:
 
 | Input field | Validation |
 | --- | --- |
-| `title` | Required string; trim whitespace; 1–200 characters |
-| `description` | Required string; trim whitespace; 1–5000 characters |
+| `title` | Required string; trim whitespace; 1–200 characters; no null characters |
+| `description` | Required string; trim whitespace; 1–5000 characters; no null characters |
 | `severity` | Required enum: `info`, `warning`, `critical` |
 | `occurred_at` | Required timezone-aware datetime; cannot be in the future |
 
@@ -472,7 +491,8 @@ configuration tests. Run
 `python -m pytest backend/tests -q` after installing development dependencies.
 Metrics endpoint and PostgreSQL persistence coverage are implemented. Integration
 tests use a private temporary PostgreSQL cluster and skip if server tools are
-unavailable. Incident endpoint and persistence tests remain to be implemented.
+unavailable. Incident tests cover CRUD, filtering, resolution/reopening, rollback,
+server isolation, safe storage failures, and upgrading an existing metrics schema.
 
 ## Code comments and multiline explanations
 

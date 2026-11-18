@@ -86,7 +86,8 @@ Install updated dependencies with the same Windows Python used to run FastAPI:
 .\.venv-windows\Scripts\python.exe backend/migrate.py --env-file .env
 ```
 
-The migration creates `metrics` and Alembic's version table. It does not run on
+The upgrade creates `metrics`, `incidents`, and Alembic's version table.
+An existing metrics-only database upgrades by adding the incidents table. It does not run on
 application startup. Repeating the upgrade preserves existing records. To inspect
 SQL without connecting, add `--sql`. Do not run downgrades against data you need.
 Missing tables make metrics return `503`, even when the health query succeeds.
@@ -102,11 +103,11 @@ SERVERWATCH_COLLECTOR_TOKEN=REPLACE_WITH_DIFFERENT_PRIVATE_COLLECTOR_TOKEN
 Both also support `_FILE` alternatives in `.env.example`. Restart FastAPI after
 editing credentials. Nothing in this setup creates real tokens automatically.
 
-- Readers can GET server information and metrics.
+- Readers can GET server information, metrics, and incidents.
 - Collectors can POST metrics. They cannot read protected dashboard endpoints.
 - Using a valid token for the wrong role returns `403`; missing/invalid tokens
   return `401`. Missing required role configuration fails closed with `503`.
-- The same token cannot be assigned to both roles.
+- Reader, collector, and optional admin tokens must all be different.
 
 ## Verify POST and GET (FastAPI, React)
 
@@ -140,3 +141,53 @@ Never enter the collector token or database password into the frontend.
 For automated verification, run `python -m pytest backend/tests -q`. The database
 integration tests start and stop a private loopback-only cluster under pytest's
 temporary directory. Without `initdb`/`pg_ctl`, they skip; API unit tests still run.
+
+
+## Enable incident storage (Python, PostgreSQL)
+
+From the project root in Windows PowerShell, run the existing upgrade command:
+
+```powershell
+.\.venv-windows\Scripts\python.exe backend/migrate.py --env-file .env
+```
+
+This applies `0002_incidents` without deleting existing measurements. No upgrade
+has been run against your local database by the coding agent. Health can be
+healthy while incident requests return 503 because their table is missing.
+
+Generate a separate token privately (do not paste the output into chat):
+
+```powershell
+.\.venv-windows\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Store it in your ignored `.env` as `SERVERWATCH_ADMIN_TOKEN`; alternatively use
+`SERVERWATCH_ADMIN_TOKEN_FILE`. Keep it different from reader/collector tokens.
+Restart FastAPI (or the launcher) so it loads the new setting. Admin configuration
+is optional for the rest of the application, but incident writes fail closed
+with 503 until it is supplied. The launcher still requires only reader/collector
+credentials and checks the metrics table; it does not verify the incidents table.
+
+Test in <http://127.0.0.1:8000/docs>:
+
+1. Authorize with the admin token, then POST `/api/v1/incidents`:
+
+   ```json
+   {
+     "title": "Local test incident",
+     "description": "Testing incident creation and resolution.",
+     "severity": "warning",
+     "occurred_at": "2026-01-01T12:00:00Z"
+   }
+   ```
+
+   Expect 201, an ID, initial status `open`, and a Location header.
+2. Switch to the reader token. GET the list and the generated incident ID.
+3. Switch back to admin. PATCH the ID with `{"status": "resolved"}`; expect
+   200 and a non-null `resolved_at`. Reopen with `{"status": "open"}` to clear it.
+4. DELETE that test incident; expect 204 with no body. Switch to reader and GET
+   the same ID; expect 404. Deletion permanently removes the selected record.
+
+The live React incident view is not connected yet. Use Swagger for these checks;
+never place admin credentials into the dashboard's reader connection field.
+Automatic detection and notifications remain pending.

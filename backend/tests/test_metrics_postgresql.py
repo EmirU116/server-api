@@ -4,101 +4,18 @@ No existing database or credential file is accessed. PostgreSQL server tools
 must already be installed; otherwise these integration tests are skipped.
 """
 
-import os
-import shutil
-import socket
-import subprocess
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 
 import pytest
-from alembic import command
 from alembic.autogenerate import compare_metadata
-from alembic.config import Config
 from alembic.migration import MigrationContext
 from pydantic import SecretStr
-from sqlalchemy import URL, create_engine, delete, inspect, text
+from sqlalchemy import delete, inspect, text
 from test_metrics import COLLECTOR, READER, SAMPLE
 
 from app.models.metric import Base, Metric
 from app.schemas.metric import MetricCreate
 from app.services.metrics import DuplicateMetric, FutureMetric, MetricsService
-
-
-@pytest.fixture(scope="module")
-def postgres_engine(tmp_path_factory):
-    initdb = shutil.which("initdb")
-    if initdb is None:
-        candidates = sorted(Path("/usr/lib/postgresql").glob("*/bin/initdb"))
-        initdb = str(candidates[-1]) if candidates else None
-    if initdb is None or (hasattr(os, "geteuid") and os.geteuid() == 0):
-        pytest.skip("PostgreSQL initdb/pg_ctl and a non-root account are required")
-
-    folder = tmp_path_factory.mktemp("serverwatch-private-postgres")
-    data = folder / "data"
-    pg_ctl = str(Path(initdb).with_name("pg_ctl"))
-    subprocess.run(
-        [
-            initdb,
-            "-D",
-            str(data),
-            "-U",
-            "serverwatch_test",
-            "-A",
-            "trust",
-            "--no-locale",
-            "-E",
-            "UTF8",
-        ],
-        check=True,
-        capture_output=True,
-        timeout=30,
-    )
-    with socket.socket() as reservation:
-        reservation.bind(("127.0.0.1", 0))
-        port = reservation.getsockname()[1]
-    # Trust authentication is confined to this short-lived, loopback-only test
-    # cluster. Its files and sockets are under pytest's private temp directory.
-    subprocess.run(
-        [
-            pg_ctl,
-            "-D",
-            str(data),
-            "-l",
-            str(folder / "postgres.log"),
-            "-o",
-            f"-F -h 127.0.0.1 -p {port} -k {folder}",
-            "-w",
-            "start",
-        ],
-        check=True,
-        capture_output=True,
-        timeout=30,
-    )
-    engine = create_engine(
-        URL.create(
-            "postgresql+psycopg",
-            username="serverwatch_test",
-            host="127.0.0.1",
-            port=port,
-            database="postgres",
-        )
-    )
-    try:
-        config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
-        with engine.begin() as connection:
-            config.attributes["connection"] = connection
-            command.upgrade(config, "head")
-            command.upgrade(config, "head")  # Repeating an upgrade preserves schema.
-        yield engine
-    finally:
-        engine.dispose()
-        subprocess.run(
-            [pg_ctl, "-D", str(data), "-m", "fast", "-w", "stop"],
-            check=True,
-            capture_output=True,
-            timeout=30,
-        )
 
 
 @pytest.fixture
@@ -201,7 +118,7 @@ def test_migration_matches_model(postgres_engine):
         )
         assert (
             connection.scalar(text("SELECT version_num FROM alembic_version"))
-            == "0001_metrics"
+            == "0002_incidents"
         )
 
 

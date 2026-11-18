@@ -192,6 +192,17 @@ Use [local setup](local-postgresql.md) and `.env.example` for the implemented
 - Never give collector credentials or database passwords to the frontend.
 - Handle failed API submissions and avoid repeatedly creating duplicate incidents.
 
+### Incident administrator credential
+
+Incident writes require a separate `SERVERWATCH_ADMIN_TOKEN` or
+`SERVERWATCH_ADMIN_TOKEN_FILE`; the file takes precedence. Reader, collector, and
+admin values must be different. An admin token grants incident POST/PATCH/DELETE,
+not reader GET or metric POST permissions. Missing admin configuration disables
+incident writes with 503 without disabling other APIs. Create/store the token
+privately using [local incident setup](local-postgresql.md#enable-incident-storage-python-postgresql).
+Do not put it in frontend build variables, browser storage, logs, or Git.
+The current dashboard reader connection must continue using only the reader token.
+
 ## 7. GitHub Actions and deployment
 
 Store deployment secrets in **GitHub Actions Secrets**, not in workflow YAML or committed shell scripts. Restrict deployment to the approved branch/environment and use least-privilege credentials. If deploying to AWS APIs, prefer short-lived identity through **GitHub OIDC + IAM role** rather than permanent AWS access keys. For SSH-based deployments, use a narrowly scoped deployment key and protect it as a secret.
