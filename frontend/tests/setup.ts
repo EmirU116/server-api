@@ -12,5 +12,6 @@ HTMLDialogElement.prototype.close = function () {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });

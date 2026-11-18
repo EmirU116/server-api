@@ -76,6 +76,7 @@ def test_windows_dispatch_preserves_paths_and_service_name(
         ({}, 0),
         ({"SERVERWATCH_DATABASE_HOST": "remote.invalid"}, 1),
         ({"SERVERWATCH_READER_TOKEN": ""}, 1),
+        ({"SERVERWATCH_COLLECTOR_TOKEN": ""}, 1),
         ({"SERVERWATCH_DATABASE_PASSWORD": ""}, 1),
         ({"SERVERWATCH_DATABASE_PORT": "bad-port"}, 1),
         ({"SERVERWATCH_ENVIRONMENT": "production"}, 1),
@@ -85,6 +86,7 @@ def test_configuration_checks_use_only_dummy_private_file(tmp_path, override, ex
     config = {
         "SERVERWATCH_DATABASE_PASSWORD": "dummy-sensitive-password",
         "SERVERWATCH_READER_TOKEN": "dummy-sensitive-reader",
+        "SERVERWATCH_COLLECTOR_TOKEN": "dummy-sensitive-collector",
         **override,
     }
     env_file = tmp_path / "fake.env"

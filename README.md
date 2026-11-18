@@ -21,8 +21,10 @@ See [local PostgreSQL setup](docs/local-postgresql.md) for Windows instructions.
 The GET-only `/api/v1/server` endpoint now returns identity and OS
 information with reader bearer authentication. Metrics GET/POST now use PostgreSQL
 storage, a SQLAlchemy model, and an Alembic migration. Reader tokens can read;
-separate collector tokens can submit samples. Incidents, automated collection,
-admin authentication, containers, and full deployment remain pending.
+separate collector tokens can submit samples. A simple local Python collector
+now submits real measurements with a five-second sleep between attempts.
+Incidents, production collection/scheduling, admin authentication, containers,
+and full deployment remain pending.
 
 The React/TypeScript frontend now provides a demo dashboard and typed API
 client. Live mode loads health, server information, and stored metrics; incidents
@@ -42,10 +44,13 @@ bash scripts/setup/start_local.sh
 ```
 
 The launcher starts/reuses Windows PostgreSQL, checks database/schema access,
-and starts Windows FastAPI and React. Open <http://127.0.0.1:5173> and connect
-with your reader token. Ctrl+C stops its app processes; PostgreSQL stays running.
+and starts Windows FastAPI, React, and the local measurement loop. Open
+<http://127.0.0.1:5173> and connect with your reader token. The live dashboard
+refreshes every five seconds. Ctrl+C stops its app/collector processes;
+PostgreSQL stays running.
 See [local launcher setup and troubleshooting](docs/local-development.md).
-This does not collect measurements automatically.
+Install updated Python requirements first (the collector uses `psutil`) and
+configure separate reader/collector tokens privately in `.env`.
 
 ## Local backend setup (Python, FastAPI)
 

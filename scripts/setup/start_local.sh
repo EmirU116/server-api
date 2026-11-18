@@ -6,11 +6,11 @@ usage() {
     cat <<'HELP'
 Usage: bash scripts/setup/start_local.sh [--postgres-service NAME]
 
-Start the existing Windows PostgreSQL service, FastAPI, and React for local tests.
+Start Windows PostgreSQL, FastAPI, React, and a five-second local metrics loop.
 Run in Git Bash or WSL with Windows interop enabled. Windows Python and Node are
 used for both environments. Existing .env, dependencies, and metrics migration
 are required. Nothing is installed and no credentials or databases are created.
-Press Ctrl+C to stop the API and frontend; PostgreSQL is left running.
+Press Ctrl+C to stop the API, frontend, and collector; PostgreSQL stays running.
 HELP
 }
 

@@ -97,7 +97,9 @@ bearer authentication uses a configured secret or mounted secret file; see the
 Do not expose container metadata as host identity. Metrics GET/POST persist
 CPU, memory, disk, and uptime samples for the configured server. GET requires a
 reader token; POST requires a separate collector token (environment or `_FILE`).
-Wrong roles return 403. Incidents, automatic collection, and admin roles remain
+Wrong roles return 403. `scripts/monitoring/collect_local.py` provides a simple
+local host measurement/POST loop with `time.sleep(5)`, using `psutil` and a local
+collector credential. Production scheduling, incidents, and admin roles remain
 unimplemented. Keep these limits explicit instead of reporting unconfigured dependencies as healthy.
 Health probes use a 150 ms default timeout and run concurrently to target a
 response p95 below 200 ms. Timeouts return structured 503 responses. Keep probes
@@ -111,7 +113,9 @@ Windows service/process management to `start_local_windows.ps1` and validates
 configuration/storage through `check_local.py`. Use Windows Python/Node even from
 WSL to avoid mixed frontend native dependencies. Reuse private `.env`; never source
 it as Bash, print credentials, install packages, or apply migrations implicitly.
-Stop only app process trees created by this invocation and leave PostgreSQL running.
+The launcher also starts the local collector and requires both reader and
+collector tokens plus `psutil`. Stop only app/collector process trees created by
+this invocation and leave PostgreSQL running.
 Read the local launcher guide for checks, service selection, and verification limits.
 
 ### Implemented frontend workspace
@@ -122,7 +126,8 @@ commands. The React/TypeScript app starts in labeled demo mode; its incidents
 are in-memory examples. Keep demo data separate from API responses and never
 embed bearer tokens in build variables or browser storage. The typed client uses
 same-origin `/api/v1`, with a development-only Vite proxy to FastAPI. Live mode
-loads health, server information, and metrics with a reader token;
+loads health, server information, and metrics with a reader token, then polls
+every five seconds without overlapping requests;
 incidents are explicitly unavailable without blocking those APIs. Do not send
 collector credentials to the frontend. Browser visual verification remains pending.
 

@@ -175,8 +175,11 @@ The same Python code works with local environment variables or the corresponding
 
 ## 6. Cron monitoring and API keys
 
-The planned host-side collector runs outside Docker and submits metrics to
-`http://127.0.0.1:8000/api/v1/metrics`. The collector itself is not implemented yet.
+The local test collector `scripts/monitoring/collect_local.py` now submits real
+host measurements to `http://127.0.0.1:8000/api/v1/metrics` using a plain loop and
+five-second sleep. It loads the collector credential privately and never follows
+redirects or prints tokens/response bodies. Production host/Cron scheduling remains
+pending. See [local development](local-development.md).
 The application now uses `SERVERWATCH_COLLECTOR_TOKEN` or
 `SERVERWATCH_COLLECTOR_TOKEN_FILE` for POST, and a different reader token for GET.
 Use [local setup](local-postgresql.md) and `.env.example` for the implemented

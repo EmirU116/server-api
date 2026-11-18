@@ -131,8 +131,10 @@ editing credentials. Nothing in this setup creates real tokens automatically.
 4. Start the frontend with `npm run dev` in `frontend/`, open
    <http://127.0.0.1:5173>, choose **Connect API**, and enter the reader token.
    Health, server information, and saved metrics now load from FastAPI. Incidents
-   remain explicitly unavailable. No real metrics are collected automatically:
-   the sample above is manually supplied test data, not a host measurement.
+   remain explicitly unavailable. API mode polls every five seconds. The sample
+   above is manually supplied test data. For real host measurements, use the
+   [local launcher and collector](local-development.md); the launcher now starts
+   the collector automatically after the API.
 
 Never enter the collector token or database password into the frontend.
 For automated verification, run `python -m pytest backend/tests -q`. The database

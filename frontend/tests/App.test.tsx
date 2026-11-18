@@ -1,5 +1,6 @@
 import {
   fireEvent,
+  act,
   render,
   screen,
   waitFor,
@@ -241,5 +242,91 @@ describe('demo workspace', () => {
     expect(fetch.mock.calls.some(([path]) => path.includes('/incidents'))).toBe(
       false,
     );
+  });
+
+  it('polls live measurements every five seconds and stops when unmounted', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const demo = createDemoSnapshot();
+    let cpu = 12.3;
+    const fetch = vi.fn().mockImplementation(async (path: string) => {
+      if (path.endsWith('/server')) return Response.json(demo.server);
+      if (path.includes('/health?')) return Response.json(demo.health);
+      return Response.json({
+        items: [{ ...demo.metrics[0], cpu_percent: cpu }],
+        total: 1,
+        limit: 100,
+        offset: 0,
+      });
+    });
+    vi.stubGlobal('fetch', fetch);
+    const { unmount } = render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Connect API' }));
+    fireEvent.change(screen.getByLabelText('Bearer token'), {
+      target: { value: 'dummy-reader' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    expect(await screen.findByText('12.3')).toBeInTheDocument();
+    cpu = 22.4;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(screen.getByText('22.4')).toBeInTheDocument();
+    expect(
+      screen.queryByText('Checking in with your server…'),
+    ).not.toBeInTheDocument();
+    const calls = fetch.mock.calls.length;
+    unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(fetch).toHaveBeenCalledTimes(calls);
+  });
+
+  it('shows polling failure and recovers on a later poll without overlapping requests', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+    const demo = createDemoSnapshot();
+    let metricCalls = 0;
+    let finishPending: ((response: Response) => void) | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (path: string) => {
+        if (path.endsWith('/server')) return Response.json(demo.server);
+        if (path.includes('/health?')) return Response.json(demo.health);
+        metricCalls += 1;
+        if (metricCalls === 2) {
+          return new Promise<Response>((resolve) => {
+            finishPending = resolve;
+          });
+        }
+        return Response.json({
+          items: [{ ...demo.metrics[0], cpu_percent: 12.3 }],
+          total: 1,
+          limit: 100,
+          offset: 0,
+        });
+      }),
+    );
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Connect API' }));
+    fireEvent.change(screen.getByLabelText('Bearer token'), {
+      target: { value: 'dummy-reader' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    expect(await screen.findByText('12.3')).toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000);
+    });
+    expect(metricCalls).toBe(2);
+    await act(async () => {
+      finishPending!(new Response('{}', { status: 503 }));
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'temporarily unavailable',
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText('12.3')).toBeInTheDocument();
   });
 });

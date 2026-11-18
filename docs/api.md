@@ -121,7 +121,9 @@ Implemented with SQLAlchemy/PostgreSQL and an explicit Alembic upgrade. See
 GET requires the reader token; POST requires a distinct collector token. Both
 support environment and `_FILE` configuration. A valid token for the other role
 returns `403`; missing role configuration fails closed with `503`. No admin
-credential or automatic collection is implemented yet. Schema/connection failures
+credential or production scheduler is implemented yet. A simple local test
+collector now POSTs real host samples (see [local development](local-development.md)).
+Schema/connection failures
 return `503`; unexpected failures return sanitized `500`.
 
 The initial fields cover host statistics, not arbitrary application measurements.

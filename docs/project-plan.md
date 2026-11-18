@@ -15,8 +15,9 @@ requires a numeric `server_id` and returns structured readiness; its database ch
 uses PostgreSQL `SELECT 1` when configured; the user verified Windows connectivity.
 Server GET returns native host identity with reader authentication. Metrics GET/POST
 now persist samples through SQLAlchemy with a versioned Alembic migration and
-separate reader/collector credentials. Incidents and automated collection remain
-unimplemented. React live mode reads the three available APIs and explicitly marks
+separate reader/collector credentials. A local collector now submits real host
+measurements with a five-second sleep, and the API dashboard polls every five
+seconds. Incidents and production monitoring/scheduling remain unimplemented. React live mode reads the three available APIs and explicitly marks
 incidents unavailable. Real browser/Windows metrics verification remains pending.
 No cloud deployment or assignment demonstration has been verified.
 
@@ -68,7 +69,7 @@ each milestone with observable evidence. Owners and deadlines are unassigned.
 | 1. Local backend foundation (Python, FastAPI, pytest) | Python dependency manifest, application entry point, configuration, structured error handling, test setup, documented local startup | App starts locally; smoke tests pass; invalid configuration fails without exposing values. No required credentials exist at this stage | Verified |
 | 2. Persistence and read endpoints (Python, PostgreSQL, Alembic) | PostgreSQL connection, SQLAlchemy models, Alembic migrations, health and server GET routes | Migrations apply to an isolated database; health reports dependency failure; server identity describes the host correctly | In progress |
 | 3. Metrics and incidents (Python, FastAPI, pytest) | Auth/permissions, metrics GET/POST, full incident CRUD, pagination and validation | Unit and API contract tests cover the matrix in `api.md`; database integration tests prove persistence and rollback | In progress |
-| 4. Monitoring and recovery (Bash, Cron, Python, PostgreSQL) | Host collector, Cron schedules, threshold detection, alert delivery, PostgreSQL/log backup and restore scripts | A collected sample is stored; a controlled breach produces an incident and alert without duplicate open incidents; isolated restore succeeds | Not started |
+| 4. Monitoring and recovery (Bash, Cron, Python, PostgreSQL) | Host collector, Cron schedules, threshold detection, alert delivery, PostgreSQL/log backup and restore scripts | A collected sample is stored; a controlled breach produces an incident and alert without duplicate open incidents; isolated restore succeeds | In progress |
 | 5. Native EC2 deployment — G (AWS EC2, Bash, systemd, Nginx) | Bootstrap via SCP, repository setup, independent student SSH access, native service, Nginx, scheduled operations | Rehearsed fresh-instance deployment; API/database connectivity, restart behavior, monitoring, and backups demonstrated | In progress |
 | 6. Containers and HTTPS — VG (Docker, Docker Compose, DNS, Certbot) | API Dockerfile, separate API/PostgreSQL Compose services, persistent volume, domain, Certbot | Compose validation and health checks pass; records survive restart; HTTPS and renewal checks pass; native service stopped before port reuse | Not started |
 | 7. Frontend (React, TypeScript) | React/TypeScript app, typed API client, health/metrics/server views, incident management | Type checking/build pass; UI handles loading, empty, validation, permission, and unavailable states; core flows work against the API | In progress |
@@ -104,7 +105,7 @@ evidence for its parent milestone above.
 | 3.2 Metrics endpoints (Python, FastAPI, PostgreSQL) | GET/POST, filtering, pagination, database uniqueness, persistence, and frontend reads implemented. | Verified locally |
 | 3.3 Incident endpoints (Python, FastAPI, PostgreSQL) | Implement incident create, read, update, and delete behavior. | Not started |
 | 3.4 API and business logic tests (Python, pytest, PostgreSQL) | Metrics API and PostgreSQL tests implemented; incident tests remain pending. | In progress |
-| 4.1 Host metrics collection (Bash, Linux, HTTP) | Collect host statistics and submit them to the authenticated metrics endpoint. | Not started |
+| 4.1 Host metrics collection (Python, Bash, Linux, HTTP) | Simple local Python loop implemented; EC2/Cron scheduling and production verification pending. | In progress |
 | 4.2 Scheduled collection (Cron, Linux) | Configure collection schedules and verify execution. | Not started |
 | 4.3 Incident detection and alerts (Python, Monitoring) | Detect threshold breaches, avoid duplicate open incidents, and deliver alerts through the selected channel. | Not started |
 | 4.4 Backup and restore (Bash, PostgreSQL, Cron) | Script database/log backups, schedule them, and verify an isolated restore. | Not started |
@@ -387,3 +388,23 @@ provisioning, deployment, or credential operations.
   tests** (14 launcher/configuration cases plus 3 existing EC2 verifier cases).
   Dispatch tests cover Git Bash/WSL, paths with spaces, and nonzero exit status.
   Native Windows service startup and Ctrl+C cleanup still require a Windows smoke test. See [local development](local-development.md).
+
+## Five-second local monitoring (Python, React, TypeScript) — 2026-11-18
+
+- Added `scripts/monitoring/collect_local.py`: actual psutil CPU/memory/home-volume
+  disk/uptime sample, authenticated local POST, and `time.sleep(5)` in a simple
+  while loop. Three-second HTTP timeout; failures are skipped and retried with a
+  fresh sample after sleeping. No queues, services, or production scheduler added.
+- The Windows local launcher starts/stops the collector with the apps and checks
+  psutil plus distinct reader/collector configuration before starting services.
+- Connected React mode polls every five seconds, skips overlapping slow polls,
+  recovers from errors, cancels updates after cleanup, and shows the latest
+  measurement time. Demo mode still makes no automatic requests.
+- Verification: 24 automation tests passed (15 launcher, 6 collector, 3 existing
+  EC2 verifier); 29 frontend tests passed. Python lint/format, dependency checks,
+  Bash syntax, frontend typecheck, build, and formatting passed. Frontend checks
+  used a temporary Linux copy; Windows node_modules was preserved.
+- User action: install updated Python requirements (psutil), configure the private
+  collector token, restart the launcher, and connect the dashboard with the reader
+  token. Windows process startup/browser verification still requires a local run.
+- Remaining: durable delivery, EC2/Cron monitoring, alerts, incidents, and backups.

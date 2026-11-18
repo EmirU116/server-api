@@ -33,6 +33,20 @@ export function HealthPanel({
       <p>
         {demo ? 'Example readiness check' : 'Reported by the health endpoint'}
       </p>
+      {!demo && (
+        <p>
+          {snapshot.metrics[0] ? (
+            <>
+              Latest measurement:{' '}
+              <time dateTime={snapshot.metrics[0].collected_at}>
+                {new Date(snapshot.metrics[0].collected_at).toLocaleString()}
+              </time>
+            </>
+          ) : (
+            'No measurements received yet.'
+          )}
+        </p>
+      )}
       <div className="health-checks">
         <div>
           <span>

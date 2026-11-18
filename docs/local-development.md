@@ -2,15 +2,22 @@
 
 This launcher targets the project's existing Windows installation: PostgreSQL
 as a Windows service, `.venv-windows`, and Windows Node.js. Git Bash and WSL can
-both launch it; all three services still run on Windows. It does not install or
+both launch it; the database, API, frontend, and collector all run on Windows. It does not install or
 switch to a separate Linux database, Python environment, or Node installation.
 
 ## One-time preparation (Windows, Python, npm)
 
 Complete [local PostgreSQL setup](local-postgresql.md), including the metrics
-migration and private database password/reader token in `.env`. A collector token
-is needed only for submitting measurements, not starting the dashboard.
-Install frontend dependencies from **Windows PowerShell**:
+migration and private database password plus separate reader/collector tokens in
+`.env`. Both tokens are required because the launcher now runs the collector.
+Install updated Python dependencies from the project root in Windows PowerShell:
+
+```powershell
+.\.venv-windows\Scripts\python.exe -m pip install -r backend/requirements-dev.txt
+```
+
+This includes `psutil` for host measurements. Install frontend dependencies from
+**Windows PowerShell**:
 
 ```powershell
 cd frontend
@@ -38,16 +45,18 @@ The launcher:
 2. Finds the installed PostgreSQL Windows service and starts it if stopped.
 3. Verifies the configured database login and metrics table without writing data.
 4. Starts FastAPI with `.env`, local reload, and port 8000.
-5. Starts React/Vite on port 5173, waits for both HTTP endpoints, and prints URLs.
+5. Starts the local Python collector after the API: measure, POST, sleep five
+   seconds, repeat.
+6. Starts React/Vite on port 5173, waits for both HTTP endpoints, and prints URLs.
 
 Open <http://127.0.0.1:5173>, choose **Connect API**, and enter your reader token.
 API documentation is at <http://127.0.0.1:8000/docs>.
 The launcher doesn't send credentials to the browser or print their values.
 It doesn't apply migrations, create databases, generate tokens, or install packages.
 
-Keep the terminal open. **Ctrl+C** stops the API/frontend process trees started
-by this invocation. If either app exits, the launcher stops the other one and
-reports failure. PostgreSQL is left running because other applications may use
+Keep the terminal open. **Ctrl+C** stops the API, frontend, and collector process
+trees started by this invocation. If an app or collector exits, the launcher stops
+the remaining processes and reports failure. PostgreSQL is left running because other applications may use
 it; its data is preserved.
 
 The Bash entry point uses a PowerShell helper solely for Windows service/process
@@ -90,20 +99,56 @@ in the PostgreSQL and frontend guides.
   your WSL configuration. Native Linux-only setups are not supported by this
   Windows-specific launcher.
 
-This starts existing components. Automatic metric collection and periodic UI
-refresh remain separate work; starting the stack does not generate measurements.
+## Simple local collection (Python)
+
+The launcher now records actual CPU, memory, home-drive/filesystem disk usage,
+and uptime from the Windows machine running the collector. Its core is simply:
+
+```python
+while True:
+    sample = collect_sample()
+    post_sample(sample, collector_token)
+    time.sleep(5)
+```
+
+The actual script also handles failed requests and Ctrl+C. A short 0.1-second CPU
+measurement avoids an inaccurate first nonblocking reading; see the
+[psutil documentation](https://psutil.readthedocs.io/stable/).
+It pauses five seconds after each attempt, so sampling takes approximately five
+seconds plus measurement and request time. HTTP calls have a three-second timeout.
+Failed samples are skipped; the next fresh sample is attempted after the sleep.
+There is no persistent retry queue or production scheduler.
+
+POST uses the collector token only, with a fixed loopback URL and no redirect
+following. The frontend uses the reader token and polls every five seconds after
+**Connect API**. A first poll can happen just before a POST, so a new measurement
+may appear on the next refresh. Disk/memory values may legitimately stay the same;
+uptime and the displayed latest-measurement timestamp help verify fresh samples.
+
+If running the API manually instead of through the launcher, start just the
+collector in another Windows PowerShell terminal from the project root:
+
+```powershell
+.\.venv-windows\Scripts\python.exe scripts/monitoring/collect_local.py --env-file .env
+```
+
+Do not start a second collector when the launcher is already running one. Stop
+with Ctrl+C. Restart the API/collector after changing tokens in `.env`. Measurements
+are real database writes that remain saved after stopping the local stack.
+EC2 scheduling, alerts, backups, and production collection remain separate work.
 
 ## Verification (Bash, Python)
 
 ```bash
 bash -n scripts/setup/start_local.sh
 bash scripts/setup/start_local.sh --help
-python -m pytest tests/test_local_launcher.py -q
+python -m pytest tests/test_local_launcher.py tests/test_local_collector.py -q
 ```
 
-The 14 launcher tests passed, covering Windows/WSL command dispatch, paths with
-spaces, exit status propagation, input errors, and dummy configuration checks.
-The three existing EC2 verification tests also passed. Bash syntax/help and
+The 15 launcher tests and 6 collector tests passed, covering Windows/WSL command
+dispatch, paths with spaces, exit status, dummy configuration, host sampling,
+authenticated POST, connection cleanup, retries, and five-second sleeps.
+The three existing EC2 verification tests also passed (24 automation tests total). Bash syntax/help and
 Python lint/format checks passed. ShellCheck was unavailable. Actual Windows service startup, process
 cleanup on Ctrl+C, and browser integration require a Windows smoke test; they
 have not been verified in the Linux development environment.

@@ -84,14 +84,20 @@ The client in `frontend/src/services/api.ts` follows [the API contract](api.md):
 - Demo incident search/status filters and metric table pagination apply to
   loaded records; the API workspace loads at most the latest 100 measurements.
   Fetching further server-side pages is future work.
-- Fetches on connection or explicit refresh. There is no automatic polling.
+- Fetches on connection or explicit refresh, then polls every five seconds in
+  API mode. Slow polls do not overlap. Polling stops on unmount, reconnect, or
+  return to demo mode. Failures show an error and a later successful poll recovers.
+  Background polling does not clear the dashboard into a loading screen.
+- Displays the latest measurement timestamp so an unchanged old record is visible
+  as old data. Actual recording is handled by the local collector, not the browser.
 
 API mode never silently substitutes demo data. Server, health, and metrics
 requests must succeed and match their response contracts; failures display an
 error with retry and return-to-demo actions. Unimplemented capabilities are represented
 explicitly as unavailable, not as successful empty collections. A valid empty
 metrics response means no measurements have been recorded. Refresh fetches
-updated data; there is no automatic monitoring collector in the frontend.
+updated data; the browser never POSTs host measurements. The
+[local launcher](local-development.md) runs a separate five-second Python collector.
 
 Production hosting and same-origin `/api` reverse proxy configuration remain
 future infrastructure work. `npm run preview` previews static build output;

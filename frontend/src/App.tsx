@@ -82,6 +82,40 @@ export default function App() {
     document.title = `ServerWatch · ${title}`;
   }, [title]);
 
+  useEffect(() => {
+    if (mode !== 'api' || !token || loading) return;
+    let active = true;
+    let inFlight = false;
+    const timer = window.setInterval(async () => {
+      // Keep the page visible during background refresh and avoid overlapping
+      // slow requests. Ignore results after reconnecting or returning to demo.
+      if (inFlight) return;
+      inFlight = true;
+      const current = generation.current;
+      try {
+        const data = await api.snapshot();
+        if (active && generation.current === current) {
+          setSnapshot(data);
+          setError('');
+        }
+      } catch (failure) {
+        if (active && generation.current === current) {
+          setError(
+            failure instanceof Error
+              ? failure.message
+              : 'Unable to refresh server data.',
+          );
+        }
+      } finally {
+        inFlight = false;
+      }
+    }, 5_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [api, loading, mode, token]);
+
   async function loadApi(bearer: string) {
     const current = ++generation.current;
     setMode('api');
@@ -416,7 +450,7 @@ export default function App() {
                     <span className="tiny-dot" />
                     {mode === 'demo'
                       ? 'Sample workspace · not live monitoring'
-                      : 'API workspace · refresh to fetch new data'}
+                      : 'API workspace · updates every 5 seconds'}
                   </span>
                   <span>Built for a clearer view.</span>
                 </footer>

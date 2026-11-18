@@ -15,6 +15,7 @@ $vite = Join-Path $frontendDir "node_modules/vite/bin/vite.js"
 $checker = Join-Path $PSScriptRoot "check_local.py"
 $apiProcess = $null
 $frontendProcess = $null
+$collectorProcess = $null
 
 function Assert-PortFree([int]$Port) {
     $listener = [System.Net.Sockets.TcpListener]::new(
@@ -112,6 +113,11 @@ try {
     Wait-Http "http://127.0.0.1:8000/api/v1/health?server_id=0" 400 $apiProcess
     Write-Host "PASS: FastAPI is ready."
 
+    $collectorProcess = Start-Process -FilePath $python -WorkingDirectory $projectDir `
+        -ArgumentList '-u scripts/monitoring/collect_local.py --env-file .env' `
+        -NoNewWindow -PassThru
+    Write-Host "Local collector started: POST measurements, sleep five seconds, repeat."
+
     $frontendProcess = Start-Process -FilePath $node -WorkingDirectory $frontendDir `
         -ArgumentList ('"' + $vite + '" --host 127.0.0.1 --port 5173 --strictPort') `
         -NoNewWindow -PassThru
@@ -120,16 +126,21 @@ try {
     Write-Host "Frontend: http://127.0.0.1:5173"
     Write-Host "API docs: http://127.0.0.1:8000/docs"
     Write-Host "Choose Connect API in the dashboard and use your private reader token."
-    Write-Host "Press Ctrl+C to stop React and FastAPI. PostgreSQL stays running."
+    Write-Host "Press Ctrl+C to stop React, FastAPI, and the collector. PostgreSQL stays running."
 
-    while (-not $apiProcess.HasExited -and -not $frontendProcess.HasExited) {
+    while (
+        -not $apiProcess.HasExited -and
+        -not $frontendProcess.HasExited -and
+        -not $collectorProcess.HasExited
+    ) {
         Start-Sleep -Seconds 1
     }
-    throw "A local application exited. Stopping the other application."
+    throw "A local application or collector exited. Stopping the remaining processes."
 } catch {
     Write-Host "FAIL: $($_.Exception.Message)"
     exit 1
 } finally {
+    Stop-OwnedProcess $collectorProcess
     Stop-OwnedProcess $frontendProcess
     Stop-OwnedProcess $apiProcess
     Pop-Location

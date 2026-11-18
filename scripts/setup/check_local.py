@@ -15,6 +15,7 @@ def check(env_file: Path, configuration_only: bool = False) -> None:
     prove the configured login can read metrics, without writing records or
     applying migrations. Loading .env occurs only in this short-lived process.
     """
+    import psutil
     from app.main import create_app
     from app.models.metric import Metric
     from dotenv import load_dotenv
@@ -34,6 +35,13 @@ def check(env_file: Path, configuration_only: bool = False) -> None:
             raise RuntimeError("Configure the database password privately in .env.")
         if app.state.reader_token is None:
             raise RuntimeError("Configure a reader token privately in .env.")
+        if app.state.collector_token is None:
+            raise RuntimeError(
+                "Configure a separate collector token privately in .env."
+            )
+        # Importing psutil here also checks its platform-specific binary before
+        # the launcher starts PostgreSQL or either application.
+        psutil.cpu_count()
         if not configuration_only:
             with database.engine.connect() as connection:
                 connection.execute(select(Metric.id).limit(0))
@@ -53,8 +61,8 @@ def main() -> None:
         # Never echo driver exceptions, settings, submitted values, or .env text.
         print(
             "FAIL: Local configuration/storage check failed. Check Python "
-            "dependencies, .env, local PostgreSQL, reader token, and the metrics "
-            "migration. See docs/local-development.md.",
+            "dependencies, .env, local PostgreSQL, reader/collector tokens, "
+            "and the metrics migration. See docs/local-development.md.",
             file=sys.stderr,
         )
         raise SystemExit(1) from None
