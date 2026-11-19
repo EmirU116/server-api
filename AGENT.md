@@ -44,6 +44,7 @@ describe requirements and conventions; verify implementation status separately.
 | [Frontend development](docs/frontend.md) | Working on the React/TypeScript UI, demo/live data separation, API client, local development proxy, or frontend checks. |
 | [Ubuntu host monitoring](docs/ubuntu-monitoring.md) | Installing native Ubuntu PostgreSQL, migrations, API/collector systemd services, or verifying fresh persisted measurements. This is separate from the older smoke-test setup. |
 | [Native EC2 testing](docs/ec2-testing.md) | Preparing an existing Ubuntu EC2 host with the bootstrap script, running the localhost systemd test service, or interpreting verification feedback. Full deployment remains pending. |
+| [EC2 manual setup and deployment rehearsal](docs/ec2-manual-setup.md) | Creating a fresh instance, deploying monitoring, publishing the React build and FastAPI via Nginx, and testing the public IP. |
 | [API specification](docs/api.md) | Implementing or changing health, metrics, server information, incident CRUD, validation, error handling, API tests, or code comments. The current contract targets one monitored server. |
 | [Secrets management](docs/SECRETS_MANAGEMENT.md) | Handling credentials, authentication configuration, containers, monitoring, or deployment; use its storage and approval rules. |
 

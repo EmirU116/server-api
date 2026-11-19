@@ -17,11 +17,12 @@ deployment that continues collecting measurements after reboot.**
 | --- | --- |
 | API and storage (Python, PostgreSQL) | Health checks the API process and its database connection. Server information comes from the host. Alembic migrations create the metrics and incidents tables. Incident CRUD was verified against local Windows PostgreSQL. |
 | Dashboard (React, TypeScript) | Live mode reads health, server details, and stored metrics. The collector posts a sample, then sleeps five seconds. The dashboard polls every five seconds. Incident editing is available in demo mode. The full Windows collector-to-browser flow still needs a live check. |
-| Ubuntu setup (Bash, systemd) | The installer configures PostgreSQL and enables API and collector services. The verifier checks host identity, readiness, and a fresh stored measurement. Installation and reboot still need verification on EC2. |
+| Ubuntu setup (Bash, systemd) | The installer configures PostgreSQL and enables API and collector services. The user reported 8/8 checks passing on EC2. Reboot and public web access still need verification. |
 | CI (GitHub Actions) | Pull requests targeting `main` and pushes to `main` run Python tests with disposable PostgreSQL, dashboard checks, and Bash syntax checks. [Passing run on main at `3285a97`](https://github.com/EmirU116/server-api/actions/runs/44458684832) |
 
-Remaining G work includes public Swagger access through Nginx, scheduled
-monitoring with alerts, and Cron backups with a restore check. The VG work adds
+The Nginx installer serves the dashboard, API and Swagger over HTTP. Public
+browser verification on EC2, scheduled monitoring with alerts, and Cron
+backups with a restore check remain. The VG work adds
 Docker Compose and HTTPS on a custom domain. [Project plan and assignment coverage](docs/project-plan.md)
 
 ## Start the local stack (Bash, Windows)
@@ -60,8 +61,11 @@ Setup installs local PostgreSQL/Python, creates private credentials, applies
 migrations, and starts API/collector services at boot. The collector measures
 that Ubuntu host every five-second sleep cycle. Verification checks fresh stored
 measurements. Read [Ubuntu setup and verification](docs/ubuntu-monitoring.md)
-for prerequisites, service commands, and limits. Native Ubuntu/EC2 execution
-still needs a real-server smoke test; this does not publish the frontend/API.
+for prerequisites, service commands, and limits. Follow the
+[EC2 manual setup and deployment rehearsal](docs/ec2-manual-setup.md) to create a
+fresh instance, clone and update the repository, and verify the deployment.
+Follow the [Nginx web setup](docs/ec2-manual-setup.md#7-serve-the-dashboard-and-api-through-nginx-bash-react-fastapi)
+after verifying monitoring to access ServerWatch via the public IP.
 
 ## Local backend setup (Python, FastAPI)
 
@@ -120,6 +124,7 @@ environment variables:
 | --- | --- | --- |
 | `SERVERWATCH_APP_NAME` | `ServerWatch` | Nonblank name, at most 100 characters |
 | `SERVERWATCH_ENVIRONMENT` | `development` | `development`, `test`, `production` |
+| `SERVERWATCH_EXPOSE_API_DOCS` | `false` | Set to `true` to enable Swagger and OpenAPI in production for the assignment |
 | `SERVERWATCH_SERVER_ID` | `1` | Positive integer; shared by health and server |
 | `SERVERWATCH_SERVER_NAME` | `ServerWatch server` | Nonblank display name, at most 200 characters |
 | `SERVERWATCH_READER_TOKEN` | Unset | Private reader bearer token without whitespace |
@@ -135,7 +140,9 @@ environment variables:
 
 Invalid settings and invalid configured reader credentials prevent startup with a
 sanitized error. Without a configured token, health remains available while server
-information fails closed. Production mode disables Swagger, ReDoc, and OpenAPI endpoints.
+information fails closed. Production mode disables Swagger, ReDoc, and OpenAPI
+by default. The Nginx installer sets `SERVERWATCH_EXPOSE_API_DOCS=true` to enable
+Swagger and OpenAPI for the assignment.
 It does not turn this foundation into a complete production deployment.
 
 For optional local overrides, copy `.env.example` to an ignored `.env` and load

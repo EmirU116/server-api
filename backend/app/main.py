@@ -37,7 +37,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if engine is not None:
                 await run_in_threadpool(engine.dispose)
 
-    expose_docs = settings.environment != "production"
+    expose_docs = settings.environment != "production" or settings.expose_api_docs
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
@@ -45,7 +45,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         debug=False,
         lifespan=lifespan,
         docs_url="/docs" if expose_docs else None,
-        redoc_url="/redoc" if expose_docs else None,
+        redoc_url="/redoc" if settings.environment != "production" else None,
         openapi_url="/openapi.json" if expose_docs else None,
     )
     app.state.settings = settings

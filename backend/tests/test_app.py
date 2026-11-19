@@ -52,3 +52,14 @@ def test_production_disables_documentation(path):
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "not_found"
+
+
+def test_production_can_opt_in_to_swagger_and_openapi():
+    app = create_app(Settings(environment="production", expose_api_docs=True))
+
+    with TestClient(app) as client:
+        docs = client.get("/docs")
+        assert docs.status_code == 200
+        assert "/openapi.json" in docs.text
+        assert "/api/v1/health" in client.get("/openapi.json").json()["paths"]
+        assert client.get("/redoc").status_code == 404

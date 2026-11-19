@@ -37,7 +37,6 @@ if [[ ! -f "$project_dir/backend/requirements.txt" || ! -f "$project_dir/scripts
     echo "[FAIL] Clone the current project first."
     exit 1
 fi
-sudo -v
 # Refuse to replace another checkout's managed services or an older smoke-test
 # deployment. Never stop arbitrary processes simply to make a port available.
 for service in serverwatch-api serverwatch-collector; do

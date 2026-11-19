@@ -19,7 +19,8 @@ separate reader/collector credentials. A local collector now submits real host
 measurements with a five-second sleep, and the API dashboard polls every five
 seconds. Incident CRUD now uses reader GET and admin writes; Ubuntu systemd units provide continuous collection. Threshold alerts and Cron backups are outstanding. React live mode reads the three available APIs and explicitly marks
 incidents unavailable. Real browser/Windows metrics verification remains pending.
-No cloud deployment or assignment demonstration has been verified.
+The user reported 8/8 native monitoring checks passing on EC2. Reboot and
+public browser verification remain pending.
 
 | Workstream | Current status | Evidence |
 | --- | --- | --- |
@@ -111,7 +112,7 @@ evidence for its parent milestone above.
 | 4.4 Backup and restore (Bash, PostgreSQL, Cron) | Script database/log backups, schedule them, and verify an isolated restore. | Not started |
 | 5.1 EC2 and student access (AWS EC2, Linux, SSH) | Prepare the instance configuration and independent access for both students. | Not started |
 | 5.2 Server bootstrap (Bash, SCP, Git, Linux) | Ubuntu installer prepares a cloned checkout with Python, PostgreSQL, and migrations. SCP and fresh instance verification remain pending. | In progress |
-| 5.3 Native service and reverse proxy (systemd, Nginx, Linux) | API and collector systemd units are available. Native EC2 startup and Nginx forwarding remain pending. | In progress |
+| 5.3 Native service and reverse proxy (systemd, Nginx, Linux) | Native verifier passed 8/8 on EC2, as reported by the user. Nginx setup and web verification scripts are implemented. Run the [public IP rehearsal](ec2-manual-setup.md#7-serve-the-dashboard-and-api-through-nginx-bash-react-fastapi) and capture browser evidence. | In progress |
 | 5.4 Native deployment verification (Bash, Linux, Testing) | Localhost smoke verifier added; fresh-instance verification, restarts, scheduled monitoring, and backups remain pending. | In progress |
 | 5.5 Define and verify environment access (Ubuntu, Bash, Linux users, groups, ACLs) | Define dev/prod ownership and role membership, provision accounts and inherited permissions, then check effective allowed and denied operations as each identity. See the [proposed access matrix](ubuntu-monitoring.md#planned-linux-users-groups-and-permissions). | Future task. No host changes applied. |
 | 6.1 API image (Docker, Python) | Create the API Dockerfile and build a runnable image. | Not started |
@@ -144,8 +145,8 @@ evidence for the EC2 requirements.
 | G4 Repository checkout (Git, Linux) | Home-directory clone documented. Full installer expects an existing user-owned checkout. | Perform the clone as the deployment user and show ownership and the order of steps. |
 | G5 Backups (Bash, Cron, PostgreSQL) | Cron directory reserved. | Implement scheduled on-instance backups, show the files created and verify a database restore. |
 | G6 Monitoring and alerts (Linux, Python, Discord or email) | Host collector samples every five seconds, with a systemd unit and verifier for fresh stored measurements. | Verify on EC2 and demonstrate a scheduled check sending a notification for a controlled threshold breach. |
-| G7 Public API docs (systemd, FastAPI, HTTP) | API systemd unit exists. Uvicorn binds to loopback and production mode disables Swagger and OpenAPI. | Demonstrate the native service on EC2. Configure the deployment to serve Swagger and its schema through the proxy, then open the public IP's `/docs` in a browser. |
-| G8 Reverse proxy (Nginx) | Directory reserved. | Configure Nginx, validate its configuration and show it forwarding requests to the loopback API. |
+| G7 Public API docs (systemd, FastAPI, HTTP) | Web installer opts into Swagger and OpenAPI on the existing loopback API. | Open public-IP `/docs` and `/openapi.json` from a browser on EC2 rehearsal. |
+| G8 Reverse proxy (Nginx) | Site serves the static React build and proxies API requests. | Run the web installer and verifier on EC2 and confirm public HTTP routing. |
 | G9 Database connection (FastAPI, PostgreSQL) | Local health and Windows incident CRUD verified against PostgreSQL. Migrations and persistence tested with disposable PostgreSQL. | Show the deployed API reading and writing through the instance's database. |
 | VG1 Containers (Docker, Compose, PostgreSQL) | No project Dockerfile or Compose configuration. | Build and run API and database containers on EC2, demonstrate persistence and also show the native process manager. |
 | VG2 Custom domain (DNS, HTTPS, Certbot) | No verified domain or TLS setup. | Point a domain at the instance, issue a certificate and demonstrate working HTTPS. |
