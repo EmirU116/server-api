@@ -1,6 +1,9 @@
-# Proposed Git and GitHub Actions workflow for ServerWatch
+# Git and GitHub Actions workflow for ServerWatch
 
-**Decision for review** — Start with automated tests on GitHub while developing on Windows or Linux. Add EC2 deployment automation after the native Ubuntu setup has been rehearsed and the Docker image exists. This proposal introduces no active workflow. The [assignment](assignment-brief.md) requires the native and container demonstrations for VG. Automatic image deployment to EC2 is the separate VG4 bonus.
+The test-only [CI workflow](../.github/workflows/ci.yml) is implemented locally.
+GitHub runs it after it is published to the repository with Actions enabled.
+The first hosted result and branch protection settings are pending. Docker and
+EC2 deployment automation are later milestones. The [assignment](assignment-brief.md) requires the native and container demonstrations for VG. Automatic image deployment to EC2 is the separate VG4 bonus.
 
 ## How one change travels through the project (Git, GitHub)
 
@@ -26,11 +29,32 @@ git push -u origin fix/server-id-errors
 
 Keep existing local commits and work in progress when adopting this workflow. Review any commits already ahead of the remote before publishing a new branch.
 
-## First workflow to approve (GitHub Actions, Python, TypeScript, Bash)
+## One human working with agents (Git, review)
 
-Place the proposed file at `.github/workflows/ci.yml`. Its `on` section selects the events, `jobs` names the independent checks, and each job's `runs-on` selects a runner. The job's `steps` check out the code, install tools and run commands. Use `pull_request` targeting `main` and `push` to `main`. PR checks then run when the PR opens and when new commits arrive. Keep daily development commands in their existing project files so a failed job is reproducible locally. [GitHub Actions workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)
+The human owns the task scope, the decision to publish, and the merge into
+`main`. For a human-authored change, review your own diff. For an agent-authored
+change, the human reviews the actual diff and CI results before merging.
 
-| Proposed job | What runs and what it catches |
+1. Give each task a short-lived branch. For concurrent agents, give each its
+   own worktree and branch. Identify owned files and coordinate shared files
+   such as the plan or workflow before editing them.
+2. An agent inspects existing changes before starting, keeps commits focused,
+   runs the same checks as a human, and reports commands, results and remaining
+   gaps. Preserve other contributors' work. Never weaken checks to obtain a pass.
+3. When publication is authorized, the PR records the purpose, affected areas,
+   and verification. The same jobs run regardless of the author. Agents use
+   their assigned identity and do not approve or merge their own changes.
+4. The human reviews changes to workflows, test configuration and permissions
+   especially carefully because the PR can change the checks themselves.
+   Production credentials and deploy permissions are outside the CI job.
+   Where supported, require all three checks on main after their first hosted
+   run. [GitHub branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)
+
+## Implemented CI workflow (GitHub Actions, Python, TypeScript, Bash)
+
+The workflow lives at `.github/workflows/ci.yml`. Its `on` section selects the events, `jobs` names the independent checks, and each job's `runs-on` selects a runner. The job's `steps` check out the code, install tools and run commands. Use `pull_request` targeting `main` and `push` to `main`. PR checks then run when the PR opens and when new commits arrive. Keep daily development commands in their existing project files so a failed job is reproducible locally. [GitHub Actions workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)
+
+| Job | What runs and what it catches |
 | --- | --- |
 | Backend (Python, Ruff, pytest, PostgreSQL) | Install `backend/requirements-dev.txt`. Run `ruff check backend/app backend/tests`, `ruff format --check backend/app backend/tests`, then `python -m pytest backend/tests tests -q -ra` from the repo root. Put lint first so a syntax or import problem fails quickly. Install PostgreSQL server and client binaries including `initdb`, `pg_ctl`, and `psql`. Run pytest as the ordinary runner user so the existing fixtures create disposable clusters. Check the integration tests actually ran because the fixtures can skip when tools are missing. |
 | Dashboard (React, TypeScript) | Use a supported Node version meeting `frontend/package.json` and run `npm ci` inside `frontend/`. Then run `npm run format:check`, `npm run typecheck`, `npm test` and `npm run build`. This catches type errors, UI regressions and build failures on a clean Linux installation. |
@@ -50,4 +74,5 @@ Later, keep delivery in `.github/workflows/deploy.yml`. The first version can us
 
 Keep deployment credentials out of PR jobs. Scope write permissions to the job that publishes the image. When deploying over SSH, use a dedicated deploy identity and verify the host key. Check the classroom repository's plan and organization permissions before relying on environment secrets, required reviewers or branch rules. For solo work, a deliberate manual promotion is workable. If the necessary protections are unavailable, keep production deployment manual until an appropriately configured repository is available. [Environment feature availability](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments) · [Actions security guidance](https://docs.github.com/en/actions/reference/security/secure-use)
 
-**Approval scope.** The first implementation would add only the CI workflow and verify it with a test PR after publication is authorized. AWS credentials, Docker builds and deployments belong to the later phase.
+The current CI workflow has read-only repository permissions and three independent
+jobs. Docker image publishing, deployment workflows and AWS credentials are deferred.

@@ -1,0 +1,73 @@
+name: ServerWatch CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend and automation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.14'
+      - run: python -m pip install -r backend/requirements-dev.txt
+      - run: ruff check backend/app backend/tests
+      - run: ruff format --check backend/app backend/tests
+      - name: Prepare PostgreSQL for disposable test databases
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-16 postgresql-client-16
+          pg_bin=/usr/lib/postgresql/16/bin
+          test -x "$pg_bin/initdb"
+          test -x "$pg_bin/pg_ctl"
+          command -v psql
+          test "$(id -u)" != 0
+          echo "$pg_bin" >> "$GITHUB_PATH"
+      - run: python -m pytest backend/tests tests -q -ra
+
+  dashboard:
+    name: Dashboard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  bash:
+    name: Bash syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Parse each tracked Bash script
+        run: git ls-files -z -- '*.sh' | xargs -0 -r -n 1 bash -n
