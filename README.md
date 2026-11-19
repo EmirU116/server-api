@@ -10,36 +10,26 @@ the implementation understandable, maintainable, and suitable for a portfolio.
 
 ## Current status
 
-The FastAPI foundation now includes an application factory, validated runtime
-settings, consistent error handling, dependency manifests, and automated tests.
-Local interactive documentation is available at `/docs` and `/redoc`.
+**All four APIs are implemented. The next milestone is a fresh Ubuntu EC2
+deployment that continues collecting measurements after reboot.**
 
-The public `GET /api/v1/health?server_id=1` endpoint is implemented. It currently reports
-`server: up`, `database: down`, and HTTP `503` without database credentials.
-Configured PostgreSQL is checked with `SELECT 1`; success allows HTTP `200`.
-See [local PostgreSQL setup](docs/local-postgresql.md) for Windows instructions.
-The GET-only `/api/v1/server` endpoint now returns identity and OS
-information with reader bearer authentication. Metrics GET/POST now use PostgreSQL
-storage, a SQLAlchemy model, and an Alembic migration. Reader tokens can read;
-separate collector tokens can submit samples. A simple local Python collector
-now submits real measurements with a five-second sleep between attempts.
-Incident CRUD now persists records in PostgreSQL, with reader GET and a separate
-admin token for POST/PATCH/DELETE. Apply the new migration and configure the
-admin token using [local incident setup](docs/local-postgresql.md#enable-incident-storage-python-postgresql).
-Ubuntu systemd setup supports continuous host collection. Native server verification,
-Cron scheduling, alerts, containers, and full deployment remain pending.
+| Area | What works today |
+| --- | --- |
+| API and storage (Python, PostgreSQL) | Health checks the API process and its database connection. Server information comes from the host. Alembic migrations create the metrics and incidents tables. Incident CRUD was verified against local Windows PostgreSQL. |
+| Dashboard (React, TypeScript) | Live mode reads health, server details, and stored metrics. The collector posts a sample, then sleeps five seconds. The dashboard polls every five seconds. Incident editing is available in demo mode. The full Windows collector-to-browser flow still needs a live check. |
+| Ubuntu setup (Bash, systemd) | The installer configures PostgreSQL and enables API and collector services. The verifier checks host identity, readiness, and a fresh stored measurement. Installation and reboot still need verification on EC2. |
+| CI (GitHub Actions) | Pull requests targeting `main` and pushes to `main` run Python tests with disposable PostgreSQL, dashboard checks, and Bash syntax checks. [Passing run on main at `3285a97`](https://github.com/EmirU116/server-api/actions/runs/44458684832) |
 
-The React/TypeScript frontend now provides a demo dashboard and typed API
-client. Live mode loads health, server information, and stored metrics; incidents
-are explicitly unavailable. Demo mode remains separate from real API data.
-
-See the [project plan and progress tracker](docs/project-plan.md) for the current
-stage, implementation milestones, and assignment coverage.
+Remaining G work includes public Swagger access through Nginx, scheduled
+monitoring with alerts, and Cron backups with a restore check. The VG work adds
+Docker Compose and HTTPS on a custom domain. [Project plan and assignment coverage](docs/project-plan.md)
 
 ## Start the local stack (Bash, Windows)
 
-After the database, private `.env`, metrics migration, and Windows dependencies
-are prepared, stop any manually started API/frontend instances. From the project
+First prepare Windows PostgreSQL, the private `.env`, database migrations, and
+Python and frontend dependencies. [Database setup](docs/local-postgresql.md) · [Launcher prerequisites](docs/local-development.md)
+
+To start monitoring, stop any manually started API/frontend instances. From the project
 root in Git Bash or WSL:
 
 ```bash
@@ -49,8 +39,9 @@ bash scripts/setup/start_local.sh
 The launcher starts/reuses Windows PostgreSQL, checks database/schema access,
 and starts Windows FastAPI, React, and the local measurement loop. Open
 <http://127.0.0.1:5173> and connect with your reader token. The live dashboard
-refreshes every five seconds. Ctrl+C stops its app/collector processes;
-PostgreSQL stays running.
+refreshes every five seconds. Watch the latest measurement timestamp to confirm
+new samples arrive even when disk usage stays steady. Ctrl+C stops the apps and
+collector and leaves PostgreSQL running.
 See [local launcher setup and troubleshooting](docs/local-development.md).
 Install updated Python requirements first (the collector uses `psutil`) and
 configure separate reader/collector tokens privately in `.env`.
@@ -106,13 +97,12 @@ executes an asynchronous PostgreSQL query when credentials are configured.
 Without credentials it returns `down`. Health verifies connectivity, not schema
 version; apply the metrics migration separately before using metrics endpoints.
 
-Health requires no database or credentials. Server information requires a reader
-bearer token configured through `SERVERWATCH_READER_TOKEN`, or a protected file
-via `SERVERWATCH_READER_TOKEN_FILE` (takes precedence). Set a private token locally;
-no credential is generated or committed. Use `Authorization: Bearer <token>` in
-Swagger UI or your HTTP client. An omitted/invalid token returns `401`. A supplied
-token with no reader configuration returns `503`. Configure a reader token before
-starting the app; `.env` requires the explicit `--env-file .env` startup option.
+Health requests are public. A healthy response requires a successful PostgreSQL
+probe. Use the appropriate role's bearer token for protected requests. Readers
+retrieve data, collectors submit metrics, and admins create, update, and delete
+incidents. Configure distinct tokens and send the relevant one in the
+`Authorization: Bearer <token>` header. To load a private `.env` file, start
+Uvicorn with `--env-file .env`.
 
 `GET /api/v1/server` returns the configured server by default. Optionally use
 `GET /api/v1/server?server_id=1` to select it explicitly. Invalid, zero, negative,
@@ -136,6 +126,8 @@ environment variables:
 | `SERVERWATCH_READER_TOKEN_FILE` | Unset | Protected token file; takes precedence over token environment value |
 | `SERVERWATCH_COLLECTOR_TOKEN` | Unset | Private metric-write token; must differ from reader token |
 | `SERVERWATCH_COLLECTOR_TOKEN_FILE` | Unset | Protected collector token file; takes precedence |
+| `SERVERWATCH_ADMIN_TOKEN` | Unset | Private incident-write token, distinct from the reader and collector tokens |
+| `SERVERWATCH_ADMIN_TOKEN_FILE` | Unset | Protected admin token file taking precedence over the environment value |
 | `SERVERWATCH_DATABASE_HOST` / `SERVERWATCH_DATABASE_PORT` | `localhost` / `5432` | PostgreSQL address; port 1–65535 |
 | `SERVERWATCH_DATABASE_NAME` / `SERVERWATCH_DATABASE_USER` | `serverwatch` / `serverwatch_app` | Nonblank database and login names |
 | `SERVERWATCH_DATABASE_PASSWORD` | Unset | Private database password |
@@ -150,7 +142,7 @@ For optional local overrides, copy `.env.example` to an ignored `.env` and load
 it explicitly:
 
 ```bash
-cp .env.example .env
+cp -n .env.example .env
 python -m uvicorn app.main:create_app --factory --app-dir backend --env-file .env --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -160,20 +152,17 @@ existing `.env`. Never commit real credentials. Tests do not load dotenv files.
 Run checks from the repository root with the virtual environment active:
 
 ```bash
-python -m pytest backend/tests -q
-python -m ruff check backend
-python -m ruff format --check backend
+python -m pytest backend/tests tests -q -ra
+python -m ruff check backend/app backend/tests
+python -m ruff format --check backend/app backend/tests
 python -m pip check
 ```
 
-Tests cover documentation exposure, configuration, shared HTTP errors, malformed
-JSON, validation, metrics read/write permissions, and sanitized failures. Metrics
-integration tests start a private disposable PostgreSQL cluster if server tools
-are installed; otherwise those tests skip. Incident coverage remains future work.
-Shared handlers follow [FastAPI's exception handling guidance](https://fastapi.tiangolo.com/tutorial/handling-errors/);
-configuration uses [Pydantic Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
-Streaming responses and background jobs, if introduced, will need separate
-failure handling because they can fail after response headers have been sent.
+Tests cover all four APIs, including validation, role checks, and database
+failures. PostgreSQL integration tests exercise migrations, metric persistence,
+and incident CRUD using disposable databases. Run pytest as a non-root user
+with PostgreSQL server tools installed to exercise those tests. The root `tests/`
+directory covers the launcher, collector, and deployment scripts. [CI workflow](.github/workflows/ci.yml)
 
 ## Local frontend setup (React, TypeScript)
 
@@ -181,7 +170,7 @@ Use Node.js 22.12+ on the Node 22 release line (or a newer supported release):
 
 ```bash
 cd frontend
-npm install
+npm ci --include=optional
 npm run dev
 ```
 
@@ -213,29 +202,18 @@ the remaining endpoints require authentication under the implemented API contrac
 Automatic threshold detection and alert delivery are broader project goals,
 separate from the initial incident CRUD contract.
 
-## Planned architecture
+## How measurements reach the dashboard
 
 ```text
-Client -> HTTPS -> Nginx on EC2 -> FastAPI/Uvicorn -> PostgreSQL
-
-Cron -> Host metrics collector -> Authenticated metrics API -> PostgreSQL
+Host collector  --> POST /api/v1/metrics --> FastAPI --> PostgreSQL
+React dashboard --> GET  /api/v1/metrics --> FastAPI --> PostgreSQL
 ```
 
-The monitoring workflow will also support incident detection and Discord/email
-alerts. PostgreSQL will store measurements and incidents, with persistent storage
-and versioned migrations. The public entry point will be Nginx; PostgreSQL will
-remain on a private network.
-
-| Area | Intended tools |
-| --- | --- |
-| API and validation | Python, FastAPI, Pydantic |
-| Frontend | React with TypeScript |
-| Persistence | PostgreSQL, SQLAlchemy, Alembic |
-| Host automation | Ubuntu EC2, Bash, Cron |
-| Service and containers | systemd for the native service demonstration; Docker Compose for the final container deployment |
-| Web access | Nginx, Certbot, HTTPS |
-| Testing | pytest, API contract tests, isolated database integration tests |
-| Optional extensions | GitHub Actions CI/CD and a React dashboard |
+The collector measures CPU, memory, disk usage, and uptime on the machine where
+it runs. On Windows the local launcher starts it. On native Ubuntu, systemd runs
+the collector and FastAPI as services. In both setups the collector writes
+samples with its collector token and the dashboard reads them with a reader token.
+[Ubuntu monitoring guide](docs/ubuntu-monitoring.md)
 
 ## Assignment and demonstration
 
@@ -259,16 +237,18 @@ backend/
   app/main.py          FastAPI application factory
   app/core/            Runtime settings and shared error handling
   app/api/             Health, server, metrics, and incident CRUD routers
-  app/models/          Database model scaffold
-  app/schemas/         Health and server response contracts
-  app/services/        Readiness probes and native host identity
-  alembic/             Migration scaffold
-  tests/               Foundation unit and API tests
+  app/models/          Metrics and incident database models
+  app/schemas/         API request and response models
+  app/services/        Readiness, host identity, metrics, and incident operations
+  alembic/             Versioned metrics and incidents migrations
+  tests/               Unit, API, and PostgreSQL integration tests
   requirements.txt     Runtime dependencies
   requirements-dev.txt Test and lint dependencies
   pyproject.toml       pytest and Ruff configuration
 frontend/              React/TypeScript dashboard, API client, and frontend tests
-infrastructure/        Nginx, Cron, systemd, and script scaffolds
+infrastructure/        Ubuntu bootstrap scripts and systemd services
+scripts/               Local launcher, host collector, and deployment verification
+tests/                 Automation tests for scripts and host setup
 .github/workflows/     Test-only backend, dashboard and Bash CI
 .agents/skills/        Repository agent workflows
 docs/                  Specifications and project guides
