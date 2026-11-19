@@ -3,10 +3,11 @@
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import AwareDatetime
 from starlette.concurrency import run_in_threadpool
 
+from app.core.errors import PublicHTTPError
 from app.core.security import require_collector, require_reader
 from app.reusable import validate_json_write, validate_list_request
 from app.schemas.metric import MetricCreate, MetricPage, MetricRecord
@@ -53,11 +54,15 @@ async def post_metric(
     try:
         result = await run_in_threadpool(service.create, sample, received_at)
     except FutureMetric:
-        raise HTTPException(status_code=422) from None
+        raise PublicHTTPError(422, "collected_at cannot be in the future.") from None
     except DuplicateMetric:
-        raise HTTPException(status_code=409) from None
+        raise PublicHTTPError(
+            409, "A measurement already exists for this server and collected_at."
+        ) from None
     except MetricsUnavailable:
-        raise HTTPException(status_code=503) from None
+        raise PublicHTTPError(
+            503, "Metric storage is temporarily unavailable."
+        ) from None
     response.headers["Cache-Control"] = "no-store"
     return result
 
@@ -84,12 +89,16 @@ async def get_metrics(
             try:
                 datetime.fromisoformat(request.query_params[name])
             except ValueError:
-                raise HTTPException(status_code=422) from None
+                raise PublicHTTPError(
+                    422, f"Use an ISO 8601 timestamp with a timezone for {name}."
+                ) from None
     if start is not None and end is not None and start > end:
-        raise HTTPException(status_code=422)
+        raise PublicHTTPError(422, "start must be earlier than or equal to end.")
     try:
         result = await run_in_threadpool(service.list, limit, offset, start, end)
     except MetricsUnavailable:
-        raise HTTPException(status_code=503) from None
+        raise PublicHTTPError(
+            503, "Metric storage is temporarily unavailable."
+        ) from None
     response.headers["Cache-Control"] = "no-store"
     return result

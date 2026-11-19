@@ -2,9 +2,10 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from starlette.concurrency import run_in_threadpool
 
+from app.core.errors import PublicHTTPError
 from app.core.security import require_reader
 from app.reusable import parse_server_id, validate_read_request
 from app.schemas.server import ServerInfo
@@ -50,9 +51,11 @@ async def get_server(
         # Host file reads must not block other asynchronous request handlers.
         info = await run_in_threadpool(service.get_info, selected_id)
     except UnknownServer:
-        raise HTTPException(status_code=404) from None
+        raise PublicHTTPError(404, "No server is registered with this ID.") from None
     except ServerInfoUnavailable:
-        raise HTTPException(status_code=503) from None
+        raise PublicHTTPError(
+            503, "Server information is temporarily unavailable."
+        ) from None
 
     response.headers["Cache-Control"] = "no-store"
     return info

@@ -3,22 +3,24 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import HTTPException, Request
+from fastapi import Request
 from pydantic import AfterValidator, AwareDatetime, BeforeValidator
+
+from app.core.errors import PublicHTTPError, PublicInputError
 
 
 def parse_server_id(request: Request, server_id: str) -> int:
     """Reject ambiguous, non-integer, zero, and negative IDs with 400."""
     if len(request.query_params.getlist("server_id")) != 1:
-        raise HTTPException(status_code=400)
+        raise PublicHTTPError(400, "Supply server_id exactly once.")
 
     try:
         value = int(server_id)
     except ValueError:
-        raise HTTPException(status_code=400) from None
+        raise PublicHTTPError(400, "server_id must be a whole number.") from None
 
     if value < 1:
-        raise HTTPException(status_code=400)
+        raise PublicHTTPError(400, "server_id must be at least 1.")
 
     return value
 
@@ -31,9 +33,11 @@ async def validate_read_request(request: Request, *allowed_parameters: str) -> N
     """
     for name in request.query_params:
         if name not in allowed_parameters:
-            raise HTTPException(status_code=422)
+            raise PublicHTTPError(
+                422, "This endpoint does not accept that query parameter."
+            )
     if await request.body():
-        raise HTTPException(status_code=422)
+        raise PublicHTTPError(422, "This operation does not accept a request body.")
 
 
 async def validate_list_request(request: Request, *filters: str) -> None:
@@ -41,7 +45,7 @@ async def validate_list_request(request: Request, *filters: str) -> None:
     await validate_read_request(request, *filters)
     for name in request.query_params:
         if len(request.query_params.getlist(name)) > 1:
-            raise HTTPException(status_code=422)
+            raise PublicHTTPError(422, f"Supply the {name} filter only once.")
 
 
 async def validate_json_write(request: Request) -> datetime:
@@ -51,17 +55,19 @@ async def validate_json_write(request: Request) -> datetime:
     against the same instant even when a request takes time to process.
     """
     if request.query_params:
-        raise HTTPException(status_code=422)
+        raise PublicHTTPError(
+            422, "This write operation does not accept query parameters."
+        )
     media_type = request.headers.get("content-type", "").partition(";")[0]
     if media_type.strip().lower() != "application/json":
-        raise HTTPException(status_code=415)
+        raise PublicHTTPError(415, "Set Content-Type to application/json.")
     return request.state.received_at
 
 
 def require_datetime_input(value: object) -> str | datetime:
     """Accept text or Python datetimes for event times before Pydantic coercion."""
     if not isinstance(value, (str, datetime)):
-        raise ValueError("Use a timezone-aware datetime.")
+        raise PublicInputError("Use an ISO 8601 timestamp with a timezone.")
     return value
 
 
@@ -78,5 +84,5 @@ EventTimestamp = Annotated[UtcDatetime, BeforeValidator(require_datetime_input)]
 def reject_null_characters(value: str) -> str:
     """Reject embedded nulls on text fields destined for PostgreSQL."""
     if "\x00" in value:
-        raise ValueError("Text cannot contain null characters.")
+        raise PublicInputError("Remove null characters from the text.")
     return value

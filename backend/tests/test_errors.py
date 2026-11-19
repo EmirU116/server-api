@@ -2,7 +2,7 @@
 
 import pytest
 from fastapi import HTTPException
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
 
 class SampleInput(BaseModel):
@@ -37,11 +37,16 @@ def test_method_not_allowed_preserves_allow_header(app, client):
 
 
 @pytest.mark.parametrize(
-    "payload",
-    [{}, {"cpu_percent": -1}, {"cpu_percent": 101}, {"cpu_percent": "dummy-secret"}],
+    "payload, reason",
+    [
+        ({}, "This field is required."),
+        ({"cpu_percent": -1}, "Input should be greater than or equal to 0"),
+        ({"cpu_percent": 101}, "Input should be less than or equal to 100"),
+        ({"cpu_percent": "dummy-secret"}, "Use a number."),
+    ],
 )
 def test_validation_errors_are_normalized_without_submitted_values(
-    app, client, payload
+    app, client, payload, reason
 ):
     add_sample_route(app)
 
@@ -51,9 +56,7 @@ def test_validation_errors_are_normalized_without_submitted_values(
     assert response.json()["error"] == {
         "code": "validation_error",
         "message": "Request validation failed.",
-        "details": [
-            {"field": "body.cpu_percent", "message": "Invalid or missing value."}
-        ],
+        "details": [{"field": "body.cpu_percent", "message": reason}],
     }
     assert "dummy-secret" not in response.text
 
@@ -107,3 +110,54 @@ def test_unexpected_failure_is_sanitized_in_response_and_application_log(
     assert "dummy-sensitive-connection-string" not in response.text
     assert "dummy-sensitive-connection-string" not in caplog.text
     assert "Unhandled application error (RuntimeError)." in caplog.text
+
+
+@pytest.mark.parametrize("resource", ["health", "server"])
+@pytest.mark.parametrize(
+    "query, status, message",
+    [
+        ("server_id=-2", 400, "server_id must be at least 1."),
+        ("server_id=0", 400, "server_id must be at least 1."),
+        ("server_id=dummy-sensitive", 400, "server_id must be a whole number."),
+        ("server_id=1&server_id=2", 400, "Supply server_id exactly once."),
+        ("server_id=2", 404, "No server is registered with this ID."),
+    ],
+)
+def test_server_lookup_explains_failure(app, client, resource, query, status, message):
+    app.state.reader_token = SecretStr("test-reader")
+    response = client.get(
+        f"/api/v1/{resource}?{query}", headers={"Authorization": "Bearer test-reader"}
+    )
+    assert response.status_code == status
+    assert response.json()["error"]["message"] == message
+    assert "dummy-sensitive" not in response.text
+
+
+def test_unknown_body_key_is_not_echoed(app, client):
+    add_sample_route(app)
+    response = client.post(
+        "/_test/sample", json={"cpu_percent": 1, "dummy-sensitive": 0}
+    )
+    assert response.json()["error"]["details"] == [
+        {"field": "body", "message": "Remove the unrecognized field."}
+    ]
+    assert "dummy-sensitive" not in response.text
+
+
+def test_arbitrary_validator_error_stays_private(app, client):
+    class PrivateModel(BaseModel):
+        field: str
+
+        @field_validator("field")
+        @classmethod
+        def reject_value(cls, value):
+            raise ValueError(f"private: {value}")
+
+    @app.post("/_test/private")
+    def accept(value: PrivateModel):
+        return value
+
+    response = client.post("/_test/private", json={"field": "dummy-sensitive"})
+    assert response.status_code == 422
+    assert response.json()["error"]["details"][0]["message"] == "The value is invalid."
+    assert "dummy-sensitive" not in response.text

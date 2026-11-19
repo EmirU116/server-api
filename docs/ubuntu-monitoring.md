@@ -84,6 +84,18 @@ Run as the same user who installed the services:
 bash scripts/verification/verify_ubuntu_monitoring.sh
 ```
 
+For a narrower, read-only check of the managed configuration after setup, run
+this from the repository root as the installing user:
+
+```bash
+.venv/bin/python scripts/setup/configure_ubuntu.py validate "$HOME/.config/serverwatch-monitoring"
+```
+
+Success is silent with exit status 0. A failure prints a short message and exits
+nonzero. This checks private file ownership and permissions, expected settings,
+and credential consistency. Use the Bash verifier above to also check running
+services, database connectivity, and fresh metrics.
+
 The Bash verifier runs on the Ubuntu server and uses a Python helper for
 credential handling, HTTP responses, and database checks. It observes measurements
 written by the running collector. It prints PASS/FAIL and a summary, and returns

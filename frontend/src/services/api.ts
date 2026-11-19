@@ -68,10 +68,13 @@ export function createApi(token: string) {
         422: 'Some fields are invalid. Check your input and try again.',
         503: 'The server is temporarily unavailable. Try again shortly.',
       };
-      // Do not display raw server text, HTML, credentials, or internal errors.
+      // Only the API's structured client errors carry public validation feedback.
+      const reason = await clientErrorMessage(response);
       throw new ApiError(
         response.status,
-        messages[response.status] ?? 'The request failed. Please try again.',
+        reason ??
+          messages[response.status] ??
+          'The request failed. Please try again.',
       );
     }
     if (response.status === 204) return undefined as T;
@@ -129,6 +132,33 @@ export function createApi(token: string) {
         method: 'DELETE',
       }),
   };
+}
+
+async function clientErrorMessage(
+  response: Response,
+): Promise<string | undefined> {
+  if (
+    response.status < 400 ||
+    response.status >= 500 ||
+    response.headers.get('content-type')?.split(';')[0].trim() !==
+      'application/json'
+  )
+    return;
+  const payload = await response.json().catch(() => undefined);
+  const error = payload?.error;
+  if (
+    typeof error?.code !== 'string' ||
+    typeof error.message !== 'string' ||
+    !Array.isArray(error.details)
+  )
+    return;
+  const reasons: string[] = [];
+  for (const detail of error.details) {
+    if (typeof detail?.field !== 'string' || typeof detail.message !== 'string')
+      return;
+    reasons.push(`${detail.field}: ${detail.message}`);
+  }
+  return [error.message, ...reasons].join(' ');
 }
 
 async function incidentResponse(pending: Promise<unknown>): Promise<Incident> {

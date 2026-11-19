@@ -162,6 +162,29 @@ describe('typed API client', () => {
     },
   );
 
+  it('shows the reason and field from a structured API validation error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            error: {
+              code: 'validation_error',
+              message: 'Request validation failed.',
+              details: [
+                { field: 'path.incident_id', message: 'Use a valid UUID.' },
+              ],
+            },
+          },
+          { status: 422 },
+        ),
+      ),
+    );
+    await expect(createApi('test').deleteIncident('bad')).rejects.toThrow(
+      'Request validation failed. path.incident_id: Use a valid UUID.',
+    );
+  });
+
   it('does not try to parse an empty 204 delete response', async () => {
     const fetch = vi
       .fn()

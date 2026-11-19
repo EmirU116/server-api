@@ -423,10 +423,10 @@ bodies on endpoints that do not support them.
 
 | Status | Meaning |
 | --- | --- |
-| 400 | Malformed JSON; invalid or repeated health `server_id` |
+| 400 | Malformed JSON; invalid or repeated `server_id` on health or server |
 | 401 | Missing or invalid credentials; include `WWW-Authenticate: Bearer` |
 | 403 | Authenticated caller lacks the required permission |
-| 404 | Incident does not exist |
+| 404 | No matching registered server, incident, or route |
 | 405 | Method is not supported |
 | 409 | Duplicate metric collection timestamp |
 | 415 | Request body uses an unsupported content type |
@@ -445,12 +445,23 @@ structured unhealthy response:
     "details": [
       {
         "field": "body.cpu_percent",
-        "message": "Must be a finite number between 0 and 100."
+        "message": "Input should be less than or equal to 100"
       }
     ]
   }
 }
 ```
+
+For example, the response above applies to a CPU percentage of 101. On health
+and server lookups, `error.message` directly explains a rejected ID:
+
+| Request input | Status | Explanation returned |
+| --- | --- | --- |
+| `server_id=-1` or `server_id=0` | 400 | server_id must be at least 1. |
+| `server_id=abc` | 400 | server_id must be a whole number. |
+| `server_id=1&server_id=2` | 400 | Supply server_id exactly once. |
+| Omitted on health | 422 | `details` identifies `query.server_id` and says the field is required. |
+| Valid ID with no registered server | 404 | No server is registered with this ID. |
 
 Use stable machine-readable codes, for example `not_found`, `conflict`,
 `internal_error`, and `service_unavailable`. Use `details: []` when no field-level

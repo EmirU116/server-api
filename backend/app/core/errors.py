@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from http import HTTPStatus
 
 from fastapi import FastAPI, Request
+from fastapi import HTTPException as FastAPIHTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException
@@ -24,6 +25,57 @@ HTTP_ERROR_CODES = {
     500: "internal_error",
     503: "service_unavailable",
 }
+
+
+FIELD_MESSAGES = {
+    "missing": "This field is required.",
+    "int_type": "Use a whole number.",
+    "int_parsing": "Use a whole number.",
+    "int_from_float": "Use a whole number.",
+    "float_type": "Use a number.",
+    "float_parsing": "Use a number.",
+    "finite_number": "Use a finite number.",
+    "string_type": "Use text.",
+    "timezone_aware": "Include a timezone offset or Z.",
+    "datetime_parsing": "Use an ISO 8601 timestamp with a timezone.",
+    "datetime_from_date_parsing": "Use an ISO 8601 timestamp with a timezone.",
+    "datetime_type": "Use an ISO 8601 timestamp with a timezone.",
+    "uuid_parsing": "Use a valid UUID.",
+    "model_attributes_type": "Supply a JSON object.",
+    "extra_forbidden": "Remove the unrecognized field.",
+}
+
+
+class PublicHTTPError(FastAPIHTTPException):
+    """An intentional client-facing explanation. Use only application-owned text."""
+
+
+class PublicInputError(ValueError):
+    """A schema rule with a message safe to include in validation details."""
+
+
+def validation_detail(error: dict) -> dict[str, str]:
+    """Describe a field rule without returning submitted values or arbitrary errors."""
+    kind = error["type"]
+    location = error["loc"]
+    message = FIELD_MESSAGES.get(kind, "The value is invalid.")
+    if kind == "extra_forbidden":
+        # The unknown key itself is caller-controlled. Show its parent only.
+        location = location[:-1]
+    elif kind in {
+        "greater_than_equal",
+        "less_than_equal",
+        "literal_error",
+        "string_too_short",
+        "string_too_long",
+    }:
+        # These built-in messages describe schema bounds and choices only.
+        message = error["msg"]
+    elif kind == "value_error":
+        cause = error.get("ctx", {}).get("error")
+        if isinstance(cause, PublicInputError):
+            message = str(cause)
+    return {"field": ".".join(str(part) for part in location), "message": message}
 
 
 def error_response(
@@ -55,6 +107,9 @@ async def http_error_handler(request: Request, exc: HTTPException) -> JSONRespon
     except ValueError:
         message = "Request failed."
 
+    if isinstance(exc, PublicHTTPError):
+        message = exc.detail
+
     return error_response(
         exc.status_code,
         HTTP_ERROR_CODES.get(exc.status_code, "http_error"),
@@ -69,26 +124,18 @@ async def validation_error_handler(
 ) -> JSONResponse:
     """Separate malformed JSON from valid JSON that fails input validation.
 
-    Never return Pydantic's input, context, or custom validator message: these
-    can contain submitted credentials. Field locations still help callers find
-    invalid input without echoing its value.
+    Report known field rules with safe public messages. Submitted values and
+    arbitrary exception text can contain credentials.
     """
     errors = exc.errors()
     if any(error["type"] == "json_invalid" for error in errors):
         return error_response(400, "bad_request", "Malformed JSON.")
 
-    details = [
-        {
-            "field": ".".join(str(part) for part in error["loc"]),
-            "message": "Invalid or missing value.",
-        }
-        for error in errors
-    ]
     return error_response(
         422,
         "validation_error",
         "Request validation failed.",
-        details=details,
+        details=[validation_detail(error) for error in errors],
     )
 
 

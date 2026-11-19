@@ -2,8 +2,9 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 
+from app.core.errors import PublicHTTPError
 from app.reusable import parse_server_id, validate_read_request
 from app.schemas.health import HealthReport
 from app.services.errors import UnknownServer
@@ -56,7 +57,7 @@ async def get_health(
     try:
         report = await service.check(server_id)
     except UnknownServer:
-        raise HTTPException(status_code=404) from None
+        raise PublicHTTPError(404, "No server is registered with this ID.") from None
     response.status_code = 200 if report.status == "healthy" else 503
     response.headers["Cache-Control"] = "no-store"
     return report

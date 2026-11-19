@@ -4,11 +4,12 @@ import secrets
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import SecretStr
 
 from app.core.config import Settings
+from app.core.errors import PublicHTTPError
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -67,7 +68,9 @@ def require_role(
     role: str,
 ) -> None:
     if credentials is None:
-        raise HTTPException(status_code=401, headers={"WWW-Authenticate": "Bearer"})
+        raise PublicHTTPError(
+            401, "Supply a valid Bearer token.", headers={"WWW-Authenticate": "Bearer"}
+        )
 
     expected = getattr(request.app.state, f"{role}_token")
     supplied = credentials.credentials.encode()
@@ -78,9 +81,11 @@ def require_role(
         if other is not None and secrets.compare_digest(
             supplied, other.get_secret_value().encode()
         ):
-            raise HTTPException(status_code=403)
+            raise PublicHTTPError(403, f"This operation requires the {role} role.")
     if expected is None:
-        raise HTTPException(status_code=503)
+        raise PublicHTTPError(503, "Authentication is temporarily unavailable.")
 
     if not secrets.compare_digest(supplied, expected.get_secret_value().encode()):
-        raise HTTPException(status_code=401, headers={"WWW-Authenticate": "Bearer"})
+        raise PublicHTTPError(
+            401, "Supply a valid Bearer token.", headers={"WWW-Authenticate": "Bearer"}
+        )

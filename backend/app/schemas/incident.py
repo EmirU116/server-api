@@ -11,6 +11,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.errors import PublicInputError
 from app.reusable import EventTimestamp, UtcDatetime, reject_null_characters
 
 Severity = Literal["info", "warning", "critical"]
@@ -48,10 +49,10 @@ class IncidentUpdate(BaseModel):
     @model_validator(mode="after")
     def require_changes(self):
         if not self.model_fields_set:
-            raise ValueError("Supply at least one field.")
+            raise PublicInputError("Supply at least one field to update.")
         for name in self.model_fields_set:
             if getattr(self, name) is None:
-                raise ValueError("Fields cannot be null.")
+                raise PublicInputError(f"Supply a non-null value for {name}.")
         return self
 
 

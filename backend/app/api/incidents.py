@@ -4,9 +4,10 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from starlette.concurrency import run_in_threadpool
 
+from app.core.errors import PublicHTTPError
 from app.core.security import require_admin, require_reader
 from app.reusable import (
     validate_json_write,
@@ -54,11 +55,13 @@ async def call_service(response: Response, operation, *args):
     try:
         result = await run_in_threadpool(operation, *args)
     except IncidentNotFound:
-        raise HTTPException(status_code=404) from None
+        raise PublicHTTPError(404, "No incident exists with this ID.") from None
     except FutureIncident:
-        raise HTTPException(status_code=422) from None
+        raise PublicHTTPError(422, "occurred_at cannot be in the future.") from None
     except IncidentsUnavailable:
-        raise HTTPException(status_code=503) from None
+        raise PublicHTTPError(
+            503, "Incident storage is temporarily unavailable."
+        ) from None
     response.headers["Cache-Control"] = "no-store"
     return result
 

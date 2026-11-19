@@ -308,6 +308,7 @@ verified migration and deployment commands here when those workflows exist.
 - [Native EC2 setup and verification](docs/ec2-testing.md): Bash setup, protected
   reader token, localhost systemd service, and checks with PASS/FAIL/WARN feedback.
 
+- [Git and GitHub Actions proposal](docs/github-actions-plan.md) covers solo branching, CI checks, and staged EC2 delivery for review.
 - [Project plan and progress](docs/project-plan.md): current status, milestones,
   assignment coverage, and next steps.
 

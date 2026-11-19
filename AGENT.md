@@ -37,6 +37,7 @@ describe requirements and conventions; verify implementation status separately.
 | [Local stack launcher](docs/local-development.md) | Starting the existing Windows database, FastAPI, and React together from Git Bash/WSL; launcher checks, process cleanup, and Windows-only limitations. |
 | [Local PostgreSQL](docs/local-postgresql.md) | Database settings, Windows startup, and connectivity checks. |
 | [Project overview](README.md) | Starting work and finding project documentation. |
+| [Git and GitHub Actions proposal](docs/github-actions-plan.md) | Reviewing solo branches, PR checks, EC2 staging, and later production promotion. Workflow activation awaits approval. |
 | [Course assignment](docs/assignment-brief.md) | Checking the supplied G/VG criteria, team responsibilities, optional bonuses, and recording rules. |
 | [Project plan and progress](docs/project-plan.md) | Checking the current stage, choosing the next milestone, and tracking assignment completion. Update it with evidence after milestone completion or material scope changes. |
 | [Folder structure](docs/FOLDER_STRUCTURE.md) | Creating, moving, or organizing files and modules. |
@@ -250,6 +251,7 @@ Keep HTTP validation and serialization in API/schema modules. Put domain decisio
 - **Comments:** Add clear comments to explain intent, non-obvious logic, assumptions and important decisions so contributors can understand the code. Keep comments accurate and avoid restating obvious operations.
 - **Readable formatting:** Use multiline formatting for long function calls, conditions, collections and commands when it improves readability. Separate logical steps with blank lines and avoid dense one-liners; follow the project's formatter and language conventions.
 - **Python:** Prioritize simple, Pythonic code that is easy to read and explain. Prefer standard built-ins, clear names, and straightforward control flow. Avoid clever one-liners, unnecessary regex, and abstractions when a simpler approach meets the requirements. Keep required validation and error handling. Use type hints, small functions, and descriptive `snake_case` filenames. Prefer dependency injection for database sessions and external services.
+- **API errors:** Explain expected failures with public, application-controlled messages. Preserve status codes, role challenges and structured health reports. Cover the reason in response tests.
 - **Pydantic:** Separate input and output schemas; never expose password hashes or internal secrets.
 - **Database:** Use migrations, parameterized queries/ORM, explicit relationships and constraints, and UTC timestamps. Avoid unreviewed destructive migrations.
 - **Bash:** Start scripts with `#!/usr/bin/env bash`; use `set -euo pipefail` where appropriate; quote variables; check prerequisites; avoid relying on the current working directory; make provisioning idempotent where practical.
