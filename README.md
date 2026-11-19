@@ -269,7 +269,7 @@ backend/
   pyproject.toml       pytest and Ruff configuration
 frontend/              React/TypeScript dashboard, API client, and frontend tests
 infrastructure/        Nginx, Cron, systemd, and script scaffolds
-.github/workflows/     Reserved for CI/CD
+.github/workflows/     Test-only backend, dashboard and Bash CI
 .agents/skills/        Repository agent workflows
 docs/                  Specifications and project guides
 AGENT.md               Agent instructions and project constraints
@@ -308,7 +308,7 @@ verified migration and deployment commands here when those workflows exist.
 - [Native EC2 setup and verification](docs/ec2-testing.md): Bash setup, protected
   reader token, localhost systemd service, and checks with PASS/FAIL/WARN feedback.
 
-- [Git and GitHub Actions proposal](docs/github-actions-plan.md) covers solo branching, CI checks, and staged EC2 delivery for review.
+- [Git and GitHub Actions workflow](docs/github-actions-plan.md) covers human and agent branches, test-only checks, and the planned EC2 delivery process.
 - [Project plan and progress](docs/project-plan.md): current status, milestones,
   assignment coverage, and next steps.
 

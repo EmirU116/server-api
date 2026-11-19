@@ -37,7 +37,7 @@ describe requirements and conventions; verify implementation status separately.
 | [Local stack launcher](docs/local-development.md) | Starting the existing Windows database, FastAPI, and React together from Git Bash/WSL; launcher checks, process cleanup, and Windows-only limitations. |
 | [Local PostgreSQL](docs/local-postgresql.md) | Database settings, Windows startup, and connectivity checks. |
 | [Project overview](README.md) | Starting work and finding project documentation. |
-| [Git and GitHub Actions proposal](docs/github-actions-plan.md) | Reviewing solo branches, PR checks, EC2 staging, and later production promotion. Workflow activation awaits approval. |
+| [Git and GitHub Actions workflow](docs/github-actions-plan.md) | Branches, agent worktrees, human review, test-only PR checks and planned production promotion. |
 | [Course assignment](docs/assignment-brief.md) | Checking the supplied G/VG criteria, team responsibilities, optional bonuses, and recording rules. |
 | [Project plan and progress](docs/project-plan.md) | Checking the current stage, choosing the next milestone, and tracking assignment completion. Update it with evidence after milestone completion or material scope changes. |
 | [Folder structure](docs/FOLDER_STRUCTURE.md) | Creating, moving, or organizing files and modules. |
@@ -75,6 +75,8 @@ this file must perform the synchronization during relevant tasks.
 
 ### Repository maintenance skills
 
+- When implementing, editing, or reviewing an API operation, apply [explain-api-errors](.agents/skills/explain-api-errors/SKILL.md). Every handled failure across every method and status must explain its known cause safely. Test the public response.
+- Use a scoped task branch for agent changes and a separate worktree for concurrent contributors. Agents run the same checks as humans and report test evidence. The human maintains publication and merge authority. See the [CI workflow guide](docs/github-actions-plan.md).
 - Use [maintain-gitkeep](.agents/skills/maintain-gitkeep/SKILL.md) when changing which files preserve a project directory in Git.
 - Use [reuse-python-code](.agents/skills/reuse-python-code/SKILL.md) when Python callers duplicate behavior. Shared backend API helpers belong in `backend/app/reusable.py` and have direct tests.
 

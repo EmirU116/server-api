@@ -176,3 +176,44 @@ bash -n scripts/verification/verify_ubuntu_monitoring.sh
 A fresh native Ubuntu/EC2 installation and reboot check are still required.
 Passing simulated/local tests does not prove apt installation or systemd startup
 on an actual server. Keep this limitation explicit in assignment evidence.
+
+## Planned Linux users, groups and permissions
+
+Future task 5.5 defines accounts and verifies effective access on Ubuntu. Today
+the installer runs the API and collector as the installing SSH user. Its
+`validate` command checks that user's private configuration. The following is a
+proposed environment layout for the future Bash setup and verifier.
+
+| Identity | Development workspace | Production releases | Production secrets and administration |
+| --- | --- | --- | --- |
+| Agent, intern or junior | Read, create, edit and delete project files in the assigned workspace | Read approved code and traverse release directories | No access to secrets, service control or deployment |
+| Senior maintainer | Manage all project workspaces | Manage releases, deploy and roll back | Explicitly authorized administration via audited elevation |
+| API and collector | No dependency on developers' worktrees | Read their installed code | Separate service accounts, each able to read only its own runtime configuration |
+
+Give each human and agent a distinct Linux account. Define groups for dev writers,
+production readers and release maintainers. For example, give a dev group write
+and traversal on its assigned subtree under `/srv/serverwatch/dev/`, and give
+prod readers read/traversal on approved files under `/srv/serverwatch/prod/`.
+Use group inheritance and default ACLs for newly created files. Keep release
+parents, service units, executables used by privileged jobs and secrets outside
+dev-writable paths. Production services must execute the independently installed
+release. Never run code straight from an agent-writable checkout as a privileged
+user. [Linux access and default ACLs](https://man7.org/linux/man-pages/man5/acl.5.html)
+
+Directory permissions control access by identity. A process sharing its
+developer's account inherits that developer's access. Launch each agent using
+its assigned account. Folder ACLs alone still allow access to other ordinarily
+readable host paths. If the requirement becomes confinement to a single
+workspace, add an OS sandbox or separate VM with explicit mounts. Keep
+unrestricted sudo, Docker administration and production credentials away from
+development accounts.
+
+The future Bash verifier should report expected versus actual owner, group,
+mode and effective ACL for files and parent directories. Use `id`, `stat` and
+`getfacl`, then check effective permissions under each representative identity.
+Verify a dev writer can create, edit and remove a disposable dev file, a junior
+can read approved production code, and agents/juniors cannot write, rename
+or delete production files or read private configuration. Check inheritance on
+a newly created file and exercise senior and service-account access separately.
+Use a disposable fixture with the same permissions for write/delete trials.
+The live verifier should remain read-only and must never print secret contents.

@@ -113,6 +113,7 @@ evidence for its parent milestone above.
 | 5.2 Server bootstrap (Bash, SCP, Git, Linux) | Ubuntu installer prepares a cloned checkout with Python, PostgreSQL, and migrations. SCP and fresh instance verification remain pending. | In progress |
 | 5.3 Native service and reverse proxy (systemd, Nginx, Linux) | API and collector systemd units are available. Native EC2 startup and Nginx forwarding remain pending. | In progress |
 | 5.4 Native deployment verification (Bash, Linux, Testing) | Localhost smoke verifier added; fresh-instance verification, restarts, scheduled monitoring, and backups remain pending. | In progress |
+| 5.5 Define and verify environment access (Ubuntu, Bash, Linux users, groups, ACLs) | Define dev/prod ownership and role membership, provision accounts and inherited permissions, then check effective allowed and denied operations as each identity. See the [proposed access matrix](ubuntu-monitoring.md#planned-linux-users-groups-and-permissions). | Future task. No host changes applied. |
 | 6.1 API image (Docker, Python) | Create the API Dockerfile and build a runnable image. | Not started |
 | 6.2 Container services and storage (Docker Compose, PostgreSQL) | Configure separate API/database services, private networking, health checks, and persistent storage. | Not started |
 | 6.3 Domain and TLS (DNS, Nginx, Certbot, HTTPS) | Configure the custom domain, certificate, redirects, and renewal. | Not started |
@@ -122,7 +123,7 @@ evidence for its parent milestone above.
 | 7.3 Frontend verification (TypeScript, Frontend testing) | Run type checking/build and verify core UI flows against the API. | In progress |
 | 8.1 Runbook and assessment checklist (Documentation) | Record deployment steps, requirement evidence, and speaking roles. | Not started |
 | 8.2 Timed pair rehearsal (AWS EC2, Deployment, Presentation) | Rehearse from a fresh instance within 60 minutes, with both students explaining their work. | Not started |
-| PR checks and optional VG4 delivery (Git, GitHub Actions, Docker) | [Review the proposed solo workflow](github-actions-plan.md). Add PR checks first. Automate image deployment after EC2 verification and Docker packaging. | Proposal ready for review. Workflow implementation pending. |
+| PR checks and optional VG4 delivery (Git, GitHub Actions, Docker) | [Human and agent workflow](github-actions-plan.md). Test PRs and pushes to main with backend, dashboard and Bash jobs. | Test-only workflow implemented locally. Hosted run and branch rules pending. Docker delivery deferred. |
 
 Python tasks include unit tests and clear comments or multiline docstrings for
 non-obvious behavior. Bash tasks include syntax checks and failure-path checks;
@@ -164,7 +165,7 @@ evidence for the EC2 requirements.
 
 ## Immediate next task
 
-Review the [CI proposal](github-actions-plan.md) before enabling PR checks (Git, GitHub Actions).
+Verify the first [CI workflow run](github-actions-plan.md) when the branch is published and a PR targets main (Git, GitHub Actions).
 Prepare and rehearse the G deployment on a fresh Ubuntu instance (Bash, SCP,
 Git, SSH, systemd). Verify both logins, the home-directory clone, PostgreSQL and
 a fresh host metric. Then add Nginx and configure public Swagger and OpenAPI for
@@ -177,7 +178,14 @@ local conveniences outside the grading path.
 Health and server lookups distinguish out-of-range, non-integer and repeated
 IDs. Metric and incident requests report input rules, and the dashboard shows
 structured client errors. The API preserves machine codes and the health 503
-report. The [API contract](api.md) lists public response examples.
+report. The [API contract](api.md) makes a safe explanation mandatory for every
+handled error. The audit covered all nine operations, routing, auth, schema and
+storage failures, and the dashboard's public error display.
+
+The backend and automation suite passed 384 cases. The final 27-case handler
+run includes one additional response-schema regression. All 32 frontend tests,
+type checking, build, formatting, backend lint and Bash syntax checks passed
+locally. The CI workflow has been checked locally. A GitHub-hosted run is pending.
 
 ## Repository maintenance (Python, pytest, Git)
 
