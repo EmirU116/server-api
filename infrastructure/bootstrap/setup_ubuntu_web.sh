@@ -49,7 +49,7 @@ if [[ -n "$public_dns" ]]; then
     # Nginx keeps regex names out of its hash table. Escape DNS label separators
     # and anchor the match so only the supplied hostname is accepted.
     dns_pattern=${public_dns//./[.]}
-    server_names+=" ~*^${dns_pattern}\$"
+    server_names+=" ~(?i)^${dns_pattern}\$"
 fi
 sed "s/@SERVER_NAMES@/$server_names/g" "$project/infrastructure/nginx/serverwatch.conf" > "$work_dir/site"
 sudo nginx -t
