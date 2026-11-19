@@ -5,8 +5,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from starlette.concurrency import run_in_threadpool
 
-from app.api.validation import parse_server_id
 from app.core.security import require_reader
+from app.reusable import parse_server_id, validate_read_request
 from app.schemas.server import ServerInfo
 from app.services.errors import UnknownServer
 from app.services.server import ServerInfoUnavailable, ServerService
@@ -40,13 +40,7 @@ async def get_server(
     ] = None,
 ) -> ServerInfo:
     """Reject unsupported input and keep OS failures out of public responses."""
-    for parameter in request.query_params:
-        if parameter != "server_id":
-            raise HTTPException(status_code=422)
-
-    body = await request.body()
-    if body:
-        raise HTTPException(status_code=422)
+    await validate_read_request(request, "server_id")
 
     selected_id = None
     if server_id is not None:

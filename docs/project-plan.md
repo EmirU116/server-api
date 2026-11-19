@@ -6,7 +6,7 @@ EC2 audit. This is the progress tracker; endpoint details remain in
 
 ## Current position
 
-**Stage: all four backend APIs implemented, including persistent incident CRUD.**
+**All four backend APIs are implemented. The next milestone is the native Ubuntu deployment for G.**
 
 The project has a runnable FastAPI application factory, validated settings,
 shared error handling, dependency manifests, and a passing foundation test suite.
@@ -17,23 +17,23 @@ Server GET returns native host identity with reader authentication. Metrics GET/
 now persist samples through SQLAlchemy with a versioned Alembic migration and
 separate reader/collector credentials. A local collector now submits real host
 measurements with a five-second sleep, and the API dashboard polls every five
-seconds. Incident CRUD now uses reader GET and admin writes; production monitoring/scheduling remains unimplemented. React live mode reads the three available APIs and explicitly marks
+seconds. Incident CRUD now uses reader GET and admin writes; Ubuntu systemd units provide continuous collection. Threshold alerts and Cron backups are outstanding. React live mode reads the three available APIs and explicitly marks
 incidents unavailable. Real browser/Windows metrics verification remains pending.
 No cloud deployment or assignment demonstration has been verified.
 
 | Workstream | Current status | Evidence |
 | --- | --- | --- |
-| Project scope and API design | Documented; not implemented | `README.md`, `docs/api.md` |
+| Project scope and API design | Four API resources implemented | `README.md`, `docs/api.md` |
 | Organization and security guidance | Documented | `docs/FOLDER_STRUCTURE.md`, `docs/SECRETS_MANAGEMENT.md` |
 | Agent workflows | Instructions present | `AGENT.md`, `.agents/skills/` |
 | Backend foundation and tests | Verified | `backend/app/main.py`, `backend/app/core/`, `backend/tests/`; verification below |
 | Health API | Verified route/service behavior; user confirmed Windows database health | `backend/app/api/health.py`, schemas/services, and `backend/tests/test_health.py` |
 | Server API | Implemented; native EC2/container verification pending | Server router/schema/service and tests; reader token authentication |
-| Metrics and persistence | Implemented and tested with isolated PostgreSQL | Metrics model, Alembic upgrade, transaction, filtering, and persistence tests; user must apply upgrade locally |
+| Metrics and persistence | Implemented and tested with isolated PostgreSQL | Metrics model, Alembic upgrade, transaction, filtering, and persistence tests; both migrations present in the verified local incident database |
 | Incident endpoints | Verified locally on Windows | CRUD, resolution/reopening, and deletion verified through FastAPI against local PostgreSQL; automated persistence/error tests also pass |
 | React frontend | Live health/server/metrics integrated; browser check pending | 27 passing frontend tests, successful typecheck/build/format; no incident API calls |
 | Infrastructure and CI/CD | Native monitoring setup implemented; EC2 run pending | Bash installer and verifier, API/collector systemd units, and isolated provisioning tests |
-| Deployment and demo | Not verified | No runbook or recorded verification evidence |
+| Deployment and demo | Not verified | Host setup guides exist. The timed pair runbook and EC2 evidence are pending. |
 
 The application language decisions are **Python for the backend/API** and
 **React with TypeScript for the frontend**. The frontend is planned project work,
@@ -51,17 +51,16 @@ deployment requirements before dashboard polish.
 - File placement: [folder structure](FOLDER_STRUCTURE.md).
 - Frontend setup and data modes: [frontend development](frontend.md).
 
-Course requirements below are taken from the project's agent instructions. The
-original assignment brief is not present in the repository; confirm assessment
-details against it before finalizing the demonstration. No ICM migration is
-assumed by this plan.
+The [Swedish assignment brief](assignment-brief.md) defines G, VG, the optional
+bonuses and the pair recording. Windows is a local development convenience.
+The assessed deployment runs on EC2. The React dashboard is a project extension.
 
 ## Implementation milestones
 
 Phase 1 is **Verified**; phases 2–5 and 7 are **In progress**. Phases 6 and 8
 remain **Not started**. Phase 5 has native test scripts but no EC2 verification.
 Health and server GET are implemented. Phase 2
-is not complete: database work and real host/container verification remain pending. Complete
+still needs real host verification of identity and database connectivity. Complete
 each milestone with observable evidence. Owners and deadlines are unassigned.
 
 | Phase | Deliverables | Completion evidence | Status |
@@ -102,12 +101,12 @@ evidence for its parent milestone above.
 | 2.1 Database connection and schema (Python, PostgreSQL, SQLAlchemy, Alembic) | Connectivity, metrics/incident models, pooled sessions, and both migrations implemented; Windows incident table access verified. | In progress |
 | 2.2 Health and server endpoints (Python, FastAPI, Linux) | Implement health and server GET routes, including dependency failure and correct host identity. | In progress |
 | 2.3 Persistence verification (Python, pytest, PostgreSQL) | Metrics migration, persistence, rollback, and filtering tested in private temporary PostgreSQL; Windows metrics run pending. | In progress |
-| 3.1 Authentication and validation (Python, FastAPI, Pydantic, Security) | Reader/collector/admin roles and request validation implemented; private local admin provisioning pending. | In progress |
+| 3.1 Authentication and validation (Python, FastAPI, Pydantic, Security) | Reader/collector/admin roles and request validation implemented; private local admin credential verified in the Windows incident smoke test. | In progress |
 | 3.2 Metrics endpoints (Python, FastAPI, PostgreSQL) | GET/POST, filtering, pagination, database uniqueness, persistence, and frontend reads implemented. | Verified locally |
 | 3.3 Incident endpoints (Python, FastAPI, PostgreSQL) | Implement incident create, read, update, and delete behavior. | Verified locally, including Windows CRUD smoke check |
-| 3.4 API and business logic tests (Python, pytest, PostgreSQL) | Metrics and incident API/PostgreSQL tests implemented; Windows end-to-end verification pending. | In progress |
+| 3.4 API and business logic tests (Python, pytest, PostgreSQL) | Metrics and incident API/PostgreSQL tests implemented; Windows incident CRUD verified, full Windows metrics flow pending. | In progress |
 | 4.1 Host metrics collection (Python, Bash, Linux, HTTP) | Local Python loop and Ubuntu systemd installer/verifier implemented; native server/reboot verification and Cron evidence pending. | In progress |
-| 4.2 Scheduled collection (Cron, Linux) | Configure collection schedules and verify execution. | Not started |
+| 4.2 Scheduled health checks (Linux, Monitoring) | Verify monitoring starts on boot and configure recurring threshold checks for G6. Cron is required for backups in G5. | In progress |
 | 4.3 Incident detection and alerts (Python, Monitoring) | Detect threshold breaches, avoid duplicate open incidents, and deliver alerts through the selected channel. | Not started |
 | 4.4 Backup and restore (Bash, PostgreSQL, Cron) | Script database/log backups, schedule them, and verify an isolated restore. | Not started |
 | 5.1 EC2 and student access (AWS EC2, Linux, SSH) | Prepare the instance configuration and independent access for both students. | Not started |
@@ -123,7 +122,7 @@ evidence for its parent milestone above.
 | 7.3 Frontend verification (TypeScript, Frontend testing) | Run type checking/build and verify core UI flows against the API. | In progress |
 | 8.1 Runbook and assessment checklist (Documentation) | Record deployment steps, requirement evidence, and speaking roles. | Not started |
 | 8.2 Timed pair rehearsal (AWS EC2, Deployment, Presentation) | Rehearse from a fresh instance within 60 minutes, with both students explaining their work. | Not started |
-| Optional: CI/CD (GitHub Actions, YAML, Testing, Docker) | Automate verified tests/builds after the required milestones are stable; deployment remains subject to approval. | Not started |
+| Optional: CI/CD (GitHub Actions, YAML, Testing, Docker) | Automate deployment of a tested Docker image to EC2 if pursuing VG4. | Not started |
 
 Python tasks include unit tests and clear comments or multiline docstrings for
 non-obvious behavior. Bash tasks include syntax checks and failure-path checks;
@@ -132,31 +131,29 @@ Keep task status and evidence alongside these rows when implementation begins.
 
 ## Assignment coverage tracker
 
-All rows are currently **pending**.
+The [assignment brief](assignment-brief.md) is the source for this tracker. Local
+tests establish application behavior. The recorded pair deployment supplies the
+evidence for the EC2 requirements.
 
-| Requirement recorded in the project | Planned phase | Evidence to retain |
+| Requirement (topics) | Current evidence | Still needed for the assignment |
 | --- | --- | --- |
-| G: fresh EC2 instance, appropriate AMI/security groups, Elastic IP | 5, 8 | Provisioning steps and recorded instance creation |
-| G: independent SSH access for both students | 5, 8 | Both students demonstrate their own access without exposing keys |
-| G: Bash bootstrap transferred with SCP and repository cloned | 5 | Runbook and successful bootstrap output |
-| G: FastAPI connected to PostgreSQL, native service, Nginx | 2–5 | Request results, service status, proxy configuration check |
-| G: Cron PostgreSQL/log backups and monitoring with alerts | 4–5 | Schedule, backup/restore results, controlled alert demonstration |
-| VG: FastAPI and PostgreSQL in separate Compose services | 6 | Configuration validation, service health, persistence checks |
-| VG: custom domain and HTTPS through Certbot | 6 | DNS/HTTPS checks and renewal verification |
-| Pair recording: new instance created during a maximum 60-minute demo | 8 | Timed rehearsal and final recording checklist |
+| G1 Fresh instance (AWS EC2, networking) | No instance creation verified. | Create a free-tier-configured instance on camera with suitable AMI, security groups and Elastic IP. |
+| G2 Pair access (SSH, Linux) | The EC2 guide covers an individual SSH connection. | Show both students logging into the same host from their own computers with independent keys. |
+| G3 Bootstrap (Bash, SCP, Ubuntu) | Bash setup installs packages and configures services and permissions. The older smoke-test guide demonstrates SCP. | Include useful shell aliases, rehearse transferring and running the chosen bootstrap on a fresh instance, and explain account choices. |
+| G4 Repository checkout (Git, Linux) | Home-directory clone documented. Full installer expects an existing user-owned checkout. | Perform the clone as the deployment user and show ownership and the order of steps. |
+| G5 Backups (Bash, Cron, PostgreSQL) | Cron directory reserved. | Implement scheduled on-instance backups, show the files created and verify a database restore. |
+| G6 Monitoring and alerts (Linux, Python, Discord or email) | Host collector samples every five seconds, with a systemd unit and verifier for fresh stored measurements. | Verify on EC2 and demonstrate a scheduled check sending a notification for a controlled threshold breach. |
+| G7 Public API docs (systemd, FastAPI, HTTP) | API systemd unit exists. Uvicorn binds to loopback and production mode disables Swagger and OpenAPI. | Demonstrate the native service on EC2. Configure the deployment to serve Swagger and its schema through the proxy, then open the public IP's `/docs` in a browser. |
+| G8 Reverse proxy (Nginx) | Directory reserved. | Configure Nginx, validate its configuration and show it forwarding requests to the loopback API. |
+| G9 Database connection (FastAPI, PostgreSQL) | Local health and Windows incident CRUD verified against PostgreSQL. Migrations and persistence tested with disposable PostgreSQL. | Show the deployed API reading and writing through the instance's database. |
+| VG1 Containers (Docker, Compose, PostgreSQL) | No project Dockerfile or Compose configuration. | Build and run API and database containers on EC2, demonstrate persistence and also show the native process manager. |
+| VG2 Custom domain (DNS, HTTPS, Certbot) | No verified domain or TLS setup. | Point a domain at the instance, issue a certificate and demonstrate working HTTPS. |
+| Optional VG3/VG4 (AWS RDS, GitHub Actions) | Neither bonus is implemented. | If selected, demonstrate the RDS alternative or automatic Docker image deployment to EC2. |
+| Team and recording (Classroom, documentation, presentation) | Team membership and a timed rehearsal are unverified. | Accept the invitation, document the pair, rehearse from scratch, record within 60 minutes, check playback and the link, then stop the instances. |
 
-Confirm Elastic IP allocation timing against the course rules. Prepare scripts
-and templates beforehand, but create the demonstration instance during recording.
-Rehearsal instances are separate from the final demonstration instance.
+## Decisions to settle
 
-## Decisions to settle before implementation
-
-- Confirm the original assignment brief, deadline, and division of work between
-  the two students.
-- Reader/collector/admin environment/file support is implemented. Configure the
-  separate admin credential using `api.md` and the local setup guide. Use current
-  `SERVERWATCH_*` settings and Bearer authentication instead of older generic
-  examples in the secrets guide.
+- Record the two team members, course deadline and division of demo work when confirmed.
 - Local collection uses a five-second sleep. Define the production collection
   schedule, incident thresholds, automatic resolution policy, retention, and
   notification channel.
@@ -167,11 +164,21 @@ Rehearsal instances are separate from the final demonstration instance.
 
 ## Immediate next task
 
-Connect the live incident frontend to the verified backend, with separate reader
-and admin permissions. Verify the full five-second collector/dashboard flow on
-Windows. Automatic detection, alerts, production deployment, and backups remain
-pending. Incident CRUD has now passed the Windows/local PostgreSQL smoke check
-recorded below.
+Prepare and rehearse the G deployment on a fresh Ubuntu instance (Bash, SCP,
+Git, SSH, systemd). Verify both logins, the home-directory clone, PostgreSQL and
+a fresh host metric. Then add Nginx and configure public Swagger and OpenAPI for
+the demonstration (Nginx, FastAPI). Schedule backups and demonstrate an alert
+before moving on to Compose and HTTPS. Windows and React work can proceed as
+local conveniences outside the grading path.
+
+## Repository maintenance (Python, pytest, Git)
+
+The four routers share request validation in `backend/app/reusable.py`. Metric
+and incident schemas also share UTC timestamp validation. Direct helper tests
+live in `backend/tests/test_reusable.py`. Repository skills cover extracting
+duplicate Python behavior and keeping placeholders only where Git needs them.
+All 367 backend and automation tests passed after the refactor, including 17
+new helper cases. Ruff lint and format checks passed for the backend app and tests.
 
 ## Verified foundation evidence (2026-11-16)
 

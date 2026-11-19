@@ -8,6 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from starlette.concurrency import run_in_threadpool
 
 from app.core.security import require_admin, require_reader
+from app.reusable import (
+    validate_json_write,
+    validate_list_request,
+    validate_read_request,
+)
 from app.schemas.incident import (
     IncidentCreate,
     IncidentPage,
@@ -40,18 +45,8 @@ def get_service(request: Request) -> IncidentsService:
     return request.app.state.incidents_service
 
 
-async def validate_json(request: Request) -> datetime:
-    if request.query_params:
-        raise HTTPException(status_code=422)
-    media_type = request.headers.get("content-type", "").split(";", 1)[0].strip()
-    if media_type.lower() != "application/json":
-        raise HTTPException(status_code=415)
-    return request.state.received_at
-
-
 async def validate_read(request: Request) -> None:
-    if request.query_params or await request.body():
-        raise HTTPException(status_code=422)
+    await validate_read_request(request)
 
 
 async def call_service(response: Response, operation, *args):
@@ -79,7 +74,7 @@ async def create_incident(
     data: IncidentCreate,
     response: Response,
     service: Annotated[IncidentsService, Depends(get_service)],
-    received_at: Annotated[datetime, Depends(validate_json)],
+    received_at: Annotated[datetime, Depends(validate_json_write)],
 ) -> IncidentRecord:
     result = await call_service(response, service.create, data, received_at)
     response.headers["Location"] = f"/api/v1/incidents/{result.id}"
@@ -101,13 +96,7 @@ async def list_incidents(
     status: Status | None = None,
     severity: Severity | None = None,
 ) -> IncidentPage:
-    for name in request.query_params:
-        if name not in {"limit", "offset", "status", "severity"}:
-            raise HTTPException(status_code=422)
-        if len(request.query_params.getlist(name)) != 1:
-            raise HTTPException(status_code=422)
-    if await request.body():
-        raise HTTPException(status_code=422)
+    await validate_list_request(request, "limit", "offset", "status", "severity")
     return await call_service(response, service.list, limit, offset, status, severity)
 
 
@@ -128,7 +117,7 @@ async def get_incident(
 @router.patch(
     "/{incident_id}",
     response_model=IncidentRecord,
-    dependencies=[Depends(require_admin), Depends(validate_json)],
+    dependencies=[Depends(require_admin), Depends(validate_json_write)],
     responses=errors,
 )
 async def update_incident(

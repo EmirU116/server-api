@@ -239,8 +239,7 @@ remain on a private network.
 
 ## Assignment and demonstration
 
-The requirements recorded in [AGENT.md](AGENT.md#10-course-requirements-and-demonstration-constraints)
-include:
+The [Swedish assignment brief](docs/assignment-brief.md) sets the following requirements.
 
 - **G:** provision a new EC2 instance, provide independent SSH access for both
   students, transfer and run a Bash bootstrap script, clone the repository,
@@ -251,8 +250,7 @@ include:
 - **Recorded pair demo:** a maximum of 60 minutes, with the EC2 instance created
   from scratch during recording. Both students must explain their work.
 
-These are project-recorded requirements; consult the course assignment for the
-authoritative assessment criteria. CI/CD and a frontend are optional extensions.
+The [coverage tracker](docs/project-plan.md#assignment-coverage-tracker) lists the evidence and remaining work for each criterion. Automated Docker deployment is a bonus. The frontend is an optional project extension.
 
 ## Repository layout
 

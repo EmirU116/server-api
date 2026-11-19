@@ -1,22 +1,30 @@
 """Validated incident inputs and complete UTC response records."""
 
-from datetime import UTC, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import (
-    AwareDatetime,
+    AfterValidator,
     BaseModel,
     ConfigDict,
     Field,
-    field_validator,
     model_validator,
 )
 
+from app.reusable import EventTimestamp, UtcDatetime, reject_null_characters
+
 Severity = Literal["info", "warning", "critical"]
 Status = Literal["open", "investigating", "resolved"]
-Title = Annotated[str, Field(strict=True, min_length=1, max_length=200)]
-Description = Annotated[str, Field(strict=True, min_length=1, max_length=5000)]
+Title = Annotated[
+    str,
+    Field(strict=True, min_length=1, max_length=200),
+    AfterValidator(reject_null_characters),
+]
+Description = Annotated[
+    str,
+    Field(strict=True, min_length=1, max_length=5000),
+    AfterValidator(reject_null_characters),
+]
 
 
 class IncidentCreate(BaseModel):
@@ -25,27 +33,7 @@ class IncidentCreate(BaseModel):
     title: Title
     description: Description
     severity: Severity
-    occurred_at: AwareDatetime
-
-    @field_validator("title", "description")
-    @classmethod
-    def reject_null_characters(cls, value: str) -> str:
-        # PostgreSQL text cannot contain a null character; reject before writing.
-        if "\x00" in value:
-            raise ValueError("Text cannot contain null characters.")
-        return value
-
-    @field_validator("occurred_at", mode="before")
-    @classmethod
-    def reject_numeric_timestamp(cls, value):
-        if not isinstance(value, (str, datetime)):
-            raise ValueError("Use a timezone-aware datetime.")
-        return value
-
-    @field_validator("occurred_at")
-    @classmethod
-    def normalize_time(cls, value: datetime) -> datetime:
-        return value.astimezone(UTC)
+    occurred_at: EventTimestamp
 
 
 class IncidentUpdate(BaseModel):
@@ -56,14 +44,6 @@ class IncidentUpdate(BaseModel):
     description: Description | None = None
     severity: Severity | None = None
     status: Status | None = None
-
-    @field_validator("title", "description")
-    @classmethod
-    def reject_null_characters(cls, value: str | None) -> str | None:
-        # PostgreSQL text cannot contain a null character; reject before writing.
-        if value is not None and "\x00" in value:
-            raise ValueError("Text cannot contain null characters.")
-        return value
 
     @model_validator(mode="after")
     def require_changes(self):
@@ -80,15 +60,9 @@ class IncidentRecord(IncidentCreate):
 
     id: UUID
     status: Status
-    created_at: AwareDatetime
-    updated_at: AwareDatetime
-    resolved_at: AwareDatetime | None
-
-    @field_validator("created_at", "updated_at", "resolved_at")
-    @classmethod
-    def normalize_generated_times(cls, value: datetime | None) -> datetime | None:
-        # PostgreSQL may return its session timezone; the API always returns UTC.
-        return value.astimezone(UTC) if value is not None else None
+    created_at: UtcDatetime
+    updated_at: UtcDatetime
+    resolved_at: UtcDatetime | None
 
 
 class IncidentPage(BaseModel):

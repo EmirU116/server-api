@@ -8,6 +8,7 @@ from pydantic import AwareDatetime
 from starlette.concurrency import run_in_threadpool
 
 from app.core.security import require_collector, require_reader
+from app.reusable import validate_json_write, validate_list_request
 from app.schemas.metric import MetricCreate, MetricPage, MetricRecord
 from app.services.metrics import (
     DuplicateMetric,
@@ -31,16 +32,6 @@ def get_metrics_service(request: Request) -> MetricsService:
     return request.app.state.metrics_service
 
 
-async def validate_post(request: Request) -> datetime:
-    """Use middleware receipt time and require the JSON media type."""
-    if request.query_params:
-        raise HTTPException(status_code=422)
-    media_type = request.headers.get("content-type", "").split(";", 1)[0].strip()
-    if media_type.lower() != "application/json":
-        raise HTTPException(status_code=415)
-    return request.state.received_at
-
-
 @router.post(
     "/metrics",
     status_code=201,
@@ -56,7 +47,7 @@ async def post_metric(
     sample: MetricCreate,
     response: Response,
     service: Annotated[MetricsService, Depends(get_metrics_service)],
-    received_at: Annotated[datetime, Depends(validate_post)],
+    received_at: Annotated[datetime, Depends(validate_json_write)],
 ) -> MetricRecord:
     """Store one sample atomically; duplicates do not overwrite history."""
     try:
@@ -87,18 +78,13 @@ async def get_metrics(
     end: Annotated[AwareDatetime | None, Query()] = None,
 ) -> MetricPage:
     """Read a bounded historical page; this never collects new measurements."""
-    for name in request.query_params:
-        if name not in {"limit", "offset", "start", "end"}:
-            raise HTTPException(status_code=422)
-        if len(request.query_params.getlist(name)) != 1:
-            raise HTTPException(status_code=422)
-        if name in {"start", "end"}:
+    await validate_list_request(request, "limit", "offset", "start", "end")
+    for name in ("start", "end"):
+        if name in request.query_params:
             try:
                 datetime.fromisoformat(request.query_params[name])
             except ValueError:
                 raise HTTPException(status_code=422) from None
-    if await request.body():
-        raise HTTPException(status_code=422)
     if start is not None and end is not None and start > end:
         raise HTTPException(status_code=422)
     try:

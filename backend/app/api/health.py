@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
-from app.api.validation import parse_server_id
+from app.reusable import parse_server_id, validate_read_request
 from app.schemas.health import HealthReport
 from app.services.errors import UnknownServer
 from app.services.health import HealthService
@@ -51,13 +51,7 @@ async def get_health(
     Return 200 only when every required check passes. Keep dependency failures
     in the same response structure with 503, rather than leaking exceptions.
     """
-    for parameter in request.query_params:
-        if parameter != "server_id":
-            raise HTTPException(status_code=422)
-
-    body = await request.body()
-    if body:
-        raise HTTPException(status_code=422)
+    await validate_read_request(request, "server_id")
 
     try:
         report = await service.check(server_id)

@@ -37,6 +37,7 @@ describe requirements and conventions; verify implementation status separately.
 | [Local stack launcher](docs/local-development.md) | Starting the existing Windows database, FastAPI, and React together from Git Bash/WSL; launcher checks, process cleanup, and Windows-only limitations. |
 | [Local PostgreSQL](docs/local-postgresql.md) | Database settings, Windows startup, and connectivity checks. |
 | [Project overview](README.md) | Starting work and finding project documentation. |
+| [Course assignment](docs/assignment-brief.md) | Checking the supplied G/VG criteria, team responsibilities, optional bonuses, and recording rules. |
 | [Project plan and progress](docs/project-plan.md) | Checking the current stage, choosing the next milestone, and tracking assignment completion. Update it with evidence after milestone completion or material scope changes. |
 | [Folder structure](docs/FOLDER_STRUCTURE.md) | Creating, moving, or organizing files and modules. |
 | [Frontend development](docs/frontend.md) | Working on the React/TypeScript UI, demo/live data separation, API client, local development proxy, or frontend checks. |
@@ -70,6 +71,11 @@ documents and link to them here instead of copying whole sections.
 
 This is an agent workflow rule, not a background file watcher. Agents following
 this file must perform the synchronization during relevant tasks.
+
+### Repository maintenance skills
+
+- Use [maintain-gitkeep](.agents/skills/maintain-gitkeep/SKILL.md) when changing which files preserve a project directory in Git.
+- Use [reuse-python-code](.agents/skills/reuse-python-code/SKILL.md) when Python callers duplicate behavior. Shared backend API helpers belong in `backend/app/reusable.py` and have direct tests.
 
 ### Implemented backend foundation
 
@@ -308,7 +314,7 @@ Where testing is unavailable, state precisely what remains unverified.
 - Clone the repository on the instance with suitable ownership/permissions.
 - Scheduled PostgreSQL/log backups using Cron; document that local-only backups are not disaster recovery.
 - Scheduled health monitoring and Discord/email alerts.
-- Working FastAPI service, demonstrated with systemd or supervisor.
+- Working FastAPI service, demonstrated with systemd or supervisor and publicly accessible Swagger at `/docs`. The current production profile disables Swagger and its schema. Track the deployment change under G7 in the project plan.
 - Nginx reverse proxy.
 - PostgreSQL connected to FastAPI.
 
