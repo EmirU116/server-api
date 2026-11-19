@@ -15,9 +15,10 @@ from sqlalchemy.orm import Session
 
 from app.models.metric import Metric
 from app.schemas.metric import MetricCreate, MetricPage, MetricRecord
+from app.services.errors import StorageFailure, StorageUnavailable
 
 
-class MetricsUnavailable(Exception):
+class MetricsUnavailable(StorageUnavailable):
     """Storage is unavailable, unconfigured, or its migration has not run."""
 
 
@@ -43,7 +44,7 @@ class MetricsService:
         if sample.collected_at > received_at.astimezone(UTC):
             raise FutureMetric
         if self.engine is None:
-            raise MetricsUnavailable
+            raise MetricsUnavailable(StorageFailure.UNCONFIGURED)
 
         try:
             with Session(self.engine) as session, session.begin():
@@ -61,8 +62,13 @@ class MetricsService:
             ):
                 raise DuplicateMetric from None
             raise
-        except (OperationalError, InterfaceError, ProgrammingError, TimeoutError):
-            raise MetricsUnavailable from None
+        except (
+            OperationalError,
+            InterfaceError,
+            ProgrammingError,
+            TimeoutError,
+        ) as exc:
+            raise MetricsUnavailable.from_database_error(exc) from None
 
     def list(
         self, limit: int, offset: int, start: datetime | None, end: datetime | None
@@ -73,7 +79,7 @@ class MetricsService:
         so neither a reader nor collector can switch to another server's data.
         """
         if self.engine is None:
-            raise MetricsUnavailable
+            raise MetricsUnavailable(StorageFailure.UNCONFIGURED)
         filters = [Metric.server_id == self.server_id]
         if start is not None:
             filters.append(Metric.collected_at >= start)
@@ -102,5 +108,10 @@ class MetricsService:
                         limit=limit,
                         offset=offset,
                     )
-        except (OperationalError, InterfaceError, ProgrammingError, TimeoutError):
-            raise MetricsUnavailable from None
+        except (
+            OperationalError,
+            InterfaceError,
+            ProgrammingError,
+            TimeoutError,
+        ) as exc:
+            raise MetricsUnavailable.from_database_error(exc) from None

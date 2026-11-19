@@ -28,6 +28,7 @@ def test_default_health_is_public_and_honest_about_missing_database(client):
 
     assert response.status_code == 503
     assert response.json()["status"] == "unhealthy"
+    assert response.json()["message"] == "Database readiness check is not configured."
     assert response.json()["checks"] == {"server": "up", "database": "down"}
     assert (
         datetime.fromisoformat(response.json()["checked_at"])
@@ -76,6 +77,7 @@ def test_database_exception_does_not_leak_or_prevent_health_response(
 
     assert response.status_code == 503
     assert response.json()["checks"] == {"server": "up", "database": "down"}
+    assert response.json()["message"] == "Database readiness check could not complete."
     assert "dummy-sensitive" not in response.text
     assert "dummy-sensitive" not in caplog.text
 
@@ -95,6 +97,7 @@ def test_timed_out_probe_is_cancelled_and_reported_down():
 
     assert report.status == "unhealthy"
     assert report.checks.database == "down"
+    assert report.message == "Database readiness check timed out."
     assert cancelled == [True]
 
 
@@ -203,6 +206,7 @@ def test_unexpected_health_failure_returns_sanitized_500(app, client):
     app.state.health_service = HealthService(up, up, clock=broken_clock)
     response = client.get("/api/v1/health?server_id=1")
     assert response.status_code == 500
+    assert "internal server failure" in response.json()["error"]["message"]
     assert "dummy-sensitive" not in response.text
 
 

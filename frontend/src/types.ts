@@ -7,6 +7,7 @@ export interface Health {
   server_id: number;
   status: 'healthy' | 'unhealthy';
   checked_at: string;
+  message?: string;
   checks: { server: 'up' | 'down'; database: 'up' | 'down' };
 }
 

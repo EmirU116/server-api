@@ -14,6 +14,7 @@ export function isHealth(value: unknown): value is Health {
     value.server_id >= 1 &&
     ['healthy', 'unhealthy'].includes(String(value.status)) &&
     timestamp(value.checked_at) &&
+    (value.message === undefined || typeof value.message === 'string') &&
     record(value.checks) &&
     ['up', 'down'].includes(String(value.checks.server)) &&
     ['up', 'down'].includes(String(value.checks.database))

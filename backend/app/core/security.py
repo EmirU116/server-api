@@ -69,7 +69,9 @@ def require_role(
 ) -> None:
     if credentials is None:
         raise PublicHTTPError(
-            401, "Supply a valid Bearer token.", headers={"WWW-Authenticate": "Bearer"}
+            401,
+            "A Bearer token is required in the Authorization header.",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     expected = getattr(request.app.state, f"{role}_token")
@@ -83,9 +85,13 @@ def require_role(
         ):
             raise PublicHTTPError(403, f"This operation requires the {role} role.")
     if expected is None:
-        raise PublicHTTPError(503, "Authentication is temporarily unavailable.")
+        raise PublicHTTPError(
+            503, f"The server has no credential configured for the {role} role."
+        )
 
     if not secrets.compare_digest(supplied, expected.get_secret_value().encode()):
         raise PublicHTTPError(
-            401, "Supply a valid Bearer token.", headers={"WWW-Authenticate": "Bearer"}
+            401,
+            "The supplied Bearer token was not recognized.",
+            headers={"WWW-Authenticate": "Bearer"},
         )

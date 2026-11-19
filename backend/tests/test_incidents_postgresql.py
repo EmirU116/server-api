@@ -153,6 +153,7 @@ def test_missing_tables_return_503_for_all_operations(
             headers=READER if method == "get" else ADMIN,
         )
         assert response.status_code == 503
+        assert "Check the migrations" in response.json()["error"]["message"]
         assert "missing_incidents" not in response.text
 
 

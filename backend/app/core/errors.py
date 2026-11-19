@@ -3,11 +3,10 @@
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from http import HTTPStatus
 
 from fastapi import FastAPI, Request
 from fastapi import HTTPException as FastAPIHTTPException
-from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from fastapi.responses import JSONResponse, Response
 from starlette.exceptions import HTTPException
 
@@ -31,6 +30,7 @@ FIELD_MESSAGES = {
     "missing": "This field is required.",
     "int_type": "Use a whole number.",
     "int_parsing": "Use a whole number.",
+    "int_parsing_size": "The number is too large to parse as an integer.",
     "int_from_float": "Use a whole number.",
     "float_type": "Use a number.",
     "float_parsing": "Use a number.",
@@ -43,6 +43,21 @@ FIELD_MESSAGES = {
     "uuid_parsing": "Use a valid UUID.",
     "model_attributes_type": "Supply a JSON object.",
     "extra_forbidden": "Remove the unrecognized field.",
+}
+
+
+# Framework exceptions can carry untrusted text. Describe known conditions here.
+HTTP_REASONS = {
+    400: "The API could not parse the request body.",
+    401: "This endpoint requires valid authentication.",
+    403: "The caller lacks permission for this operation.",
+    404: "No API route matches this request path.",
+    405: "This route does not support the requested HTTP method.",
+    409: "The request conflicts with an existing record.",
+    415: "The request body has an unsupported media type.",
+    422: "The request does not meet this endpoint's input requirements.",
+    500: "An internal server failure interrupted request processing.",
+    503: "A service required to complete this request is unavailable.",
 }
 
 
@@ -102,10 +117,7 @@ def error_response(
 
 async def http_error_handler(request: Request, exc: HTTPException) -> JSONResponse:
     """Keep protocol headers while withholding arbitrary exception details."""
-    try:
-        message = HTTPStatus(exc.status_code).phrase
-    except ValueError:
-        message = "Request failed."
+    message = HTTP_REASONS.get(exc.status_code, "The server rejected this request.")
 
     if isinstance(exc, PublicHTTPError):
         message = exc.detail
@@ -129,7 +141,9 @@ async def validation_error_handler(
     """
     errors = exc.errors()
     if any(error["type"] == "json_invalid" for error in errors):
-        return error_response(400, "bad_request", "Malformed JSON.")
+        return error_response(
+            400, "bad_request", "The request body contains invalid JSON syntax."
+        )
 
     return error_response(
         422,
@@ -146,7 +160,10 @@ async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResp
     Handle route failures before they reach the ASGI server's traceback logger.
     """
     logger.error("Unhandled application error (%s).", type(exc).__name__)
-    return error_response(500, "internal_error", "An unexpected error occurred.")
+    message = HTTP_REASONS[500]
+    if isinstance(exc, ResponseValidationError):
+        message = "The server response did not match the endpoint schema."
+    return error_response(500, "internal_error", message)
 
 
 async def unexpected_error_middleware(

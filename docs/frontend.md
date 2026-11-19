@@ -79,10 +79,9 @@ The client in `frontend/src/services/api.ts` follows [the API contract](api.md):
   to `http://127.0.0.1:8000`, avoiding a backend CORS change.
 - Applies a request timeout, validates response shapes before rendering, and
   shows safe error messages for connection, authentication, permission,
-  validation, and server failures. For a structured API 4xx error the dashboard
-  displays the public explanation and any field-specific reasons. Proxy errors
-  and unexpected server failures use a local fallback. A structured unhealthy health response with
-  HTTP 503 is displayed as unhealthy.
+  validation, and server failures. For a structured API 4xx error or a recognized public 500/503 envelope the dashboard
+  displays the public explanation and any field-specific reasons. Unstructured server or proxy errors use a local fallback. A structured unhealthy health response with
+  HTTP 503 is displayed as unhealthy with its public probe explanation when available.
 - Demo incident search/status filters and metric table pagination apply to
   loaded records; the API workspace loads at most the latest 100 measurements.
   Fetching further server-side pages is future work.

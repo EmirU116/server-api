@@ -3,6 +3,9 @@
 import pytest
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
+from sqlalchemy.exc import OperationalError, TimeoutError
+
+from app.services.errors import StorageFailure, StorageUnavailable
 
 
 class SampleInput(BaseModel):
@@ -22,7 +25,11 @@ def test_unknown_route_has_consistent_error_envelope(client):
 
     assert response.status_code == 404
     assert response.json() == {
-        "error": {"code": "not_found", "message": "Not Found", "details": []}
+        "error": {
+            "code": "not_found",
+            "message": "No API route matches this request path.",
+            "details": [],
+        }
     }
 
 
@@ -33,6 +40,10 @@ def test_method_not_allowed_preserves_allow_header(app, client):
 
     assert response.status_code == 405
     assert response.headers["allow"] == "POST"
+    assert (
+        "does not support the requested HTTP method"
+        in response.json()["error"]["message"]
+    )
     assert response.json()["error"]["code"] == "method_not_allowed"
 
 
@@ -72,6 +83,7 @@ def test_malformed_json_returns_400(app, client):
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "bad_request"
+    assert "invalid JSON syntax" in response.json()["error"]["message"]
 
 
 def test_authentication_error_preserves_challenge_without_leaking_details(app, client):
@@ -103,7 +115,7 @@ def test_unexpected_failure_is_sanitized_in_response_and_application_log(
     assert response.json() == {
         "error": {
             "code": "internal_error",
-            "message": "An unexpected error occurred.",
+            "message": "An internal server failure interrupted request processing.",
             "details": [],
         }
     }
@@ -161,3 +173,39 @@ def test_arbitrary_validator_error_stays_private(app, client):
     assert response.status_code == 422
     assert response.json()["error"]["details"][0]["message"] == "The value is invalid."
     assert "dummy-sensitive" not in response.text
+
+
+@pytest.mark.parametrize(
+    "state, reason",
+    [
+        ("55P03", StorageFailure.LOCK),
+        ("57014", StorageFailure.CANCELED),
+        ("42703", StorageFailure.SCHEMA),
+        (None, StorageFailure.DATABASE),
+    ],
+)
+def test_database_error_categories_do_not_expose_driver_details(state, reason):
+    class DriverError(Exception):
+        sqlstate = state
+
+    error = OperationalError("private SQL", {}, DriverError("private detail"))
+    failure = StorageUnavailable.from_database_error(error)
+    assert failure.reason is reason
+
+
+def test_connection_pool_timeout_has_a_specific_reason():
+    failure = StorageUnavailable.from_database_error(TimeoutError("private details"))
+    assert failure.reason is StorageFailure.TIMEOUT
+
+
+def test_invalid_response_explains_server_side_schema_failure(app, client):
+    @app.get("/_test/invalid-response", response_model=SampleInput)
+    def invalid_response():
+        return {"cpu_percent": "private result"}
+
+    response = client.get("/_test/invalid-response")
+    assert response.status_code == 500
+    assert response.json()["error"]["message"] == (
+        "The server response did not match the endpoint schema."
+    )
+    assert "private result" not in response.text

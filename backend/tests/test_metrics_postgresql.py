@@ -130,4 +130,6 @@ def test_missing_schema_returns_safe_503(client, app, stored_metrics, postgres_e
     read = client.get("/api/v1/metrics", headers=READER)
     write = client.post("/api/v1/metrics", json=SAMPLE, headers=COLLECTOR)
     assert read.status_code == write.status_code == 503
+    for response in (read, write):
+        assert "Check the migrations" in response.json()["error"]["message"]
     assert "serverwatch_missing_schema" not in read.text + write.text

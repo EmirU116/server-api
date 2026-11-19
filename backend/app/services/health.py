@@ -20,20 +20,11 @@ async def server_process_ready() -> bool:
     return True
 
 
-async def database_not_configured() -> bool:
-    """Fail readiness until persistence supplies a real database probe.
-
-    An unconfigured database must never be reported as healthy. This keeps
-    the public endpoint useful without requiring credentials for this first API.
-    """
-    return False
-
-
 class HealthService:
     def __init__(
         self,
         server_probe: Probe = server_process_ready,
-        database_probe: Probe = database_not_configured,
+        database_probe: Probe | None = None,
         *,
         timeout_seconds: float = 0.15,
         clock: Clock = utc_now,
@@ -57,26 +48,31 @@ class HealthService:
         if server_id != self.local_server_id:
             raise UnknownServer
 
-        server_up, database_up = await asyncio.gather(
-            self._probe(self.server_probe),
-            self._probe(self.database_probe),
+        server_failure, database_failure = await asyncio.gather(
+            self._probe("Server", self.server_probe),
+            self._probe("Database", self.database_probe),
         )
+        failures = [reason for reason in (server_failure, database_failure) if reason]
         return HealthReport(
             server_id=server_id,
-            status="healthy" if server_up and database_up else "unhealthy",
+            status="unhealthy" if failures else "healthy",
+            message=" ".join(failures) if failures else None,
             checked_at=self.clock().astimezone(UTC),
             checks=HealthChecks(
-                server="up" if server_up else "down",
-                database="up" if database_up else "down",
+                server="down" if server_failure else "up",
+                database="down" if database_failure else "up",
             ),
         )
 
-    async def _probe(self, probe: Probe) -> bool:
+    async def _probe(self, name: str, probe: Probe | None) -> str | None:
+        """Return a safe reason when a required probe fails to establish readiness."""
+        if probe is None:
+            return f"{name} readiness check is not configured."
         try:
-            return await asyncio.wait_for(probe(), self.timeout_seconds) is True
+            if await asyncio.wait_for(probe(), self.timeout_seconds) is True:
+                return None
+            return f"{name} readiness check reported unavailable."
         except TimeoutError:
-            # A slow dependency is unhealthy; the route returns a structured 503.
-            return False
+            return f"{name} readiness check timed out."
         except Exception:
-            # Other dependency failures must not leak internal exception details.
-            return False
+            return f"{name} readiness check could not complete."

@@ -16,3 +16,4 @@ class HealthReport(BaseModel):
     status: Literal["healthy", "unhealthy"]
     checked_at: datetime
     checks: HealthChecks
+    message: str | None = None

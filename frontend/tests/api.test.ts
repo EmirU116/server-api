@@ -77,6 +77,42 @@ describe('typed API client', () => {
     });
   });
 
+  it('displays the public storage failure reason on a failed delete', async () => {
+    const message = 'PostgreSQL storage has not been configured for this API.';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            error: { code: 'service_unavailable', message, details: [] },
+          },
+          { status: 503 },
+        ),
+      ),
+    );
+    await expect(createApi('test').deleteIncident('record')).rejects.toThrow(
+      message,
+    );
+  });
+
+  it('displays a sanitized API response-schema failure', async () => {
+    const message = 'The server response did not match the endpoint schema.';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            error: { code: 'internal_error', message, details: [] },
+          },
+          { status: 500 },
+        ),
+      ),
+    );
+    await expect(createApi('test').deleteIncident('record')).rejects.toThrow(
+      message,
+    );
+  });
+
   it('rejects invalid metric measurements before rendering', async () => {
     const demo = createDemoSnapshot();
     vi.stubGlobal(

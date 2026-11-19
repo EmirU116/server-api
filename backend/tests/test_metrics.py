@@ -153,6 +153,7 @@ def test_content_type_malformed_json_and_unknown_input(client, metrics):
         headers={**COLLECTOR, "Content-Type": "text/plain"},
     )
     assert response.status_code == 415
+    assert "application/json" in response.json()["error"]["message"]
     response = client.post(
         "/api/v1/metrics",
         content="{",
@@ -185,6 +186,12 @@ def test_write_errors_sanitized(client, metrics, error, status, caplog):
     metrics.create.side_effect = error
     response = client.post("/api/v1/metrics", json=SAMPLE, headers=COLLECTOR)
     assert response.status_code == status
+    reasons = {
+        409: "already exists",
+        503: "PostgreSQL could not complete",
+        500: "internal server failure",
+    }
+    assert reasons[status] in response.json()["error"]["message"]
     assert "dummy-secret" not in response.text + caplog.text
 
 

@@ -31,7 +31,10 @@ export function HealthPanel({
         {healthy ? 'All systems operational' : 'A system needs attention'}
       </h3>
       <p>
-        {demo ? 'Example readiness check' : 'Reported by the health endpoint'}
+        {snapshot.health.message ??
+          (demo
+            ? 'Example readiness check'
+            : 'Reported by the health endpoint')}
       </p>
       {!demo && (
         <p>

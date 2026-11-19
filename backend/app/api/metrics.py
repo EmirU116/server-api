@@ -59,10 +59,8 @@ async def post_metric(
         raise PublicHTTPError(
             409, "A measurement already exists for this server and collected_at."
         ) from None
-    except MetricsUnavailable:
-        raise PublicHTTPError(
-            503, "Metric storage is temporarily unavailable."
-        ) from None
+    except MetricsUnavailable as exc:
+        raise PublicHTTPError(503, exc.reason.value) from None
     response.headers["Cache-Control"] = "no-store"
     return result
 
@@ -96,9 +94,7 @@ async def get_metrics(
         raise PublicHTTPError(422, "start must be earlier than or equal to end.")
     try:
         result = await run_in_threadpool(service.list, limit, offset, start, end)
-    except MetricsUnavailable:
-        raise PublicHTTPError(
-            503, "Metric storage is temporarily unavailable."
-        ) from None
+    except MetricsUnavailable as exc:
+        raise PublicHTTPError(503, exc.reason.value) from None
     response.headers["Cache-Control"] = "no-store"
     return result

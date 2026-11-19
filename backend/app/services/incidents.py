@@ -23,9 +23,10 @@ from app.schemas.incident import (
     Severity,
     Status,
 )
+from app.services.errors import StorageFailure, StorageUnavailable
 
 
-class IncidentsUnavailable(Exception):
+class IncidentsUnavailable(StorageUnavailable):
     """Database is unavailable, unconfigured, or not migrated."""
 
 
@@ -56,7 +57,7 @@ class IncidentsService:
         use ordinary transactions with row locks to serialize concurrent edits.
         """
         if self.engine is None:
-            raise IncidentsUnavailable
+            raise IncidentsUnavailable(StorageFailure.UNCONFIGURED)
         try:
             with self.engine.connect() as connection:
                 if snapshot:
@@ -65,8 +66,13 @@ class IncidentsService:
                     )
                 with Session(bind=connection) as session, session.begin():
                     yield session
-        except (OperationalError, InterfaceError, ProgrammingError, TimeoutError):
-            raise IncidentsUnavailable from None
+        except (
+            OperationalError,
+            InterfaceError,
+            ProgrammingError,
+            TimeoutError,
+        ) as exc:
+            raise IncidentsUnavailable.from_database_error(exc) from None
 
     def find(self, session: Session, incident_id: UUID, lock: bool = False) -> Incident:
         query = select(Incident).where(

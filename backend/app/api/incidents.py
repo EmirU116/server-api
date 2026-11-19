@@ -58,10 +58,8 @@ async def call_service(response: Response, operation, *args):
         raise PublicHTTPError(404, "No incident exists with this ID.") from None
     except FutureIncident:
         raise PublicHTTPError(422, "occurred_at cannot be in the future.") from None
-    except IncidentsUnavailable:
-        raise PublicHTTPError(
-            503, "Incident storage is temporarily unavailable."
-        ) from None
+    except IncidentsUnavailable as exc:
+        raise PublicHTTPError(503, exc.reason.value) from None
     response.headers["Cache-Control"] = "no-store"
     return result
 

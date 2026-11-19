@@ -51,7 +51,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.database = Database(settings)
     app.state.health_service = HealthService(
-        database_probe=app.state.database.check,
+        database_probe=app.state.database.check
+        if app.state.database.engine is not None
+        else None,
         local_server_id=settings.server_id,
     )
     app.state.server_service = ServerService(settings.server_id, settings.server_name)

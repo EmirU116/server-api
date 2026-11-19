@@ -64,12 +64,15 @@ export function createApi(token: string) {
         401: 'Your session is not authorized. Connect with a valid bearer token.',
         403: 'Your account does not have permission for this action.',
         404: 'This API route or record is not available yet.',
+        405: 'This route does not support the requested HTTP method.',
+        415: 'This endpoint requires a JSON request body.',
+        500: 'An internal server failure interrupted request processing.',
         409: 'This record conflicts with an existing record. Refresh and try again.',
         422: 'Some fields are invalid. Check your input and try again.',
         503: 'The server is temporarily unavailable. Try again shortly.',
       };
-      // Only the API's structured client errors carry public validation feedback.
-      const reason = await clientErrorMessage(response);
+      // A proxy may send HTML. Only use public messages from an API error envelope.
+      const reason = await publicErrorMessage(response);
       throw new ApiError(
         response.status,
         reason ??
@@ -134,12 +137,12 @@ export function createApi(token: string) {
   };
 }
 
-async function clientErrorMessage(
+async function publicErrorMessage(
   response: Response,
 ): Promise<string | undefined> {
   if (
     response.status < 400 ||
-    response.status >= 500 ||
+    (response.status >= 500 && ![500, 503].includes(response.status)) ||
     response.headers.get('content-type')?.split(';')[0].trim() !==
       'application/json'
   )
@@ -148,6 +151,8 @@ async function clientErrorMessage(
   const error = payload?.error;
   if (
     typeof error?.code !== 'string' ||
+    (response.status === 500 && error.code !== 'internal_error') ||
+    (response.status === 503 && error.code !== 'service_unavailable') ||
     typeof error.message !== 'string' ||
     !Array.isArray(error.details)
   )

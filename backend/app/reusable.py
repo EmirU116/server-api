@@ -33,8 +33,13 @@ async def validate_read_request(request: Request, *allowed_parameters: str) -> N
     """
     for name in request.query_params:
         if name not in allowed_parameters:
+            if allowed_parameters:
+                allowed = ", ".join(allowed_parameters)
+                raise PublicHTTPError(
+                    422, f"Unsupported query parameter. Allowed: {allowed}."
+                )
             raise PublicHTTPError(
-                422, "This endpoint does not accept that query parameter."
+                422, "This operation does not accept query parameters."
             )
     if await request.body():
         raise PublicHTTPError(422, "This operation does not accept a request body.")
@@ -60,7 +65,10 @@ async def validate_json_write(request: Request) -> datetime:
         )
     media_type = request.headers.get("content-type", "").partition(";")[0]
     if media_type.strip().lower() != "application/json":
-        raise PublicHTTPError(415, "Set Content-Type to application/json.")
+        raise PublicHTTPError(
+            415,
+            "A JSON body is required. Set Content-Type to application/json.",
+        )
     return request.state.received_at
 
 

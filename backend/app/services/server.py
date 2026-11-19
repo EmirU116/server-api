@@ -12,6 +12,20 @@ from app.services.errors import UnknownServer
 class ServerInfoUnavailable(Exception):
     """The host metadata source could not provide a complete identity."""
 
+    public_message = "The operating system could not provide native host information."
+
+
+class ContainerIdentityUnavailable(ServerInfoUnavailable):
+    public_message = (
+        "The API is running in a container without a native host identity source."
+    )
+
+
+class IncompleteHostIdentity(ServerInfoUnavailable):
+    public_message = (
+        "The operating system returned incomplete host identity information."
+    )
+
 
 def read_host_info() -> dict[str, str]:
     """Read the machine running Python, never present a container as the host.
@@ -21,7 +35,7 @@ def read_host_info() -> dict[str, str]:
     These common container markers are a guard, not universal detection.
     """
     if Path("/.dockerenv").exists() or Path("/run/.containerenv").exists():
-        raise ServerInfoUnavailable
+        raise ContainerIdentityUnavailable
 
     os_type = platform.system()
     os_name = os_type
@@ -54,5 +68,7 @@ class ServerService:
         try:
             metadata = read_host_info()
             return ServerInfo(id=self.server_id, name=self.name, **metadata)
-        except (OSError, ValidationError):
+        except ValidationError:
+            raise IncompleteHostIdentity from None
+        except OSError:
             raise ServerInfoUnavailable from None

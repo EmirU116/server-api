@@ -26,6 +26,7 @@ def get_server_service(request: Request) -> ServerService:
     responses={
         400: {"description": "Invalid or repeated server ID"},
         401: {"description": "Missing or invalid bearer token"},
+        403: {"description": "This operation requires the reader role"},
         404: {"description": "Server is not registered"},
         422: {"description": "Unexpected query parameters or request body"},
         503: {"description": "Host information or reader authentication unavailable"},
@@ -52,10 +53,8 @@ async def get_server(
         info = await run_in_threadpool(service.get_info, selected_id)
     except UnknownServer:
         raise PublicHTTPError(404, "No server is registered with this ID.") from None
-    except ServerInfoUnavailable:
-        raise PublicHTTPError(
-            503, "Server information is temporarily unavailable."
-        ) from None
+    except ServerInfoUnavailable as exc:
+        raise PublicHTTPError(503, exc.public_message) from None
 
     response.headers["Cache-Control"] = "no-store"
     return info

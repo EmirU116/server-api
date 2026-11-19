@@ -77,8 +77,9 @@ Healthy response (`200 OK`):
 }
 ```
 
-If a required check fails or times out, return `503 Service Unavailable` with the
-same structure, `status: "unhealthy"`, and the failed check marked `"down"`.
+If a required check fails or times out, return `503 Service Unavailable` and
+a readiness report with `status: "unhealthy"`, each failed check marked `"down"`,
+and a public `message`. For example, a database timeout produces `Database readiness check timed out.` A missing configuration or a probe exception has its own reason. The healthy report omits the message.
 Health must still respond if the database is unavailable. Do not expose internal
 addresses, exception messages, or credentials. CPU, memory, and disk measurements
 belong to the metrics API.
@@ -417,6 +418,14 @@ accept a request body or query parameters.
 
 ## Validation and error-handling rules
 
+**Required for every operation and every handled error code.** The public response
+must explain why the operation failed. Include the violated input rule, required
+role, missing resource or failed dependency when known. Use a field detail when
+the schema can identify the field. For unknown internal failures, state that
+server-side processing failed and keep technical diagnostics private. Verify
+the public reason through the affected endpoint. This rule covers framework
+routing, authentication, schema validation, reads, writes and deletes.
+
 Every endpoint accepting input must validate its body, path, and query parameters
 before performing side effects. Reject unexpected query parameters and request
 bodies on endpoints that do not support them.
@@ -462,6 +471,16 @@ and server lookups, `error.message` directly explains a rejected ID:
 | `server_id=1&server_id=2` | 400 | Supply server_id exactly once. |
 | Omitted on health | 422 | `details` identifies `query.server_id` and says the field is required. |
 | Valid ID with no registered server | 404 | No server is registered with this ID. |
+
+| Operation or failure | What the caller learns |
+| --- | --- |
+| Any protected read or write (401, 403) | A Bearer credential is missing or malformed, the token is unrecognized, or the operation needs a different named role. A missing server-side role configuration returns 503. |
+| Unknown path or unsupported method (404, 405) | The path has no matching route, or the route does not support the method. A 405 preserves the framework's Allow header. HEAD responses follow HTTP bodyless semantics. |
+| Metric or incident POST, incident PATCH (400, 415, 422) | Invalid JSON syntax, the required JSON media type, or the field and rule that failed. An empty PATCH identifies the requirement to supply at least one change. |
+| Metric POST (409), metrics GET (422) | The collection timestamp already exists for this server, or a filter is repeated, incorrectly formatted or out of order. |
+| Incident detail GET, PATCH or DELETE (404, 422) | No record exists with that ID, or the path ID must be a UUID. Successful DELETE remains an empty 204. |
+| Server identity and database operations (503) | The native identity source is unavailable or incomplete, storage is unconfigured, a required schema object is missing, a lock or timeout prevented completion, or PostgreSQL failed to complete the operation. Each reason reflects evidence from the failing check. |
+| Unexpected processing failure (500) | The server encountered an internal failure while processing the request. A response that fails output validation identifies the server-side schema mismatch. Raw exception details stay private. |
 
 Use stable machine-readable codes, for example `not_found`, `conflict`,
 `internal_error`, and `service_unavailable`. Use `details: []` when no field-level

@@ -142,6 +142,12 @@ def test_access_control(client, incidents, method, path, body, role):
         method, f"/api/v1/incidents{path}", json=body, headers=headers
     )
     assert response.status_code == (403 if role == "wrong" else 401)
+    reason = {
+        "missing": "Authorization header",
+        "invalid": "not recognized",
+        "wrong": "role",
+    }
+    assert reason[role] in response.json()["error"]["message"]
     if role != "wrong":
         assert response.headers["www-authenticate"] == "Bearer"
     for operation in ("create", "get", "list", "update", "delete"):
@@ -233,6 +239,12 @@ def test_failures_are_sanitized(
         headers=READER if method == "get" else ADMIN,
     )
     assert response.status_code == expected
+    reason = (
+        "PostgreSQL could not complete"
+        if expected == 503
+        else "internal server failure"
+    )
+    assert reason in response.json()["error"]["message"]
     assert "dummy-private-error" not in response.text + caplog.text
 
 
@@ -248,6 +260,7 @@ def test_missing_record(client, incidents, method, operation):
         json={"status": "open"} if method == "patch" else None,
     )
     assert response.status_code == 404
+    assert response.json()["error"]["message"] == "No incident exists with this ID."
 
 
 def test_delete_returns_empty_204(client, incidents):

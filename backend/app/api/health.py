@@ -35,9 +35,12 @@ def validate_server_id(
 @router.get(
     "/health",
     response_model=HealthReport,
+    response_model_exclude_none=True,
     responses={
         400: {"description": "Invalid server ID"},
         404: {"description": "Server is not registered"},
+        422: {"description": "Missing server_id, unexpected query parameter or body"},
+        500: {"description": "An internal failure interrupted the health request"},
         503: {"model": HealthReport, "description": "A required check failed"},
     },
 )
