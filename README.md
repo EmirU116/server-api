@@ -26,7 +26,8 @@ now submits real measurements with a five-second sleep between attempts.
 Incident CRUD now persists records in PostgreSQL, with reader GET and a separate
 admin token for POST/PATCH/DELETE. Apply the new migration and configure the
 admin token using [local incident setup](docs/local-postgresql.md#enable-incident-storage-python-postgresql).
-Production collection/scheduling, alerts, containers, and full deployment remain pending.
+Ubuntu systemd setup supports continuous host collection. Native server verification,
+Cron scheduling, alerts, containers, and full deployment remain pending.
 
 The React/TypeScript frontend now provides a demo dashboard and typed API
 client. Live mode loads health, server information, and stored metrics; incidents
@@ -53,6 +54,23 @@ PostgreSQL stays running.
 See [local launcher setup and troubleshooting](docs/local-development.md).
 Install updated Python requirements first (the collector uses `psutil`) and
 configure separate reader/collector tokens privately in `.env`.
+
+## Start Ubuntu host monitoring (Bash, PostgreSQL, systemd)
+
+On a native Ubuntu 24.04+ server with a cloned checkout, run as your normal SSH
+user with sudo access:
+
+```bash
+bash infrastructure/bootstrap/setup_ubuntu_monitoring.sh
+bash scripts/verification/verify_ubuntu_monitoring.sh
+```
+
+Setup installs local PostgreSQL/Python, creates private credentials, applies
+migrations, and starts API/collector services at boot. The collector measures
+that Ubuntu host every five-second sleep cycle. Verification checks fresh stored
+measurements. Read [Ubuntu setup and verification](docs/ubuntu-monitoring.md)
+for prerequisites, service commands, and limits. Native Ubuntu/EC2 execution
+still needs a real-server smoke test; this does not publish the frontend/API.
 
 ## Local backend setup (Python, FastAPI)
 
@@ -285,6 +303,9 @@ verified migration and deployment commands here when those workflows exist.
 
 - [Local PostgreSQL](docs/local-postgresql.md): Windows startup, private settings,
   and database readiness verification.
+
+- [Ubuntu host monitoring](docs/ubuntu-monitoring.md) covers setup and verification
+  for the API, local PostgreSQL, and the host collector.
 
 - [Native EC2 setup and verification](docs/ec2-testing.md): Bash setup, protected
   reader token, localhost systemd service, and checks with PASS/FAIL/WARN feedback.

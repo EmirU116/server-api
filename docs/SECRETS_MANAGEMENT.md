@@ -178,8 +178,9 @@ The same Python code works with local environment variables or the corresponding
 The local test collector `scripts/monitoring/collect_local.py` now submits real
 host measurements to `http://127.0.0.1:8000/api/v1/metrics` using a plain loop and
 five-second sleep. It loads the collector credential privately and never follows
-redirects or prints tokens/response bodies. Production host/Cron scheduling remains
-pending. See [local development](local-development.md).
+redirects or prints tokens/response bodies. The native Ubuntu setup reuses
+the same collector under systemd. Cron scheduling remains pending. See
+[local development](local-development.md) and [Ubuntu monitoring](ubuntu-monitoring.md).
 The application now uses `SERVERWATCH_COLLECTOR_TOKEN` or
 `SERVERWATCH_COLLECTOR_TOKEN_FILE` for POST, and a different reader token for GET.
 Use [local setup](local-postgresql.md) and `.env.example` for the implemented
@@ -202,6 +203,19 @@ incident writes with 503 without disabling other APIs. Create/store the token
 privately using [local incident setup](local-postgresql.md#enable-incident-storage-python-postgresql).
 Do not put it in frontend build variables, browser storage, logs, or Git.
 The current dashboard reader connection must continue using only the reader token.
+
+### Native Ubuntu monitoring configuration
+
+The native [Ubuntu setup](ubuntu-monitoring.md) creates mode-600 secret files and
+managed environment files under the setup user's mode-700
+`~/.config/serverwatch-monitoring/`. It preserves existing values on rerun and
+ignores the cloned project's `.env`. API settings point to secret files; the
+collector receives only its token path. Both services run as the setup user, so
+this is not isolation from other processes owned by that same user.
+Database provisioning sends a SCRAM verifier through stdin to psql, suppressing
+raw SQL errors; never print this internal stream or invoke setup with shell
+tracing. Neither the password nor bearer tokens go into command arguments.
+This native path precedes the future Compose setup; it does not install Compose.
 
 ## 7. GitHub Actions and deployment
 

@@ -1,6 +1,6 @@
 # ServerWatch project plan and progress
 
-Last reviewed: 2026-11-18. Status is based on repository inspection, not a live
+Last reviewed: 2026-11-19. Status is based on repository inspection, not a live
 EC2 audit. This is the progress tracker; endpoint details remain in
 [the API specification](api.md).
 
@@ -30,9 +30,9 @@ No cloud deployment or assignment demonstration has been verified.
 | Health API | Verified route/service behavior; user confirmed Windows database health | `backend/app/api/health.py`, schemas/services, and `backend/tests/test_health.py` |
 | Server API | Implemented; native EC2/container verification pending | Server router/schema/service and tests; reader token authentication |
 | Metrics and persistence | Implemented and tested with isolated PostgreSQL | Metrics model, Alembic upgrade, transaction, filtering, and persistence tests; user must apply upgrade locally |
-| Incident endpoints | Implemented; Windows smoke test pending | CRUD router/schema/service, PostgreSQL migration, role checks and isolated persistence tests |
+| Incident endpoints | Verified locally on Windows | CRUD, resolution/reopening, and deletion verified through FastAPI against local PostgreSQL; automated persistence/error tests also pass |
 | React frontend | Live health/server/metrics integrated; browser check pending | 27 passing frontend tests, successful typecheck/build/format; no incident API calls |
-| Infrastructure and CI/CD | Native testing scripts added; EC2 run pending | Ubuntu setup, systemd test template, and verification script; broader deployment/CI pending |
+| Infrastructure and CI/CD | Native monitoring setup implemented; EC2 run pending | Bash installer and verifier, API/collector systemd units, and isolated provisioning tests |
 | Deployment and demo | Not verified | No runbook or recorded verification evidence |
 
 The application language decisions are **Python for the backend/API** and
@@ -99,20 +99,20 @@ evidence for its parent milestone above.
 | 1.1 Backend setup (Python, FastAPI) | Add dependencies, application entry point, and local configuration. | Verified |
 | 1.2 Errors and test foundation (Python, Pydantic, pytest) | Add structured error handling and test setup; verify startup and configuration failure paths. | Verified |
 | 1.3 Local development guide (Documentation) | Document verified installation, startup, and test commands. | Verified |
-| 2.1 Database connection and schema (Python, PostgreSQL, SQLAlchemy, Alembic) | Connectivity, metrics/incident models, pooled sessions, and both migrations implemented; Windows incident upgrade pending. | In progress |
+| 2.1 Database connection and schema (Python, PostgreSQL, SQLAlchemy, Alembic) | Connectivity, metrics/incident models, pooled sessions, and both migrations implemented; Windows incident table access verified. | In progress |
 | 2.2 Health and server endpoints (Python, FastAPI, Linux) | Implement health and server GET routes, including dependency failure and correct host identity. | In progress |
 | 2.3 Persistence verification (Python, pytest, PostgreSQL) | Metrics migration, persistence, rollback, and filtering tested in private temporary PostgreSQL; Windows metrics run pending. | In progress |
 | 3.1 Authentication and validation (Python, FastAPI, Pydantic, Security) | Reader/collector/admin roles and request validation implemented; private local admin provisioning pending. | In progress |
 | 3.2 Metrics endpoints (Python, FastAPI, PostgreSQL) | GET/POST, filtering, pagination, database uniqueness, persistence, and frontend reads implemented. | Verified locally |
-| 3.3 Incident endpoints (Python, FastAPI, PostgreSQL) | Implement incident create, read, update, and delete behavior. | Implemented; local Windows verification pending |
+| 3.3 Incident endpoints (Python, FastAPI, PostgreSQL) | Implement incident create, read, update, and delete behavior. | Verified locally, including Windows CRUD smoke check |
 | 3.4 API and business logic tests (Python, pytest, PostgreSQL) | Metrics and incident API/PostgreSQL tests implemented; Windows end-to-end verification pending. | In progress |
-| 4.1 Host metrics collection (Python, Bash, Linux, HTTP) | Simple local Python loop implemented; EC2/Cron scheduling and production verification pending. | In progress |
+| 4.1 Host metrics collection (Python, Bash, Linux, HTTP) | Local Python loop and Ubuntu systemd installer/verifier implemented; native server/reboot verification and Cron evidence pending. | In progress |
 | 4.2 Scheduled collection (Cron, Linux) | Configure collection schedules and verify execution. | Not started |
 | 4.3 Incident detection and alerts (Python, Monitoring) | Detect threshold breaches, avoid duplicate open incidents, and deliver alerts through the selected channel. | Not started |
 | 4.4 Backup and restore (Bash, PostgreSQL, Cron) | Script database/log backups, schedule them, and verify an isolated restore. | Not started |
 | 5.1 EC2 and student access (AWS EC2, Linux, SSH) | Prepare the instance configuration and independent access for both students. | Not started |
-| 5.2 Server bootstrap (Bash, SCP, Git, Linux) | Test setup script prepares an already cloned repository; real SCP/clone/bootstrap verification remains pending. | In progress |
-| 5.3 Native service and reverse proxy (systemd, Nginx, Linux) | Test service template added; native EC2 startup and Nginx forwarding remain pending. | In progress |
+| 5.2 Server bootstrap (Bash, SCP, Git, Linux) | Ubuntu installer prepares a cloned checkout with Python, PostgreSQL, and migrations. SCP and fresh instance verification remain pending. | In progress |
+| 5.3 Native service and reverse proxy (systemd, Nginx, Linux) | API and collector systemd units are available. Native EC2 startup and Nginx forwarding remain pending. | In progress |
 | 5.4 Native deployment verification (Bash, Linux, Testing) | Localhost smoke verifier added; fresh-instance verification, restarts, scheduled monitoring, and backups remain pending. | In progress |
 | 6.1 API image (Docker, Python) | Create the API Dockerfile and build a runnable image. | Not started |
 | 6.2 Container services and storage (Docker Compose, PostgreSQL) | Configure separate API/database services, private networking, health checks, and persistent storage. | Not started |
@@ -167,11 +167,11 @@ Rehearsal instances are separate from the final demonstration instance.
 
 ## Immediate next task
 
-Apply the latest Alembic upgrade and configure a distinct admin token using
-[local incident setup](local-postgresql.md#enable-incident-storage-python-postgresql).
-Restart FastAPI and verify incident CRUD in Swagger on Windows. Verify the
-five-second collector/dashboard flow, then connect the live incident frontend.
-Automatic detection, alerts, production deployment, and backups remain pending.
+Connect the live incident frontend to the verified backend, with separate reader
+and admin permissions. Verify the full five-second collector/dashboard flow on
+Windows. Automatic detection, alerts, production deployment, and backups remain
+pending. Incident CRUD has now passed the Windows/local PostgreSQL smoke check
+recorded below.
 
 ## Verified foundation evidence (2026-11-16)
 
@@ -434,3 +434,40 @@ provisioning, deployment, or credential operations.
 - Live React incident integration, automatic detection, alerts, and production
   deployment remain pending. The existing dashboard still shows incidents as
   unavailable in connected mode; demo incidents remain separate.
+
+
+## Windows incident verification (Python, FastAPI, PostgreSQL) — 2026-11-18
+
+- User configured the separate admin token privately. Verification loaded local
+  credentials without displaying their values and used only Windows localhost.
+- Started a temporary Windows FastAPI process against the existing local
+  PostgreSQL database. Incident routes and reader list access returned 200.
+- Created one uniquely named temporary incident (201), read it (200), resolved
+  it with a resolution timestamp (200), and reopened it with that timestamp
+  cleared (200). Deleted only that temporary incident (204); a subsequent GET
+  returned 404. Existing records were not edited or deleted.
+- Stopped the API process created for this check; PostgreSQL remained running.
+  The temporary verification script was removed. No credentials, configuration,
+  migrations, AWS resources, or production services were changed.
+- Live Windows incident CRUD is verified. React incident integration, full local
+  collector/dashboard verification, automatic detection, and deployment remain
+  separate outstanding tasks.
+
+
+## Ubuntu monitoring automation (Bash, Python, PostgreSQL, systemd) — 2026-11-19
+
+- Added native Ubuntu setup for an existing checkout: runtime packages, dedicated
+  local database/role, private generated credentials, migrations, API and collector
+  services. The existing five-second Python collector measures the Ubuntu host.
+- Added read-only verification for services, private configuration, loopback
+  listeners, migration head, API/host identity, and a fresh persisted metric.
+- Setup reruns preserve credentials and records; conflicting managed deployments
+  or incompatible configuration fail safely. See [Ubuntu monitoring](ubuntu-monitoring.md).
+- All 350 backend and automation tests passed, including disposable PostgreSQL
+  provisioning, SCRAM login, rerun preservation, and the verifier’s fresh
+  measurement checks. Bash syntax, Python lint/format, and rendered systemd
+  unit validation also passed.
+- Package installation, service startup, and a reboot on a fresh Ubuntu/EC2
+  host remain to be verified.
+- React/public access, Nginx/HTTPS, Cron assessment evidence, backups/restore,
+  automatic incident detection, notifications, and durable collection remain pending.

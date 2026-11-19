@@ -1,5 +1,9 @@
 # Native EC2 setup and verification (Bash, Ubuntu, systemd)
 
+For local PostgreSQL, migrations, and continuous host metrics, use the newer
+[Ubuntu monitoring setup](ubuntu-monitoring.md). This document describes the
+older health/server smoke-test service, which intentionally has no database.
+
 These scripts prepare and test the current health/server APIs on an existing
 Ubuntu EC2 instance. They do not create AWS resources or complete the full course
 deployment. Use Ubuntu 24.04 or newer, Python 3.11+, and a normal SSH user with

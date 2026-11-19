@@ -40,6 +40,7 @@ describe requirements and conventions; verify implementation status separately.
 | [Project plan and progress](docs/project-plan.md) | Checking the current stage, choosing the next milestone, and tracking assignment completion. Update it with evidence after milestone completion or material scope changes. |
 | [Folder structure](docs/FOLDER_STRUCTURE.md) | Creating, moving, or organizing files and modules. |
 | [Frontend development](docs/frontend.md) | Working on the React/TypeScript UI, demo/live data separation, API client, local development proxy, or frontend checks. |
+| [Ubuntu host monitoring](docs/ubuntu-monitoring.md) | Installing native Ubuntu PostgreSQL, migrations, API/collector systemd services, or verifying fresh persisted measurements. This is separate from the older smoke-test setup. |
 | [Native EC2 testing](docs/ec2-testing.md) | Preparing an existing Ubuntu EC2 host with the bootstrap script, running the localhost systemd test service, or interpreting verification feedback. Full deployment remains pending. |
 | [API specification](docs/api.md) | Implementing or changing health, metrics, server information, incident CRUD, validation, error handling, API tests, or code comments. The current contract targets one monitored server. |
 | [Secrets management](docs/SECRETS_MANAGEMENT.md) | Handling credentials, authentication configuration, containers, monitoring, or deployment; use its storage and approval rules. |
@@ -99,8 +100,9 @@ CPU, memory, disk, and uptime samples for the configured server. GET requires a
 reader token; POST requires a separate collector token (environment or `_FILE`).
 Wrong roles return 403. `scripts/monitoring/collect_local.py` provides a simple
 local host measurement/POST loop with `time.sleep(5)`, using `psutil` and a local
-collector credential. Incident CRUD and separate admin credentials are implemented; production
-scheduling and automatic incident detection remain unimplemented. Keep these limits explicit instead of reporting unconfigured dependencies as healthy.
+collector credential. The Ubuntu setup also runs the collector through systemd.
+Incident CRUD uses separate admin credentials. Automatic detection and Cron
+scheduling remain pending. Report unconfigured dependencies as unhealthy.
 Health probes use a 150 ms default timeout and run concurrently to target a
 response p95 below 200 ms. Timeouts return structured 503 responses. Keep probes
 nonblocking and cancellation-aware; local timing tests do not verify deployment
@@ -119,6 +121,20 @@ Reader GET and admin writes use distinct tokens; admin supports environment or
 inherit reader/collector permissions. See [incident setup](docs/local-postgresql.md#enable-incident-storage-python-postgresql)
 and [the contract](docs/api.md#incident-api). The live frontend still marks
 incidents unavailable; automatic detection/alerts remain pending.
+
+### Ubuntu host monitoring setup
+
+`infrastructure/bootstrap/setup_ubuntu_monitoring.sh` prepares an existing native
+Ubuntu 24.04+ checkout with local PostgreSQL, migrations, and separate API/collector
+systemd units. It uses managed configuration under `~/.config/serverwatch-monitoring`,
+preserves existing secrets/data, and never imports the project's `.env`. Reruns
+are maintenance operations and restart services. Do not execute it on a developer
+workstation or cloud server without authorization for host changes.
+`verify_ubuntu_monitoring.sh` observes fresh persisted samples without test writes.
+Read [the Ubuntu guide](docs/ubuntu-monitoring.md) for ownership, permissions,
+networking, failure recovery, and native verification limits. The simple Python
+collector is reused directly on the host; Cron, durable delivery, backups,
+alerts, and public/frontend deployment remain separate work.
 
 ### Local development launcher
 

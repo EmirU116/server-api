@@ -1,0 +1,22 @@
+[Unit]
+Description=ServerWatch host metrics collector
+After=serverwatch-api.service
+Wants=serverwatch-api.service
+
+[Service]
+Type=simple
+User=@RUN_USER@
+WorkingDirectory=@PROJECT_DIR@
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=@PROJECT_DIR@/.venv/bin/python -u @PROJECT_DIR@/scripts/monitoring/collect_local.py --env-file @CONFIG_DIR@/collector.env
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target
