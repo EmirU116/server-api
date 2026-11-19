@@ -3,11 +3,15 @@
 set -euo pipefail
 fail() { echo "[FAIL] $*" >&2; exit 1; }
 if [[ "${1:-}" == --help ]]; then
-    echo "Usage: bash setup_ubuntu_web.sh PUBLIC_IPV4"
+    echo "Usage: bash setup_ubuntu_web.sh PUBLIC_IPV4 [PUBLIC_DNS_NAME]"
     exit 0
 fi
-[[ $# == 1 ]] || fail "Supply the EC2 public IPv4 address."
+(( $# >= 1 && $# <= 2 )) || fail "Supply the EC2 public IPv4 address and optionally its public DNS name."
 public_ip=$1
+public_dns=${2:-}
+if [[ -n "$public_dns" && ! "$public_dns" =~ ^[a-zA-Z0-9]+([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]+([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$ ]]; then
+    fail "Supply a DNS name without a scheme, port, or path."
+fi
 (( EUID != 0 )) || fail "Run as the monitoring installer user, without sudo before bash."
 source /etc/os-release
 [[ "$ID" == ubuntu && -d /run/systemd/system ]] || fail "Ubuntu with systemd is required."
@@ -40,7 +44,11 @@ sudo apt-get install -y nginx curl
 work_dir=$(mktemp -d)
 trap 'rm -rf -- "$work_dir"' EXIT
 site=/etc/nginx/sites-enabled/serverwatch.conf
-sed "s/@PUBLIC_IP@/$public_ip/g" "$project/infrastructure/nginx/serverwatch.conf" > "$work_dir/site"
+server_names=$public_ip
+if [[ -n "$public_dns" ]]; then
+    server_names+=" $public_dns"
+fi
+sed "s/@SERVER_NAMES@/$server_names/g" "$project/infrastructure/nginx/serverwatch.conf" > "$work_dir/site"
 sudo nginx -t
 if sudo test -e "$site"; then
     sudo cp -- "$site" "$work_dir/previous-site"

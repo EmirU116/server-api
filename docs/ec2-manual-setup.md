@@ -225,6 +225,17 @@ for the server.
    bash infrastructure/bootstrap/setup_ubuntu_web.sh EC2_PUBLIC_IP
    ```
 
+   To also use the EC2 public DNS name over HTTP, pass it as the second
+   argument. Copy the hostname from the EC2 console without `http://` or
+   `https://`.
+
+   ```bash
+   bash infrastructure/bootstrap/setup_ubuntu_web.sh EC2_PUBLIC_IP EC2_PUBLIC_DNS
+   ```
+
+   Then open `http://EC2_PUBLIC_DNS/` from your computer. Use the same DNS
+   argument on future installer runs to keep the hostname configured.
+
    The script installs frontend dependencies, builds React, and publishes the
    build to `/var/www/serverwatch`. It installs Nginx and validates its
    configuration before reloading it. A systemd drop-in enables Swagger and
