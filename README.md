@@ -10,15 +10,191 @@ the implementation understandable, maintainable, and suitable for a portfolio.
 
 ## Current status
 
-The repository contains documentation, agent instructions, and directory
-scaffolding. API handlers, database models, executable tests, dependency
-manifests, and deployment configurations have not been implemented yet.
+The FastAPI foundation now includes an application factory, validated runtime
+settings, consistent error handling, dependency manifests, and automated tests.
+Local interactive documentation is available at `/docs` and `/redoc`.
 
-Everything below describes the planned system. There is currently no application
-startup command or working API to run from this repository.
+The public `GET /api/v1/health?server_id=1` endpoint is implemented. It currently reports
+`server: up`, `database: down`, and HTTP `503` without database credentials.
+Configured PostgreSQL is checked with `SELECT 1`; success allows HTTP `200`.
+See [local PostgreSQL setup](docs/local-postgresql.md) for Windows instructions.
+The GET-only `/api/v1/server` endpoint now returns identity and OS
+information with reader bearer authentication. Metrics GET/POST now use PostgreSQL
+storage, a SQLAlchemy model, and an Alembic migration. Reader tokens can read;
+separate collector tokens can submit samples. A simple local Python collector
+now submits real measurements with a five-second sleep between attempts.
+Incident CRUD now persists records in PostgreSQL, with reader GET and a separate
+admin token for POST/PATCH/DELETE. Apply the new migration and configure the
+admin token using [local incident setup](docs/local-postgresql.md#enable-incident-storage-python-postgresql).
+Ubuntu systemd setup supports continuous host collection. Native server verification,
+Cron scheduling, alerts, containers, and full deployment remain pending.
+
+The React/TypeScript frontend now provides a demo dashboard and typed API
+client. Live mode loads health, server information, and stored metrics; incidents
+are explicitly unavailable. Demo mode remains separate from real API data.
 
 See the [project plan and progress tracker](docs/project-plan.md) for the current
 stage, implementation milestones, and assignment coverage.
+
+## Start the local stack (Bash, Windows)
+
+After the database, private `.env`, metrics migration, and Windows dependencies
+are prepared, stop any manually started API/frontend instances. From the project
+root in Git Bash or WSL:
+
+```bash
+bash scripts/setup/start_local.sh
+```
+
+The launcher starts/reuses Windows PostgreSQL, checks database/schema access,
+and starts Windows FastAPI, React, and the local measurement loop. Open
+<http://127.0.0.1:5173> and connect with your reader token. The live dashboard
+refreshes every five seconds. Ctrl+C stops its app/collector processes;
+PostgreSQL stays running.
+See [local launcher setup and troubleshooting](docs/local-development.md).
+Install updated Python requirements first (the collector uses `psutil`) and
+configure separate reader/collector tokens privately in `.env`.
+
+## Start Ubuntu host monitoring (Bash, PostgreSQL, systemd)
+
+On a native Ubuntu 24.04+ server with a cloned checkout, run as your normal SSH
+user with sudo access:
+
+```bash
+bash infrastructure/bootstrap/setup_ubuntu_monitoring.sh
+bash scripts/verification/verify_ubuntu_monitoring.sh
+```
+
+Setup installs local PostgreSQL/Python, creates private credentials, applies
+migrations, and starts API/collector services at boot. The collector measures
+that Ubuntu host every five-second sleep cycle. Verification checks fresh stored
+measurements. Read [Ubuntu setup and verification](docs/ubuntu-monitoring.md)
+for prerequisites, service commands, and limits. Native Ubuntu/EC2 execution
+still needs a real-server smoke test; this does not publish the frontend/API.
+
+## Local backend setup (Python, FastAPI)
+
+Use Python 3.11 or newer. Run these commands from the repository root on
+Linux/WSL:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r backend/requirements-dev.txt
+python -m uvicorn app.main:create_app --factory --app-dir backend --reload --host 127.0.0.1 --port 8000
+```
+
+Open [Swagger UI](http://127.0.0.1:8000/docs),
+[ReDoc](http://127.0.0.1:8000/redoc), or
+[OpenAPI JSON](http://127.0.0.1:8000/openapi.json).
+The route list includes `GET /api/v1/health`. Open
+<http://127.0.0.1:8000/api/v1/health?server_id=1> to inspect readiness. Its default `503`
+is expected until PostgreSQL is configured; it is not a startup crash.
+A `404` at `/` is expected.
+Use `--reload` for local development only. Stop the server with `Ctrl+C`.
+
+The health response includes numeric `server_id`, UTC `checked_at`, `status`,
+and `checks` for the server and database. It requires no token and supports GET
+only. Supply the required `server_id=1` query parameter for the registered local
+server. Invalid IDs (including negative numbers and zero) return `400`, unknown
+positive IDs return `404`, and an omitted ID returns `422`. Bodies and unknown
+query parameters return `422`. Probes run concurrently with a 150 ms timeout
+each; exceptions become `down` without exposing their messages. At this stage,
+`server: up` means the local API process is responding, not that a remote EC2
+host or all operating-system resources have been verified. The database probe
+executes an asynchronous PostgreSQL query when credentials are configured.
+Without credentials it returns `down`. Health verifies connectivity, not schema
+version; apply the metrics migration separately before using metrics endpoints.
+
+Health requires no database or credentials. Server information requires a reader
+bearer token configured through `SERVERWATCH_READER_TOKEN`, or a protected file
+via `SERVERWATCH_READER_TOKEN_FILE` (takes precedence). Set a private token locally;
+no credential is generated or committed. Use `Authorization: Bearer <token>` in
+Swagger UI or your HTTP client. An omitted/invalid token returns `401`. A supplied
+token with no reader configuration returns `503`. Configure a reader token before
+starting the app; `.env` requires the explicit `--env-file .env` startup option.
+
+`GET /api/v1/server` returns the configured server by default. Optionally use
+`GET /api/v1/server?server_id=1` to select it explicitly. Invalid, zero, negative,
+or repeated IDs return `400`; unregistered IDs return `404`. Request bodies and
+unknown query parameters return `422`. Native host metadata
+includes numeric ID, display name, hostname, OS type/name/version, and architecture.
+Common container environments return `503` until a host metadata source is added;
+WSL describes its Linux environment. See the [server API contract](docs/api.md#server-api)
+for errors and the testing strategy.
+
+Settings come from
+environment variables:
+
+| Variable | Default | Allowed values |
+| --- | --- | --- |
+| `SERVERWATCH_APP_NAME` | `ServerWatch` | Nonblank name, at most 100 characters |
+| `SERVERWATCH_ENVIRONMENT` | `development` | `development`, `test`, `production` |
+| `SERVERWATCH_SERVER_ID` | `1` | Positive integer; shared by health and server |
+| `SERVERWATCH_SERVER_NAME` | `ServerWatch server` | Nonblank display name, at most 200 characters |
+| `SERVERWATCH_READER_TOKEN` | Unset | Private reader bearer token without whitespace |
+| `SERVERWATCH_READER_TOKEN_FILE` | Unset | Protected token file; takes precedence over token environment value |
+| `SERVERWATCH_COLLECTOR_TOKEN` | Unset | Private metric-write token; must differ from reader token |
+| `SERVERWATCH_COLLECTOR_TOKEN_FILE` | Unset | Protected collector token file; takes precedence |
+| `SERVERWATCH_DATABASE_HOST` / `SERVERWATCH_DATABASE_PORT` | `localhost` / `5432` | PostgreSQL address; port 1–65535 |
+| `SERVERWATCH_DATABASE_NAME` / `SERVERWATCH_DATABASE_USER` | `serverwatch` / `serverwatch_app` | Nonblank database and login names |
+| `SERVERWATCH_DATABASE_PASSWORD` | Unset | Private database password |
+| `SERVERWATCH_DATABASE_PASSWORD_FILE` | Unset | Protected password file; takes precedence |
+
+Invalid settings and invalid configured reader credentials prevent startup with a
+sanitized error. Without a configured token, health remains available while server
+information fails closed. Production mode disables Swagger, ReDoc, and OpenAPI endpoints.
+It does not turn this foundation into a complete production deployment.
+
+For optional local overrides, copy `.env.example` to an ignored `.env` and load
+it explicitly:
+
+```bash
+cp .env.example .env
+python -m uvicorn app.main:create_app --factory --app-dir backend --env-file .env --reload --host 127.0.0.1 --port 8000
+```
+
+Only copy the template when creating a new local configuration; preserve any
+existing `.env`. Never commit real credentials. Tests do not load dotenv files.
+
+Run checks from the repository root with the virtual environment active:
+
+```bash
+python -m pytest backend/tests -q
+python -m ruff check backend
+python -m ruff format --check backend
+python -m pip check
+```
+
+Tests cover documentation exposure, configuration, shared HTTP errors, malformed
+JSON, validation, metrics read/write permissions, and sanitized failures. Metrics
+integration tests start a private disposable PostgreSQL cluster if server tools
+are installed; otherwise those tests skip. Incident coverage remains future work.
+Shared handlers follow [FastAPI's exception handling guidance](https://fastapi.tiangolo.com/tutorial/handling-errors/);
+configuration uses [Pydantic Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/).
+Streaming responses and background jobs, if introduced, will need separate
+failure handling because they can fail after response headers have been sent.
+
+## Local frontend setup (React, TypeScript)
+
+Use Node.js 22.12+ on the Node 22 release line (or a newer supported release):
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open <http://127.0.0.1:5173>. The frontend starts in a clearly labeled demo
+workspace with sample server data. It includes overview, metrics, server details,
+and incident management. Demo incident edits reset on page reload or a data-source
+switch. No backend is needed for demo mode.
+
+Run `npm run typecheck`, `npm test`, `npm run build`, and
+`npm run format:check` inside `frontend/` to verify it. See the
+[frontend guide](docs/frontend.md) for the API connection workflow, file ownership,
+data limitations, and test scope. Live mode requires the metrics migration and
+a reader token. See [database and metrics setup](docs/local-postgresql.md#enable-metrics-storage-python-postgresql-alembic).
 
 ## API scope
 
@@ -26,14 +202,14 @@ All routes use the `/api/v1` prefix and target a single monitored server.
 
 | API | Methods and paths | Responsibility |
 | --- | --- | --- |
-| Health | `GET /health` | Report server and required dependency health. |
+| Health | `GET /health?server_id=1` | Report server and required dependency health. |
 | Metrics | `GET /metrics`, `POST /metrics` | Read stored statistics and accept CPU, memory, disk, and uptime samples. |
 | Server | `GET /server` | Return the server name, hostname, operating system, and architecture. |
 | Incidents | `POST /incidents`, `GET /incidents`, `GET /incidents/{incident_id}`, `PATCH /incidents/{incident_id}`, `DELETE /incidents/{incident_id}` | Create, list, read, update, and delete incident records. |
 
 The [API specification](docs/api.md) defines payloads, validation, authentication,
 permissions, pagination, error responses, and required tests. Health is public;
-the remaining endpoints require authentication under the proposed contract.
+the remaining endpoints require authentication under the implemented API contract.
 Automatic threshold detection and alert delivery are broader project goals,
 separate from the initial incident CRUD contract.
 
@@ -63,8 +239,7 @@ remain on a private network.
 
 ## Assignment and demonstration
 
-The requirements recorded in [AGENT.md](AGENT.md#10-course-requirements-and-demonstration-constraints)
-include:
+The [Swedish assignment brief](docs/assignment-brief.md) sets the following requirements.
 
 - **G:** provision a new EC2 instance, provide independent SSH access for both
   students, transfer and run a Bash bootstrap script, clone the repository,
@@ -75,22 +250,26 @@ include:
 - **Recorded pair demo:** a maximum of 60 minutes, with the EC2 instance created
   from scratch during recording. Both students must explain their work.
 
-These are project-recorded requirements; consult the course assignment for the
-authoritative assessment criteria. CI/CD and a frontend are optional extensions.
+The [coverage tracker](docs/project-plan.md#assignment-coverage-tracker) lists the evidence and remaining work for each criterion. Automated Docker deployment is a bonus. The frontend is an optional project extension.
 
 ## Repository layout
 
 ```text
 backend/
-  app/api/             API route scaffold
+  app/main.py          FastAPI application factory
+  app/core/            Runtime settings and shared error handling
+  app/api/             Health, server, metrics, and incident CRUD routers
   app/models/          Database model scaffold
-  app/schemas/         Request and response schema scaffold
-  app/services/        Business logic scaffold
+  app/schemas/         Health and server response contracts
+  app/services/        Readiness probes and native host identity
   alembic/             Migration scaffold
-  tests/               Backend test scaffold
-frontend/              Reserved for an optional UI
+  tests/               Foundation unit and API tests
+  requirements.txt     Runtime dependencies
+  requirements-dev.txt Test and lint dependencies
+  pyproject.toml       pytest and Ruff configuration
+frontend/              React/TypeScript dashboard, API client, and frontend tests
 infrastructure/        Nginx, Cron, systemd, and script scaffolds
-.github/workflows/     Reserved for CI/CD
+.github/workflows/     Test-only backend, dashboard and Bash CI
 .agents/skills/        Repository agent workflows
 docs/                  Specifications and project guides
 AGENT.md               Agent instructions and project constraints
@@ -112,15 +291,29 @@ and the recommended structure as implementation grows.
 - Keep documentation and relevant [agent instructions](AGENT.md) synchronized
   when requirements change.
 
-Start implementation with the [API specification](docs/api.md). Add dependency
-installation, startup, migration, and test commands here when those workflows
-exist and have been verified.
+Use the [API specification](docs/api.md) when adding business routes. Add
+verified migration and deployment commands here when those workflows exist.
 
 ## Documentation
 
+- [Local stack launcher](docs/local-development.md): one Bash entry point for
+  Windows PostgreSQL, FastAPI, and React, with prerequisite checks and cleanup.
+
+- [Local PostgreSQL](docs/local-postgresql.md): Windows startup, private settings,
+  and database readiness verification.
+
+- [Ubuntu host monitoring](docs/ubuntu-monitoring.md) covers setup and verification
+  for the API, local PostgreSQL, and the host collector.
+
+- [Native EC2 setup and verification](docs/ec2-testing.md): Bash setup, protected
+  reader token, localhost systemd service, and checks with PASS/FAIL/WARN feedback.
+
+- [Git and GitHub Actions workflow](docs/github-actions-plan.md) covers human and agent branches, test-only checks, and the planned EC2 delivery process.
 - [Project plan and progress](docs/project-plan.md): current status, milestones,
   assignment coverage, and next steps.
 
+- [Frontend development](docs/frontend.md): startup, demo/live data, verification,
+  and integration limitations.
 - [API specification](docs/api.md): endpoint contracts, examples, errors, testing,
   and code explanation requirements.
 - [Folder structure](docs/FOLDER_STRUCTURE.md): file ownership and organization.

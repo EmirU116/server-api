@@ -1,7 +1,9 @@
 # ServerWatch API specification
 
-Status: proposed contract. The backend is currently a scaffold; these endpoints
-are requirements for implementation, not a claim that a running API exists.
+Status: all four APIs are implemented, including persistent incident CRUD.
+HTTP contract and isolated PostgreSQL persistence tests cover the endpoints. See
+[local setup](../README.md#local-backend-setup-python-fastapi) for the current
+startup and test commands.
 
 ## Conventions
 
@@ -12,7 +14,8 @@ are requirements for implementation, not a claim that a running API exists.
 - Send `Content-Type: application/json` for requests with a body.
 - Timestamps use RFC 3339 with a timezone; normalize stored and returned values to
   UTC, for example `2026-11-15T12:00:00Z`.
-- Resource IDs are server-generated UUIDs. Reject unknown input fields.
+- Metric and incident IDs are server-generated UUIDs. Server identity and the
+  health lookup use the same configured positive numeric server ID. Reject unknown input fields.
 - Health is public and reveals only operational status. All other endpoints
   require `Authorization: Bearer <token>`. Readers can read; collectors can post
   metrics; administrators can create, update, and delete incidents. Credential
@@ -23,7 +26,7 @@ are requirements for implementation, not a claim that a running API exists.
 
 | API | Method | Path | Purpose | Success |
 | --- | --- | --- | --- | --- |
-| Health | GET | `/health` | Current server health | 200 or 503 |
+| Health | GET | `/health?server_id=1` | Current server health | 200 or 503 |
 | Metrics | GET | `/metrics` | Read stored server statistics | 200 |
 | Metrics | POST | `/metrics` | Store a metric sample | 201 |
 | Server | GET | `/server` | Read server identity and OS information | 200 |
@@ -41,14 +44,30 @@ for full incident CRUD; PUT is not part of this contract.
 ### `GET /health`
 
 Return the current health of the monitored server and the API's required
-dependencies. Accept no request body or query parameters. Use lightweight checks
+dependencies. Require the query parameter `server_id`, for example
+`GET /api/v1/health?server_id=1`. Accept no request body or other query parameters.
+Use lightweight checks
 with bounded timeouts; do not perform a lengthy metric collection on each call.
 This is a readiness check, not a historical metrics endpoint.
+
+Server ID validation and lookup rules:
+
+- Convert the ID using Python's `int()` and require a value of at least `1`.
+  Negative numbers, zero, blank values, decimals, nonnumeric text, and repeated
+  `server_id` parameters return `400 Bad Request`. Integer formatting accepted
+  by `int()` (such as surrounding whitespace or a leading plus) is accepted.
+  There is no application-specific 19-digit or 64-bit limit; values that Python
+  cannot convert to an integer return `400`.
+- A missing required `server_id` returns `422 Unprocessable Content`.
+- A valid ID without a registered server returns `404 Not Found` before probes run.
+- Currently only the local server is registered, with numeric ID `1`. This lookup
+  does not add remote-server probing or a server registration API.
 
 Healthy response (`200 OK`):
 
 ```json
 {
+  "server_id": 1,
   "status": "healthy",
   "checked_at": "2026-11-15T12:00:00Z",
   "checks": {
@@ -58,13 +77,61 @@ Healthy response (`200 OK`):
 }
 ```
 
-If a required check fails or times out, return `503 Service Unavailable` with the
-same structure, `status: "unhealthy"`, and the failed check marked `"down"`.
+If a required check fails or times out, return `503 Service Unavailable` and
+a readiness report with `status: "unhealthy"`, each failed check marked `"down"`,
+and a public `message`. For example, a database timeout produces `Database readiness check timed out.` A missing configuration or a probe exception has its own reason. The healthy report omits the message.
 Health must still respond if the database is unavailable. Do not expose internal
 addresses, exception messages, or credentials. CPU, memory, and disk measurements
 belong to the metrics API.
 
+### Current implementation limits
+
+The health route is public and GET-only, rejects bodies/unknown query parameters, and
+sets `Cache-Control: no-store`. Independent asynchronous probes run concurrently
+with a 150 ms timeout each. Tests inject probes and a fixed UTC clock to
+verify healthy, failed, exception, and timeout behavior.
+
+Response-time target: most requests should complete within 150–200 ms under
+normal conditions (95th percentile below 200 ms). Each probe has a 150 ms budget
+and runs concurrently, leaving approximately 50 ms for request handling. A
+timed-out probe is marked `down` and produces a structured `503`, even if the
+dependency might otherwise succeed later. This is a performance target, not a
+hard deadline: network delay, scheduling, heavy load, or probes that block the
+event loop or suppress cancellation can exceed it. Future database probes must
+use nonblocking I/O, respect cancellation, and fit this budget.
+
+Local tests measure the 95th percentile of 20 warmed-up requests for both
+healthy and unconfigured-database responses. Additional tests verify default
+timeouts return `503` within 200 ms and cancel slow server/database probes,
+including when both are slow. These tests do not establish deployed latency;
+deployment requires measurement through the actual proxy and network.
+
+The default server probe proves that the local API process can respond. It does
+not inspect a remote host or report OS resource measurements. The application
+database probe executes asynchronous PostgreSQL `SELECT 1` when configured.
+Without credentials, or on connection/query failure or timeout, it reports
+`database: down` and returns `503`. A successful query allows `200`.
+See [local PostgreSQL setup](local-postgresql.md). Metrics and incidents use explicit Alembic migrations. If the entire API host
+is offline, no response can be sent; the frontend handles connection failure.
+A failed probe means unhealthy or unreachable, not that the server ID is absent.
+
 ## Metrics API
+
+Implemented with SQLAlchemy/PostgreSQL and an explicit Alembic upgrade. See
+[local metrics setup](local-postgresql.md#enable-metrics-storage-python-postgresql-alembic).
+GET requires the reader token; POST requires a distinct collector token. Both
+support environment and `_FILE` configuration. A valid token for the other role
+returns `403`; missing role configuration fails closed with `503`. Admin credentials are implemented for incident writes; production scheduling remains pending. A simple local test
+collector now POSTs real host samples (see [local development](local-development.md)).
+Schema/connection failures
+return `503`; unexpected failures return sanitized `500`.
+
+The initial fields cover host statistics, not arbitrary application measurements.
+The server ID comes from configuration and is stored internally on every sample;
+it cannot be supplied in a POST body or GET query. Changing the configured ID
+selects that server's history. The server/time uniqueness index also supports
+filtered history reads. SQLAlchemy handles transactions and pooled connections;
+database work runs in worker threads to keep the API event loop responsive.
 
 ### `POST /metrics`
 
@@ -89,7 +156,7 @@ Request:
 | `cpu_percent` | number | Required, finite, from 0 through 100 |
 | `memory_percent` | number | Required, finite, from 0 through 100 |
 | `disk_percent` | number | Required, finite, from 0 through 100 |
-| `uptime_seconds` | integer | Required, nonnegative |
+| `uptime_seconds` | integer | Required, 0–9223372036854775807 (PostgreSQL BIGINT) |
 
 Reject strings or booleans in numeric fields. Historical samples are allowed.
 Use API receipt time when checking whether a timestamp is in the future; collectors
@@ -121,7 +188,7 @@ Optional query parameters:
 | Parameter | Default | Validation / behavior |
 | --- | --- | --- |
 | `limit` | 50 | Integer, 1–100 |
-| `offset` | 0 | Nonnegative integer |
+| `offset` | 0 | Integer, 0–9223372036854775807 |
 | `start` | Unset | Timezone-aware datetime; inclusive lower collection time |
 | `end` | Unset | Timezone-aware datetime; inclusive upper collection time |
 
@@ -146,14 +213,19 @@ Response shape (each item has the fields shown in the POST response):
 
 ### `GET /server`
 
-Return identity and operating system information only. Accept no request body or
-query parameters. Metric values and incident records are served by their own APIs.
+Return identity and operating system information only. Accept an optional
+`server_id` query parameter, for example `GET /api/v1/server?server_id=1`.
+When omitted, return the configured local server. Use the same positive integer
+validation as health: conversion with `int()`, minimum `1`, no duplicate values.
+Accept no request body or other query parameters. Metric values and incident
+records are served by their own APIs. Selection does not add remote probing or
+registration of additional servers.
 
 Response (`200 OK`):
 
 ```json
 {
-  "id": "529a234e-b07f-44ee-ae2e-95b272cceced",
+  "id": 1,
   "name": "ServerWatch production server",
   "hostname": "serverwatch-01",
   "os_type": "Linux",
@@ -166,14 +238,98 @@ Response (`200 OK`):
 The example values are illustrative. Read actual host information from the
 configured monitored server; a container's hostname or OS must not accidentally
 be reported as the host's identity. `id` is stable across restarts; `name` is a
-configured display name. Return `503` if server information is unavailable.
+configured display name. Defaults are ID `1` and name `ServerWatch server`;
+configure them with `SERVERWATCH_SERVER_ID` and `SERVERWATCH_SERVER_NAME`.
+Health uses that same configured ID. Return `503` if server information is unavailable.
 There are no server creation, update, or deletion endpoints in this scope.
+
+Implemented error handling:
+
+| Situation | Response |
+| --- | --- |
+| Valid reader token and complete host metadata | `200` |
+| Invalid, zero, negative, or repeated `server_id` | `400` |
+| Valid `server_id` is not registered | `404` |
+| Missing, wrong, or non-Bearer credentials | `401`, with `WWW-Authenticate: Bearer` |
+| Unknown query parameters or a request body | `422` (after authentication) |
+| Unsupported HTTP method | `405`, with `Allow: GET` |
+| Unreadable/incomplete host metadata or detected container without host source | `503` |
+| Reader credential is unconfigured and a bearer token is supplied | `503`, fail closed |
+| Unexpected application failure | Sanitized `500` |
+
+This endpoint selects the one configured server by default or by matching its ID.
+Unknown IDs return `404` before metadata is read. A missing metadata source for a
+known server is `503`, not `404`. Normal unknown routes still return `404`.
+Responses contain only the documented identity fields and disable caching.
+
+Reader authentication uses one configured read-only bearer token, not a user
+account or a complete role system. Supply `SERVERWATCH_READER_TOKEN` locally or
+`SERVERWATCH_READER_TOKEN_FILE` for a protected mounted file (file takes precedence).
+Missing credentials never make the endpoint public. Blank/whitespace-containing
+tokens and unreadable secret files prevent startup with a sanitized error.
+No real token is created or committed by this implementation. Collector
+permissions are implemented for metrics POST; admin permissions are implemented for incident writes.
+
+Native host metadata comes from Python's `platform` module; Linux distribution
+name/version come from `freedesktop_os_release()`. Common container markers are
+rejected to avoid reporting a container as the host. This is not exhaustive
+container detection. WSL reports its Linux environment, not the Windows host;
+future container deployment needs an explicitly supplied host metadata source.
+No database, shell commands, SSH, or cloud requests are needed.
+
+### Testing the server endpoint
+
+Recommended and implemented approach: test the service with fixed metadata, then
+test HTTP behavior using FastAPI TestClient. Patch the OS metadata source so a
+Windows developer and Linux CI receive the same test results; do not assert that
+the test machine is Ubuntu or require a live EC2 instance.
+
+- Service tests: configured ID/name, Linux distribution extraction, non-Linux
+  metadata, and rejecting container metadata as host identity.
+- HTTP tests: exact `200` fields and stable identity across requests; no metric
+  or incident fields; optional matching IDs give `200`, invalid/duplicate IDs
+  give `400`, and unknown IDs give `404` without reading host metadata;
+  `401` for invalid credentials; `422` for unsupported input;
+  `405` for unsupported methods; `503` for missing/unreadable metadata and missing
+  credential configuration; sanitized `500` for unexpected bugs.
+- Configuration/security tests: invalid server settings, token file precedence,
+  hidden token representation, invalid tokens, and unreadable files. Use dummy
+  credentials and temporary test files exclusively.
+- Deployment smoke test still needed: verify the reported ID, hostname, and OS
+  against the actual native EC2 host, and later the container host metadata source.
+
+This test selection is our project recommendation based on official guidance:
+[FastAPI testing](https://fastapi.tiangolo.com/tutorial/testing/),
+[dependency overrides](https://fastapi.tiangolo.com/advanced/testing-dependencies/),
+and [Python platform metadata](https://docs.python.org/3/library/platform.html).
+Dependency overrides can isolate service/auth dependencies; source patching is
+used here to also exercise the real service and authentication code.
 
 ## Incident API
 
 Incidents record server errors, outages, or other operational problems. Records
 remain stored until explicitly deleted, including after resolution. This API
 supports recording incidents; automatic incident detection is separate work.
+
+Implemented with PostgreSQL and migration `0002_incidents`. Run the existing
+upgrade command before testing; see [local incident setup](local-postgresql.md#enable-incident-storage-python-postgresql).
+GET uses the reader token. POST/PATCH/DELETE require a distinct
+`SERVERWATCH_ADMIN_TOKEN` or `SERVERWATCH_ADMIN_TOKEN_FILE` (file takes precedence).
+Roles are separate: the admin token does not grant reader or collector access.
+A recognized token for another role returns 403, missing/invalid credentials
+return 401, and an unconfigured required role returns 503. Duplicate role tokens,
+blank tokens, or unreadable configured secret files prevent startup safely.
+
+All operations disable caching. POST/PATCH require JSON and reject query
+parameters. GET-by-ID and DELETE reject query parameters and bodies; list GET
+accepts only the documented filters and pagination, once each. Missing tables,
+connection failures, pool/lock timeouts return sanitized 503; unexpected failures
+return sanitized 500. Writes are transactional; updates/deletes lock their record
+so concurrent changes cannot corrupt status/resolution consistency. Concurrent
+edits serialize, with the last successful edit to a field taking effect.
+
+The current React live dashboard still marks incidents unavailable. This task
+implements the backend; live incident UI integration remains separate work.
 
 ### `POST /incidents`
 
@@ -190,8 +346,8 @@ Request:
 
 | Input field | Validation |
 | --- | --- |
-| `title` | Required string; trim whitespace; 1–200 characters |
-| `description` | Required string; trim whitespace; 1–5000 characters |
+| `title` | Required string; trim whitespace; 1–200 characters; no null characters |
+| `description` | Required string; trim whitespace; 1–5000 characters; no null characters |
 | `severity` | Required enum: `info`, `warning`, `critical` |
 | `occurred_at` | Required timezone-aware datetime; cannot be in the future |
 
@@ -262,16 +418,24 @@ accept a request body or query parameters.
 
 ## Validation and error-handling rules
 
+**Required for every operation and every handled error code.** The public response
+must explain why the operation failed. Include the violated input rule, required
+role, missing resource or failed dependency when known. Use a field detail when
+the schema can identify the field. For unknown internal failures, state that
+server-side processing failed and keep technical diagnostics private. Verify
+the public reason through the affected endpoint. This rule covers framework
+routing, authentication, schema validation, reads, writes and deletes.
+
 Every endpoint accepting input must validate its body, path, and query parameters
 before performing side effects. Reject unexpected query parameters and request
 bodies on endpoints that do not support them.
 
 | Status | Meaning |
 | --- | --- |
-| 400 | Malformed JSON |
+| 400 | Malformed JSON; invalid or repeated `server_id` on health or server |
 | 401 | Missing or invalid credentials; include `WWW-Authenticate: Bearer` |
 | 403 | Authenticated caller lacks the required permission |
-| 404 | Incident does not exist |
+| 404 | No matching registered server, incident, or route |
 | 405 | Method is not supported |
 | 409 | Duplicate metric collection timestamp |
 | 415 | Request body uses an unsupported content type |
@@ -290,12 +454,33 @@ structured unhealthy response:
     "details": [
       {
         "field": "body.cpu_percent",
-        "message": "Must be a finite number between 0 and 100."
+        "message": "Input should be less than or equal to 100"
       }
     ]
   }
 }
 ```
+
+For example, the response above applies to a CPU percentage of 101. On health
+and server lookups, `error.message` directly explains a rejected ID:
+
+| Request input | Status | Explanation returned |
+| --- | --- | --- |
+| `server_id=-1` or `server_id=0` | 400 | server_id must be at least 1. |
+| `server_id=abc` | 400 | server_id must be a whole number. |
+| `server_id=1&server_id=2` | 400 | Supply server_id exactly once. |
+| Omitted on health | 422 | `details` identifies `query.server_id` and says the field is required. |
+| Valid ID with no registered server | 404 | No server is registered with this ID. |
+
+| Operation or failure | What the caller learns |
+| --- | --- |
+| Any protected read or write (401, 403) | A Bearer credential is missing or malformed, the token is unrecognized, or the operation needs a different named role. A missing server-side role configuration returns 503. |
+| Unknown path or unsupported method (404, 405) | The path has no matching route, or the route does not support the method. A 405 preserves the framework's Allow header. HEAD responses follow HTTP bodyless semantics. |
+| Metric or incident POST, incident PATCH (400, 415, 422) | Invalid JSON syntax, the required JSON media type, or the field and rule that failed. An empty PATCH identifies the requirement to supply at least one change. |
+| Metric POST (409), metrics GET (422) | The collection timestamp already exists for this server, or a filter is repeated, incorrectly formatted or out of order. |
+| Incident detail GET, PATCH or DELETE (404, 422) | No record exists with that ID, or the path ID must be a UUID. Successful DELETE remains an empty 204. |
+| Server identity and database operations (503) | The native identity source is unavailable or incomplete, storage is unconfigured, a required schema object is missing, a lock or timeout prevented completion, or PostgreSQL failed to complete the operation. Each reason reflects evidence from the failing check. |
+| Unexpected processing failure (500) | The server encountered an internal failure while processing the request. A response that fails output validation identifies the server-side schema mismatch. Raw exception details stay private. |
 
 Use stable machine-readable codes, for example `not_found`, `conflict`,
 `internal_error`, and `service_unavailable`. Use `details: []` when no field-level
@@ -317,7 +502,7 @@ API tests should verify routing, validation, serialization, and error translatio
 
 | Area | Required coverage |
 | --- | --- |
-| Health | Healthy `200`; failed and timed-out checks give `503`; works with database down |
+| Health | Valid registered ID and healthy probes give `200`; invalid IDs give `400`; unknown IDs give `404`; missing ID gives `422`; failed/exception/timed-out probes give `503`; unexpected bugs give sanitized `500` |
 | Metrics creation | Valid creation; 0 and 100 boundaries; missing fields; negative, over-100, nonfinite, boolean and string values; invalid/future timestamps; duplicate timestamp |
 | Metrics reading | Empty results; latest sample; ordering; pagination and bounds; time filters; reversed time range |
 | Server | Expected identity fields; actual host metadata source; unavailable source returns `503` |
@@ -331,8 +516,13 @@ API tests should verify routing, validation, serialization, and error translatio
 Use fixed clocks for time assertions and isolated fixtures for each test. Tests
 must not call a live EC2 instance or production database. Add separate persistence
 integration tests against an isolated database for constraints, transaction
-rollback, and CRUD persistence. Run `pytest backend/tests` once dependencies and
-tests exist; no executable backend or tests are included by this document.
+rollback, and CRUD persistence. The foundation has executable shared-error and
+configuration tests. Run
+`python -m pytest backend/tests -q` after installing development dependencies.
+Metrics endpoint and PostgreSQL persistence coverage are implemented. Integration
+tests use a private temporary PostgreSQL cluster and skip if server tools are
+unavailable. Incident tests cover CRUD, filtering, resolution/reopening, rollback,
+server isolation, safe storage failures, and upgrading an existing metrics schema.
 
 ## Code comments and multiline explanations
 

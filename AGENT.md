@@ -34,9 +34,16 @@ describe requirements and conventions; verify implementation status separately.
 
 | Document | When to read it |
 |---|---|
+| [Local stack launcher](docs/local-development.md) | Starting the existing Windows database, FastAPI, and React together from Git Bash/WSL; launcher checks, process cleanup, and Windows-only limitations. |
+| [Local PostgreSQL](docs/local-postgresql.md) | Database settings, Windows startup, and connectivity checks. |
 | [Project overview](README.md) | Starting work and finding project documentation. |
+| [Git and GitHub Actions workflow](docs/github-actions-plan.md) | Branches, agent worktrees, human review, test-only PR checks and planned production promotion. |
+| [Course assignment](docs/assignment-brief.md) | Checking the supplied G/VG criteria, team responsibilities, optional bonuses, and recording rules. |
 | [Project plan and progress](docs/project-plan.md) | Checking the current stage, choosing the next milestone, and tracking assignment completion. Update it with evidence after milestone completion or material scope changes. |
 | [Folder structure](docs/FOLDER_STRUCTURE.md) | Creating, moving, or organizing files and modules. |
+| [Frontend development](docs/frontend.md) | Working on the React/TypeScript UI, demo/live data separation, API client, local development proxy, or frontend checks. |
+| [Ubuntu host monitoring](docs/ubuntu-monitoring.md) | Installing native Ubuntu PostgreSQL, migrations, API/collector systemd services, or verifying fresh persisted measurements. This is separate from the older smoke-test setup. |
+| [Native EC2 testing](docs/ec2-testing.md) | Preparing an existing Ubuntu EC2 host with the bootstrap script, running the localhost systemd test service, or interpreting verification feedback. Full deployment remains pending. |
 | [API specification](docs/api.md) | Implementing or changing health, metrics, server information, incident CRUD, validation, error handling, API tests, or code comments. The current contract targets one monitored server. |
 | [Secrets management](docs/SECRETS_MANAGEMENT.md) | Handling credentials, authentication configuration, containers, monitoring, or deployment; use its storage and approval rules. |
 
@@ -65,6 +72,103 @@ documents and link to them here instead of copying whole sections.
 
 This is an agent workflow rule, not a background file watcher. Agents following
 this file must perform the synchronization during relevant tasks.
+
+### Repository maintenance skills
+
+- When implementing, editing, or reviewing an API operation, apply [explain-api-errors](.agents/skills/explain-api-errors/SKILL.md). Every handled failure across every method and status must explain its known cause safely. Test the public response.
+- Use a scoped task branch for agent changes and a separate worktree for concurrent contributors. Agents run the same checks as humans and report test evidence. The human maintains publication and merge authority. See the [CI workflow guide](docs/github-actions-plan.md).
+- Use [maintain-gitkeep](.agents/skills/maintain-gitkeep/SKILL.md) when changing which files preserve a project directory in Git.
+- Use [reuse-python-code](.agents/skills/reuse-python-code/SKILL.md) when Python callers duplicate behavior. Shared backend API helpers belong in `backend/app/reusable.py` and have direct tests.
+
+### Implemented backend foundation
+
+Use the local startup and verification commands in [README.md](README.md#local-backend-setup-python-fastapi).
+The factory is `backend/app/main.py:create_app`; settings and shared errors live
+under `backend/app/core/`. Run `python -m pytest backend/tests -q` and the Ruff
+checks from the repository root with the virtual environment active.
+`GET /api/v1/health?server_id=1` is implemented through `app/api/health.py`,
+`app/services/health.py`, and `app/schemas/health.py`. Its default database
+probe executes asynchronous PostgreSQL `SELECT 1` when configured, and fails
+closed without credentials. The user verified local Windows database health.
+Metrics use a SQLAlchemy model and explicit Alembic migration; do not auto-create
+tables at startup. See the local PostgreSQL guide for upgrade commands.
+The server check
+only proves local API-process availability. Health requires a positive numeric
+`server_id`: local ID `1` is registered; invalid IDs return 400, unregistered
+IDs return 404, and failed checks return 503. Missing input returns 422. See
+[the API contract](docs/api.md#health-api) for validation rules. Prefer readable
+`int()` conversion and explicit checks over regex or arbitrary ID limits. This does not
+implement remote monitoring. `GET /api/v1/server` returns native host identity
+through its router/schema/service, using the same numeric ID as health.
+Requests may optionally select `server_id`; invalid IDs return 400 and
+unregistered IDs return 404. Omitted IDs select the configured local server. Reader
+bearer authentication uses a configured secret or mounted secret file; see the
+[server API contract](docs/api.md#server-api) and README for configuration and errors.
+Do not expose container metadata as host identity. Metrics GET/POST persist
+CPU, memory, disk, and uptime samples for the configured server. GET requires a
+reader token; POST requires a separate collector token (environment or `_FILE`).
+Wrong roles return 403. `scripts/monitoring/collect_local.py` provides a simple
+local host measurement/POST loop with `time.sleep(5)`, using `psutil` and a local
+collector credential. The Ubuntu setup also runs the collector through systemd.
+Incident CRUD uses separate admin credentials. Automatic detection and Cron
+scheduling remain pending. Report unconfigured dependencies as unhealthy.
+Health probes use a 150 ms default timeout and run concurrently to target a
+response p95 below 200 ms. Timeouts return structured 503 responses. Keep probes
+nonblocking and cancellation-aware; local timing tests do not verify deployment
+latency. See the API specification for the response-time target and limits.
+
+### Implemented incident API
+
+`backend/app/api/incidents.py` provides POST/list GET/detail GET/PATCH/DELETE.
+Schemas validate trimmed text, enums, aware occurrence times, and partial updates.
+`IncidentsService` scopes records to the configured server and uses transactions;
+updates/deletes lock rows. Preserve resolution time when editing an already
+resolved incident and clear it when reopening. Migration `0002_incidents` adds
+storage without changing metrics; never apply migrations implicitly at startup.
+Reader GET and admin writes use distinct tokens; admin supports environment or
+`_FILE` settings. All three configured role tokens must differ. Admin does not
+inherit reader/collector permissions. See [incident setup](docs/local-postgresql.md#enable-incident-storage-python-postgresql)
+and [the contract](docs/api.md#incident-api). The live frontend still marks
+incidents unavailable; automatic detection/alerts remain pending.
+
+### Ubuntu host monitoring setup
+
+`infrastructure/bootstrap/setup_ubuntu_monitoring.sh` prepares an existing native
+Ubuntu 24.04+ checkout with local PostgreSQL, migrations, and separate API/collector
+systemd units. It uses managed configuration under `~/.config/serverwatch-monitoring`,
+preserves existing secrets/data, and never imports the project's `.env`. Reruns
+are maintenance operations and restart services. Do not execute it on a developer
+workstation or cloud server without authorization for host changes.
+`verify_ubuntu_monitoring.sh` observes fresh persisted samples without test writes.
+Read [the Ubuntu guide](docs/ubuntu-monitoring.md) for ownership, permissions,
+networking, failure recovery, and native verification limits. The simple Python
+collector is reused directly on the host; Cron, durable delivery, backups,
+alerts, and public/frontend deployment remain separate work.
+
+### Local development launcher
+
+`scripts/setup/start_local.sh` targets the user's Windows installation. It delegates
+Windows service/process management to `start_local_windows.ps1` and validates
+configuration/storage through `check_local.py`. Use Windows Python/Node even from
+WSL to avoid mixed frontend native dependencies. Reuse private `.env`; never source
+it as Bash, print credentials, install packages, or apply migrations implicitly.
+The launcher also starts the local collector and requires both reader and
+collector tokens plus `psutil`. Stop only app/collector process trees created by
+this invocation and leave PostgreSQL running.
+Read the local launcher guide for checks, service selection, and verification limits.
+
+### Implemented frontend workspace
+
+Health, server, and metrics are now available to the live frontend. Use the
+[frontend guide](docs/frontend.md) and its verification
+commands. The React/TypeScript app starts in labeled demo mode; its incidents
+are in-memory examples. Keep demo data separate from API responses and never
+embed bearer tokens in build variables or browser storage. The typed client uses
+same-origin `/api/v1`, with a development-only Vite proxy to FastAPI. Live mode
+loads health, server information, and metrics with a reader token, then polls
+every five seconds without overlapping requests;
+incidents are explicitly unavailable without blocking those APIs. Do not send
+collector credentials to the frontend. Browser visual verification remains pending.
 
 ## 3. Canonical folder ownership
 
@@ -148,7 +252,8 @@ Keep HTTP validation and serialization in API/schema modules. Put domain decisio
 
 - **Comments:** Add clear comments to explain intent, non-obvious logic, assumptions and important decisions so contributors can understand the code. Keep comments accurate and avoid restating obvious operations.
 - **Readable formatting:** Use multiline formatting for long function calls, conditions, collections and commands when it improves readability. Separate logical steps with blank lines and avoid dense one-liners; follow the project's formatter and language conventions.
-- **Python:** Use type hints, small functions, explicit error handling and descriptive `snake_case` filenames. Prefer dependency injection for database sessions and external services.
+- **Python:** Prioritize simple, Pythonic code that is easy to read and explain. Prefer standard built-ins, clear names, and straightforward control flow. Avoid clever one-liners, unnecessary regex, and abstractions when a simpler approach meets the requirements. Keep required validation and error handling. Use type hints, small functions, and descriptive `snake_case` filenames. Prefer dependency injection for database sessions and external services.
+- **API errors:** Explain expected failures with public, application-controlled messages. Preserve status codes, role challenges and structured health reports. Cover the reason in response tests.
 - **Pydantic:** Separate input and output schemas; never expose password hashes or internal secrets.
 - **Database:** Use migrations, parameterized queries/ORM, explicit relationships and constraints, and UTC timestamps. Avoid unreviewed destructive migrations.
 - **Bash:** Start scripts with `#!/usr/bin/env bash`; use `set -euo pipefail` where appropriate; quote variables; check prerequisites; avoid relying on the current working directory; make provisioning idempotent where practical.
@@ -213,7 +318,7 @@ Where testing is unavailable, state precisely what remains unverified.
 - Clone the repository on the instance with suitable ownership/permissions.
 - Scheduled PostgreSQL/log backups using Cron; document that local-only backups are not disaster recovery.
 - Scheduled health monitoring and Discord/email alerts.
-- Working FastAPI service, demonstrated with systemd or supervisor.
+- Working FastAPI service, demonstrated with systemd or supervisor and publicly accessible Swagger at `/docs`. The current production profile disables Swagger and its schema. Track the deployment change under G7 in the project plan.
 - Nginx reverse proxy.
 - PostgreSQL connected to FastAPI.
 
