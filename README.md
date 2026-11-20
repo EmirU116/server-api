@@ -16,7 +16,7 @@ deployment that continues collecting measurements after reboot.**
 | Area | What works today |
 | --- | --- |
 | API and storage (Python, PostgreSQL) | Health checks the API process and its database connection. Server information comes from the host. Alembic migrations create the metrics and incidents tables. Incident CRUD was verified against local Windows PostgreSQL. |
-| Dashboard (React, TypeScript) | Live mode reads health, server details, and stored metrics. The collector posts a sample, then sleeps five seconds. The dashboard polls every five seconds. Incident editing is available in demo mode. The full Windows collector-to-browser flow still needs a live check. |
+| Dashboard (React, TypeScript) | Live mode reads health, server details, metrics, and incidents. Connect with the optional admin token over HTTPS or localhost to save incident plans and reports. Demo mode can rehearse the same workflow. |
 | Ubuntu setup (Bash, systemd) | The installer configures PostgreSQL and enables API and collector services. The user reported 8/8 checks passing on EC2. Reboot and public web access still need verification. |
 | CI (GitHub Actions) | Pull requests targeting `main` and pushes to `main` run Python tests with disposable PostgreSQL, dashboard checks, and Bash syntax checks. [Passing run on main at `3285a97`](https://github.com/EmirU116/server-api/actions/runs/44458684832) |
 

@@ -15,7 +15,8 @@ from app.core.errors import PublicInputError
 from app.reusable import EventTimestamp, UtcDatetime, reject_null_characters
 
 Severity = Literal["info", "warning", "critical"]
-Status = Literal["open", "investigating", "resolved"]
+ActiveStatus = Literal["open", "investigating", "resolved"]
+Status = Literal["planned", "open", "investigating", "resolved"]
 Title = Annotated[
     str,
     Field(strict=True, min_length=1, max_length=200),
@@ -28,30 +29,40 @@ Description = Annotated[
 ]
 
 
+class IncidentTrigger(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    metric: Literal["cpu", "gpu", "memory", "storage"]
+    threshold_percent: Annotated[float, Field(strict=True, ge=0, le=100)]
+    duration_seconds: Annotated[int, Field(strict=True, ge=5, le=600)]
+
+
 class IncidentCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     title: Title
     description: Description
     severity: Severity
-    occurred_at: EventTimestamp
+    occurred_at: EventTimestamp | None
+    trigger: IncidentTrigger | None = None
 
 
 class IncidentUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    # None permits omission. The validator rejects explicitly supplied nulls.
+    # Null clears a trigger. Other fields can only be omitted or given a value.
     title: Title | None = None
     description: Description | None = None
     severity: Severity | None = None
-    status: Status | None = None
+    status: ActiveStatus | None = None
+    trigger: IncidentTrigger | None = None
 
     @model_validator(mode="after")
     def require_changes(self):
         if not self.model_fields_set:
             raise PublicInputError("Supply at least one field to update.")
         for name in self.model_fields_set:
-            if getattr(self, name) is None:
+            if name != "trigger" and getattr(self, name) is None:
                 raise PublicInputError(f"Supply a non-null value for {name}.")
         return self
 

@@ -18,7 +18,10 @@ now persist samples through SQLAlchemy with a versioned Alembic migration and
 separate reader/collector credentials. A local collector now submits real host
 measurements with a five-second sleep, and the API dashboard polls every five
 seconds. Incident CRUD now uses reader GET and admin writes; Ubuntu systemd units provide continuous collection. Threshold alerts and Cron backups are outstanding. React live mode reads the three available APIs and explicitly marks
-incidents unavailable. Real browser/Windows metrics verification remains pending.
+incidents use reader access and admin writes. Planned incidents can store response
+steps and a metric threshold before an occurrence. The dashboard signals a
+sustained crossing for manual opening. GPU readings and automated opening
+remain future work. Live browser verification of the new editor remains pending.
 The user reported 8/8 native monitoring checks passing on EC2. Reboot and
 public browser verification remain pending.
 

@@ -21,19 +21,20 @@ export class ApiError extends Error {
  * The caller keeps the token in React memory; no browser storage or VITE_* secret
  * is used. Never attach credentials to health checks or arbitrary remote URLs.
  */
-export function createApi(token: string) {
+export function createApi(token: string, adminToken = '') {
   async function request<T>(
     path: string,
     options: RequestInit = {},
     publicEndpoint = false,
+    credential = token,
   ): Promise<T> {
-    if (/\s/.test(token))
+    if (/\s/.test(credential))
       throw new ApiError(401, 'Use a bearer token without whitespace.');
     const headers = new Headers(options.headers);
     headers.set('Accept', 'application/json');
     if (options.body) headers.set('Content-Type', 'application/json');
-    if (!publicEndpoint && token)
-      headers.set('Authorization', `Bearer ${token}`);
+    if (!publicEndpoint && credential)
+      headers.set('Authorization', `Bearer ${credential}`);
 
     let response: Response;
     try {
@@ -94,9 +95,10 @@ export function createApi(token: string) {
         );
       }
       // Select the same configured server instead of assuming its ID is 1.
-      const [health, metrics] = await Promise.all([
+      const [health, metrics, incidents] = await Promise.all([
         request<unknown>(`/health?server_id=${server.id}`, {}, true),
         request<unknown>('/metrics?limit=100'),
+        request<unknown>('/incidents?limit=100').catch(() => null),
       ]);
       if (
         !isHealth(health) ||
@@ -108,32 +110,58 @@ export function createApi(token: string) {
           'The API returned data that does not match the expected contract.',
         );
       }
+      const incidentPage = isPage(incidents, isIncident) ? incidents : null;
+      let history = metrics.items;
+      const oldest = history.at(-1);
+      if (oldest && metrics.total > history.length && history.length === 100) {
+        // Anchor the next page to the last timestamp so fresh inserts cannot shift it.
+        const end = encodeURIComponent(oldest.collected_at);
+        const older = await request<unknown>(
+          `/metrics?limit=100&offset=1&end=${end}`,
+        ).catch(() => null);
+        if (isPage(older, isMetric)) history = [...history, ...older.items];
+      }
       return {
         health,
         server,
-        metrics: metrics.items,
-        incidents: null,
-        incidentTotal: null,
+        metrics: history,
+        incidents: incidentPage?.items ?? null,
+        incidentTotal: incidentPage?.total ?? null,
       };
     },
     createIncident: (input: IncidentInput) =>
       incidentResponse(
-        request<unknown>('/incidents', {
-          method: 'POST',
-          body: JSON.stringify(input),
-        }),
+        request<unknown>(
+          '/incidents',
+          {
+            method: 'POST',
+            body: JSON.stringify(input),
+          },
+          false,
+          adminToken,
+        ),
       ),
     updateIncident: (id: string, input: IncidentUpdate) =>
       incidentResponse(
-        request<unknown>(`/incidents/${encodeURIComponent(id)}`, {
-          method: 'PATCH',
-          body: JSON.stringify(input),
-        }),
+        request<unknown>(
+          `/incidents/${encodeURIComponent(id)}`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify(input),
+          },
+          false,
+          adminToken,
+        ),
       ),
     deleteIncident: (id: string) =>
-      request<void>(`/incidents/${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      }),
+      request<void>(
+        `/incidents/${encodeURIComponent(id)}`,
+        {
+          method: 'DELETE',
+        },
+        false,
+        adminToken,
+      ),
   };
 }
 

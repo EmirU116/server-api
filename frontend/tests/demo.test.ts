@@ -14,7 +14,7 @@ describe('demo incident lifecycle', () => {
       title: record.title,
       description: 'Updated notes',
       severity: record.severity,
-      status: record.status,
+      status: 'resolved' as const,
     };
     const edited = updateDemoIncident(record, input);
 

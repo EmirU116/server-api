@@ -97,7 +97,7 @@ export function createDemoIncident(input: IncidentInput): Incident {
   return {
     ...input,
     id: crypto.randomUUID(),
-    status: 'open',
+    status: input.occurred_at === null ? 'planned' : 'open',
     created_at: now,
     updated_at: now,
     resolved_at: null,
@@ -113,8 +113,11 @@ export function updateDemoIncident(
   return {
     ...incident,
     ...input,
+    occurred_at: incident.occurred_at ?? (input.status ? now : null),
     updated_at: now,
     resolved_at:
-      input.status === 'resolved' ? (incident.resolved_at ?? now) : null,
+      (input.status ?? incident.status) === 'resolved'
+        ? (incident.resolved_at ?? now)
+        : null,
   };
 }

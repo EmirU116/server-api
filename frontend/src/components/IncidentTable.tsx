@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowUpRight, CircleCheck, Search } from 'lucide-react';
-import type { Incident, IncidentStatus } from '../types';
+import type { Incident, IncidentStatus, Metric } from '../types';
+import { evaluateTrigger, metricNames } from '../services/incidentTriggers';
 
 export function StatusBadge({ status }: { status: IncidentStatus }) {
   return (
@@ -10,7 +11,9 @@ export function StatusBadge({ status }: { status: IncidentStatus }) {
         ? 'Investigating'
         : status === 'resolved'
           ? 'Resolved'
-          : 'Open'}
+          : status === 'planned'
+            ? 'Planned'
+            : 'Open'}
     </span>
   );
 }
@@ -18,12 +21,16 @@ export function StatusBadge({ status }: { status: IncidentStatus }) {
 export function IncidentTable({
   incidents,
   total,
+  metrics,
+  demo,
   full = false,
   onEdit,
   onViewAll,
 }: {
   incidents: Incident[];
   total: number;
+  metrics: Metric[];
+  demo: boolean;
   full?: boolean;
   onEdit: (incident: Incident) => void;
   onViewAll: () => void;
@@ -60,17 +67,19 @@ export function IncidentTable({
       {full && (
         <div className="table-toolbar">
           <div className="status-filters" aria-label="Incident status filter">
-            {['all', 'open', 'investigating', 'resolved'].map((status) => (
-              <button
-                key={status}
-                aria-pressed={filter === status}
-                onClick={() => setFilter(status)}
-              >
-                {status === 'all'
-                  ? 'All incidents'
-                  : status[0].toUpperCase() + status.slice(1)}
-              </button>
-            ))}
+            {['all', 'planned', 'open', 'investigating', 'resolved'].map(
+              (status) => (
+                <button
+                  key={status}
+                  aria-pressed={filter === status}
+                  onClick={() => setFilter(status)}
+                >
+                  {status === 'all'
+                    ? 'All incidents'
+                    : status[0].toUpperCase() + status.slice(1)}
+                </button>
+              ),
+            )}
           </div>
           <label className="search-field">
             <Search size={16} />
@@ -119,17 +128,26 @@ export function IncidentTable({
                   </td>
                   <td>
                     <StatusBadge status={incident.status} />
+                    {incident.status === 'planned' && incident.trigger && (
+                      <span className="incident-description">
+                        {metricNames[incident.trigger.metric]} ·{' '}
+                        {evaluateTrigger(incident.trigger, metrics, demo).label}
+                      </span>
+                    )}
                   </td>
                   <td className="date-cell">
-                    {new Date(incident.occurred_at).toLocaleDateString([], {
-                      month: 'short',
-                      day: 'numeric',
-                    })}
+                    {incident.occurred_at
+                      ? new Date(incident.occurred_at).toLocaleDateString([], {
+                          month: 'short',
+                          day: 'numeric',
+                        })
+                      : 'Not yet occurred'}
                     <span>
-                      {new Date(incident.occurred_at).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {incident.occurred_at &&
+                        new Date(incident.occurred_at).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
                     </span>
                   </td>
                   <td>

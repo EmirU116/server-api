@@ -86,7 +86,9 @@ class IncidentsService:
         return record
 
     def create(self, data: IncidentCreate, received_at: datetime) -> IncidentRecord:
-        if data.occurred_at > received_at.astimezone(UTC):
+        if data.occurred_at is not None and data.occurred_at > received_at.astimezone(
+            UTC
+        ):
             raise FutureIncident
         now = self.clock().astimezone(UTC)
         with self.transaction() as session:
@@ -94,7 +96,7 @@ class IncidentsService:
                 id=uuid4(),
                 server_id=self.server_id,
                 **data.model_dump(),
-                status="open",
+                status="planned" if data.occurred_at is None else "open",
                 created_at=now,
                 updated_at=now,
                 resolved_at=None,
@@ -146,6 +148,8 @@ class IncidentsService:
             values = changes.model_dump(exclude_unset=True)
             now = self.clock().astimezone(UTC)
             new_status = values.get("status", record.status)
+            if record.status == "planned" and new_status != "planned":
+                record.occurred_at = now
             if new_status == "resolved" and record.status != "resolved":
                 record.resolved_at = now
             elif new_status != "resolved":

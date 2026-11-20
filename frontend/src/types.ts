@@ -1,7 +1,15 @@
 /** Browser contracts mirror docs/api.md; credentials never belong in this model. */
 export type Severity = 'info' | 'warning' | 'critical';
-export type IncidentStatus = 'open' | 'investigating' | 'resolved';
+export type IncidentStatus = 'planned' | 'open' | 'investigating' | 'resolved';
 export type View = 'overview' | 'metrics' | 'server' | 'incidents';
+
+export type WatchedMetric = 'cpu' | 'gpu' | 'memory' | 'storage';
+
+export interface IncidentTrigger {
+  metric: WatchedMetric;
+  threshold_percent: number;
+  duration_seconds: number;
+}
 
 export interface Health {
   server_id: number;
@@ -36,23 +44,25 @@ export interface Incident {
   description: string;
   severity: Severity;
   status: IncidentStatus;
-  occurred_at: string;
+  occurred_at: string | null;
   created_at: string;
   updated_at: string;
   resolved_at: string | null;
+  trigger?: IncidentTrigger | null;
 }
 
 export interface IncidentInput {
   title: string;
   description: string;
   severity: Severity;
-  occurred_at: string;
+  occurred_at: string | null;
+  trigger?: IncidentTrigger | null;
 }
 
 export type IncidentUpdate = Pick<
   Incident,
-  'title' | 'description' | 'severity' | 'status'
->;
+  'title' | 'description' | 'severity' | 'trigger'
+> & { status?: Exclude<IncidentStatus, 'planned'> };
 
 export interface Page<T> {
   items: T[];

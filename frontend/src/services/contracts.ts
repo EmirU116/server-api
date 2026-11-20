@@ -63,11 +63,29 @@ export function isIncident(value: unknown): value is Incident {
       (key) => typeof value[key] === 'string',
     ) &&
     ['info', 'warning', 'critical'].includes(String(value.severity)) &&
-    ['open', 'investigating', 'resolved'].includes(String(value.status)) &&
-    ['occurred_at', 'created_at', 'updated_at'].every((key) =>
-      timestamp(value[key]),
+    ['planned', 'open', 'investigating', 'resolved'].includes(
+      String(value.status),
     ) &&
-    (value.resolved_at === null || timestamp(value.resolved_at))
+    (value.status === 'planned'
+      ? value.occurred_at === null
+      : timestamp(value.occurred_at)) &&
+    ['created_at', 'updated_at'].every((key) => timestamp(value[key])) &&
+    (value.resolved_at === null || timestamp(value.resolved_at)) &&
+    (value.trigger == null || isIncidentTrigger(value.trigger))
+  );
+}
+
+function isIncidentTrigger(value: unknown): boolean {
+  return (
+    record(value) &&
+    ['cpu', 'gpu', 'memory', 'storage'].includes(String(value.metric)) &&
+    typeof value.threshold_percent === 'number' &&
+    value.threshold_percent >= 0 &&
+    value.threshold_percent <= 100 &&
+    typeof value.duration_seconds === 'number' &&
+    Number.isInteger(value.duration_seconds) &&
+    value.duration_seconds >= 5 &&
+    value.duration_seconds <= 600
   );
 }
 

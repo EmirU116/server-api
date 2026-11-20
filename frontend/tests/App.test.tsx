@@ -59,6 +59,55 @@ describe('demo workspace', () => {
     expect(screen.getByText('No matching incidents')).toBeInTheDocument();
   });
 
+  it('saves a response plan without an occurrence and opens it later', async () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'New incident' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('Incident type'), {
+      target: { value: 'planned' },
+    });
+    fireEvent.change(within(dialog).getByLabelText('Watch a metric'), {
+      target: { value: 'storage' },
+    });
+    fireEvent.change(within(dialog).getByLabelText('At or above (%)'), {
+      target: { value: '40' },
+    });
+    expect(within(dialog).getByText(/Threshold met/)).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText('Title'), {
+      target: { value: 'Database recovery drill' },
+    });
+    fireEvent.change(
+      within(dialog).getByLabelText('Scenario and response steps'),
+      {
+        target: { value: 'Check database connectivity before restarting.' },
+      },
+    );
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Save incident plan' }),
+    );
+    const plan = await screen.findByRole('button', {
+      name: 'Database recovery drill',
+    });
+    fireEvent.click(plan);
+    const editor = screen.getByRole('dialog');
+    expect(within(editor).getByText('Not yet occurred')).toBeInTheDocument();
+    fireEvent.change(within(editor).getByLabelText('Status'), {
+      target: { value: 'open' },
+    });
+    fireEvent.click(
+      within(editor).getByRole('button', { name: 'Save changes' }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Database recovery drill' }),
+    );
+    expect(
+      within(screen.getByRole('dialog')).getByLabelText('Status'),
+    ).toHaveValue('open');
+  });
+
   it('creates, updates, resolves, and deletes an incident with confirmation', async () => {
     render(<App />);
     fireEvent.click(screen.getByRole('button', { name: 'New incident' }));
@@ -199,7 +248,7 @@ describe('demo workspace', () => {
       screen.queryByText('No open issues in loaded records'),
     ).not.toBeInTheDocument();
     expect(fetch.mock.calls.some(([path]) => path.includes('/incidents'))).toBe(
-      false,
+      true,
     );
     expect(localStorage.length).toBe(0);
     expect(sessionStorage.length).toBe(0);
@@ -210,12 +259,19 @@ describe('demo workspace', () => {
     expect(screen.queryByText('27.5')).not.toBeInTheDocument();
   });
 
-  it('renders stored API metrics and refreshes them without calling incidents', async () => {
+  it('renders stored API metrics and incidents and refreshes metrics', async () => {
     const demo = createDemoSnapshot();
     let cpu = 12.3;
     const fetch = vi.fn().mockImplementation(async (path: string) => {
       if (path.endsWith('/server')) return Response.json(demo.server);
       if (path.includes('/health?')) return Response.json(demo.health);
+      if (path.includes('/incidents?'))
+        return Response.json({
+          items: demo.incidents,
+          total: 3,
+          limit: 100,
+          offset: 0,
+        });
       if (path.endsWith('/metrics?limit=100')) {
         return Response.json({
           items: [{ ...demo.metrics[0], cpu_percent: cpu }],
@@ -239,9 +295,9 @@ describe('demo workspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
     expect(await screen.findByText('19.8')).toBeInTheDocument();
     expect(screen.queryByText('12.3')).not.toBeInTheDocument();
-    expect(fetch.mock.calls.some(([path]) => path.includes('/incidents'))).toBe(
-      false,
-    );
+    expect(
+      screen.getByRole('button', { name: 'Elevated CPU utilization' }),
+    ).toBeInTheDocument();
   });
 
   it('polls live measurements every five seconds and stops when unmounted', async () => {
@@ -292,6 +348,8 @@ describe('demo workspace', () => {
       vi.fn().mockImplementation(async (path: string) => {
         if (path.endsWith('/server')) return Response.json(demo.server);
         if (path.includes('/health?')) return Response.json(demo.health);
+        if (path.includes('/incidents?'))
+          return Response.json({ items: [], total: 0, limit: 100, offset: 0 });
         metricCalls += 1;
         if (metricCalls === 2) {
           return new Promise<Response>((resolve) => {

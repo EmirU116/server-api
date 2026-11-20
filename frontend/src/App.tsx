@@ -49,6 +49,11 @@ export default function App() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(createDemoSnapshot);
   const [token, setToken] = useState('');
   const [tokenInput, setTokenInput] = useState('');
+  const [adminToken, setAdminToken] = useState('');
+  const [adminInput, setAdminInput] = useState('');
+  const allowAdminToken =
+    location.protocol === 'https:' ||
+    ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
   const [connecting, setConnecting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -57,10 +62,11 @@ export default function App() {
     undefined,
   );
   const generation = useRef(0);
-  const api = useMemo(() => createApi(token), [token]);
+  const api = useMemo(() => createApi(token, adminToken), [token, adminToken]);
   const openCount =
-    snapshot?.incidents?.filter((item) => item.status !== 'resolved').length ??
-    0;
+    snapshot?.incidents?.filter(
+      (item) => item.status === 'open' || item.status === 'investigating',
+    ).length ?? 0;
   const title =
     view === 'overview'
       ? 'Server overview'
@@ -144,6 +150,8 @@ export default function App() {
     setMode('demo');
     setToken('');
     setTokenInput('');
+    setAdminToken('');
+    setAdminInput('');
     setSnapshot(createDemoSnapshot());
     setLoading(false);
     setError('');
@@ -154,7 +162,13 @@ export default function App() {
     input: IncidentInput | IncidentUpdate,
     id?: string,
   ) {
-    if (!snapshot?.incidents) return;
+    if (!snapshot?.incidents)
+      throw new Error('Incident records are unavailable.');
+    if (mode === 'api' && !adminToken)
+      throw new Error(
+        'Reconnect with an incident admin token to save changes.',
+      );
+    const session = generation.current;
     const record =
       mode === 'demo'
         ? id
@@ -166,6 +180,8 @@ export default function App() {
         : id
           ? await api.updateIncident(id, input as IncidentUpdate)
           : await api.createIncident(input as IncidentInput);
+    if (generation.current !== session) return;
+    generation.current += 1;
     setSnapshot((current) =>
       current && current.incidents !== null && current.incidentTotal !== null
         ? {
@@ -185,7 +201,14 @@ export default function App() {
   }
 
   async function deleteIncident(id: string) {
+    if (mode === 'api' && !adminToken)
+      throw new Error(
+        'Reconnect with an incident admin token to delete records.',
+      );
+    const session = generation.current;
     if (mode === 'api') await api.deleteIncident(id);
+    if (generation.current !== session) return;
+    generation.current += 1;
     setSnapshot((current) =>
       current && current.incidents !== null && current.incidentTotal !== null
         ? {
@@ -403,8 +426,9 @@ export default function App() {
                         <h2>Incidents unavailable</h2>
                       </div>
                       <div className="empty-state">
-                        The incident API is not implemented yet. Incident counts
-                        and editing are unavailable in API mode.
+                        Incident records could not be loaded. Check that the
+                        incident database migrations are up to date, then
+                        refresh.
                       </div>
                     </section>
                   ) : (
@@ -412,6 +436,8 @@ export default function App() {
                       key={view}
                       incidents={snapshot.incidents}
                       total={snapshot.incidentTotal}
+                      metrics={snapshot.metrics}
+                      demo={mode === 'demo'}
                       full={view === 'incidents'}
                       onEdit={setEditing}
                       onViewAll={() => setView('incidents')}
@@ -462,6 +488,7 @@ export default function App() {
       {editing !== undefined && (
         <IncidentEditor
           incident={editing}
+          metrics={snapshot?.metrics ?? []}
           demo={mode === 'demo'}
           onClose={() => setEditing(undefined)}
           onSave={saveIncident}
@@ -474,11 +501,12 @@ export default function App() {
           onClose={() => {
             setConnecting(false);
             setTokenInput('');
+            setAdminInput('');
           }}
         >
           <p className="modal-description">
-            Connect to your ServerWatch API with its reader token. Available
-            endpoints display real data; incidents are not available yet.
+            Use your reader token to view live data. To create or edit
+            incidents, also enter the separate incident admin token.
           </p>
           <form
             onSubmit={(event) => {
@@ -487,6 +515,8 @@ export default function App() {
               if (!bearer) return;
               setConnecting(false);
               setTokenInput('');
+              setAdminToken(allowAdminToken ? adminInput.trim() : '');
+              setAdminInput('');
               void loadApi(bearer);
             }}
           >
@@ -495,6 +525,22 @@ export default function App() {
                 API path
                 <input value="/api/v1" readOnly className="mono" />
               </label>
+              {allowAdminToken ? (
+                <label>
+                  Incident admin token (optional)
+                  <input
+                    type="password"
+                    autoComplete="off"
+                    value={adminInput}
+                    onChange={(event) => setAdminInput(event.target.value)}
+                  />
+                </label>
+              ) : (
+                <p className="field-hint">
+                  Use HTTPS or localhost to edit live incidents. You can try the
+                  editor in demo mode.
+                </p>
+              )}
               <label>
                 Bearer token
                 <input

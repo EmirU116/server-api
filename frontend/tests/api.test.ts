@@ -20,13 +20,13 @@ describe('typed API client', () => {
     const result = await createApi('dummy-test-token').snapshot();
 
     expect(result.server.hostname).toBe('serverwatch-01');
-    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(fetch).toHaveBeenCalledTimes(4);
     expect(fetch.mock.calls[0][0]).toBe('/api/v1/server');
     expect(fetch.mock.calls[1][0]).toBe('/api/v1/health?server_id=1');
     expect(fetch.mock.calls[2][0]).toBe('/api/v1/metrics?limit=100');
     expect(result.metrics).toEqual(demo.metrics);
-    expect(result.incidents).toBeNull();
-    expect(result.incidentTotal).toBeNull();
+    expect(result.incidents).toEqual(demo.incidents);
+    expect(result.incidentTotal).toBe(3);
     for (const [path, options] of fetch.mock.calls) {
       expect(path).toMatch(/^\/api\/v1\//);
       expect(options.headers.get('Authorization')).toBe(
@@ -35,7 +35,7 @@ describe('typed API client', () => {
     }
   });
 
-  it('checks the configured server ID and never calls unimplemented incidents', async () => {
+  it('checks the configured server ID and tolerates unavailable incidents', async () => {
     const demo = createDemoSnapshot();
     const fetch = vi.fn().mockImplementation(async (path: string) => {
       if (path.endsWith('/server'))
@@ -54,7 +54,7 @@ describe('typed API client', () => {
     expect(result.metrics).toEqual([]);
     expect(result.incidents).toBeNull();
     expect(fetch.mock.calls.some(([path]) => path.includes('/incidents'))).toBe(
-      false,
+      true,
     );
   });
 
@@ -269,7 +269,7 @@ describe('typed API client', () => {
     const fetch = vi.fn();
     vi.stubGlobal('fetch', fetch);
     await expect(
-      createApi('dummy\nsensitive-token').deleteIncident('record-id'),
+      createApi('reader', 'dummy\nsensitive-token').deleteIncident('record-id'),
     ).rejects.toThrow('without whitespace');
     expect(fetch).not.toHaveBeenCalled();
   });
@@ -278,7 +278,7 @@ describe('typed API client', () => {
     const record = createDemoSnapshot().incidents[0];
     const fetch = vi.fn().mockImplementation(async () => Response.json(record));
     vi.stubGlobal('fetch', fetch);
-    const api = createApi('dummy-test-token');
+    const api = createApi('dummy-test-token', 'dummy-admin');
     await api.createIncident({
       title: record.title,
       description: record.description,
@@ -294,6 +294,9 @@ describe('typed API client', () => {
 
     expect(fetch.mock.calls[0][1].method).toBe('POST');
     expect(fetch.mock.calls[1][1].method).toBe('PATCH');
+    expect(fetch.mock.calls[0][1].headers.get('Authorization')).toBe(
+      'Bearer dummy-admin',
+    );
     expect(fetch.mock.calls[0][1].headers.get('Content-Type')).toBe(
       'application/json',
     );

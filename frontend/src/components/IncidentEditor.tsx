@@ -6,8 +6,11 @@ import type {
   IncidentInput,
   IncidentStatus,
   IncidentUpdate,
+  Metric,
   Severity,
+  WatchedMetric,
 } from '../types';
+import { evaluateTrigger, metricNames } from '../services/incidentTriggers';
 import { Modal } from './Modal';
 
 function localDatetime() {
@@ -20,12 +23,14 @@ function localDatetime() {
 export function IncidentEditor({
   incident,
   demo,
+  metrics,
   onClose,
   onSave,
   onDelete,
 }: {
   incident: Incident | null;
   demo: boolean;
+  metrics: Metric[];
   onClose: () => void;
   onSave: (input: IncidentInput | IncidentUpdate, id?: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -39,6 +44,35 @@ export function IncidentEditor({
     incident?.status ?? 'open',
   );
   const [occurredAt, setOccurredAt] = useState(localDatetime);
+  const [planned, setPlanned] = useState(false);
+  const [metric, setMetric] = useState<WatchedMetric | ''>(
+    incident?.trigger?.metric ?? '',
+  );
+  const [threshold, setThreshold] = useState(
+    incident?.trigger?.threshold_percent ?? 90,
+  );
+  const [duration, setDuration] = useState(
+    incident?.trigger?.duration_seconds ?? 60,
+  );
+  const canConfigure =
+    planned || incident?.status === 'planned' || !!incident?.trigger;
+  const trigger =
+    canConfigure && metric
+      ? {
+          metric,
+          threshold_percent: threshold,
+          duration_seconds: duration,
+        }
+      : null;
+  const validTrigger =
+    Number.isFinite(threshold) &&
+    threshold >= 0 &&
+    threshold <= 100 &&
+    Number.isInteger(duration) &&
+    duration >= 5 &&
+    duration <= 600;
+  const reading =
+    trigger && validTrigger ? evaluateTrigger(trigger, metrics, demo) : null;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -50,8 +84,15 @@ export function IncidentEditor({
       setError('A title and description are required.');
       return;
     }
+    if (trigger && !validTrigger) {
+      setError(
+        'Choose a threshold from 0 to 100% and a whole duration from 5 to 600 seconds.',
+      );
+      return;
+    }
     if (
       !incident &&
+      !planned &&
       (!Number.isFinite(new Date(occurredAt).getTime()) ||
         new Date(occurredAt).getTime() > Date.now())
     ) {
@@ -64,11 +105,15 @@ export function IncidentEditor({
         title: title.trim(),
         description: description.trim(),
         severity,
+        ...(trigger || incident?.trigger ? { trigger } : {}),
       };
       await onSave(
         incident
-          ? { ...shared, status }
-          : { ...shared, occurred_at: new Date(occurredAt).toISOString() },
+          ? { ...shared, ...(status === 'planned' ? {} : { status }) }
+          : {
+              ...shared,
+              occurred_at: planned ? null : new Date(occurredAt).toISOString(),
+            },
         incident?.id,
       );
       onClose();
@@ -122,21 +167,37 @@ export function IncidentEditor({
               required
               maxLength={200}
               value={title}
-              placeholder="A short description of what happened"
+              placeholder="For example: Database connection loss"
               onChange={(event) => setTitle(event.target.value)}
             />
           </label>
           <label>
-            Description
+            {planned || incident?.status === 'planned'
+              ? 'Scenario and response steps'
+              : 'Description'}
             <textarea
               required
               maxLength={5000}
               rows={4}
               value={description}
-              placeholder="Add context, impact, and any steps taken…"
+              placeholder="Describe the issue and what to check or do first."
               onChange={(event) => setDescription(event.target.value)}
             />
           </label>
+          {!incident && (
+            <label>
+              Incident type
+              <select
+                value={planned ? 'planned' : 'occurred'}
+                onChange={(event) =>
+                  setPlanned(event.target.value === 'planned')
+                }
+              >
+                <option value="occurred">Report an incident</option>
+                <option value="planned">Plan ahead or run a drill</option>
+              </select>
+            </label>
+          )}
           <div className="form-row">
             <label>
               Severity
@@ -160,12 +221,17 @@ export function IncidentEditor({
                     setStatus(event.target.value as IncidentStatus)
                   }
                 >
-                  <option value="open">Open</option>
+                  {incident.status === 'planned' && (
+                    <option value="planned">Planned</option>
+                  )}
+                  <option value="open">
+                    {incident.status === 'planned' ? 'Open now' : 'Open'}
+                  </option>
                   <option value="investigating">Investigating</option>
                   <option value="resolved">Resolved</option>
                 </select>
               </label>
-            ) : (
+            ) : !planned ? (
               <label>
                 Occurred at (local time)
                 <input
@@ -175,13 +241,84 @@ export function IncidentEditor({
                   onChange={(event) => setOccurredAt(event.target.value)}
                 />
               </label>
-            )}
+            ) : null}
           </div>
+          {canConfigure && (
+            <div className="form-fields">
+              <label>
+                Watch a metric
+                <select
+                  value={metric}
+                  onChange={(event) =>
+                    setMetric(event.target.value as WatchedMetric | '')
+                  }
+                >
+                  <option value="">No threshold</option>
+                  {Object.entries(metricNames).map(([key, label]) => (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {metric && (
+                <div className="form-row">
+                  <label>
+                    At or above (%)
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="any"
+                      required
+                      value={Number.isNaN(threshold) ? '' : threshold}
+                      onChange={(event) =>
+                        setThreshold(event.target.valueAsNumber)
+                      }
+                    />
+                  </label>
+                  <label>
+                    Duration (seconds)
+                    <input
+                      type="number"
+                      min={5}
+                      max={600}
+                      step={1}
+                      required
+                      value={Number.isNaN(duration) ? '' : duration}
+                      onChange={(event) =>
+                        setDuration(event.target.valueAsNumber)
+                      }
+                    />
+                  </label>
+                </div>
+              )}
+              {reading && (
+                <p className="field-hint" role="status">
+                  {reading.latest !== null &&
+                    `Latest ${metricNames[metric || 'cpu']}: ${reading.latest}%. `}
+                  {reading.label}.
+                  {reading.seconds > 0 &&
+                    ` At or above threshold for ${reading.seconds}s.`}
+                </p>
+              )}
+            </div>
+          )}
+          {incident?.status === 'planned' && (
+            <p className="field-hint">
+              Keep this planned until you need it. Changing the status records
+              the current time as the occurrence.
+            </p>
+          )}
           {incident && (
             <dl className="record-details">
               <div>
                 <dt>Occurred</dt>
-                <dd>{new Date(incident.occurred_at).toLocaleString()}</dd>
+                <dd>
+                  {incident.occurred_at
+                    ? new Date(incident.occurred_at).toLocaleString()
+                    : 'Not yet occurred'}
+                </dd>
               </div>
               <div>
                 <dt>Last updated</dt>
@@ -243,7 +380,13 @@ export function IncidentEditor({
               Cancel
             </button>
             <button type="submit" className="button primary">
-              {busy ? 'Saving…' : incident ? 'Save changes' : 'Create incident'}
+              {busy
+                ? 'Saving…'
+                : incident
+                  ? 'Save changes'
+                  : planned
+                    ? 'Save incident plan'
+                    : 'Create incident'}
             </button>
           </div>
         </fieldset>

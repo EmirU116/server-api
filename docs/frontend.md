@@ -2,8 +2,7 @@
 
 The frontend is a local React application under `frontend/`. Live mode supports
 reader-authenticated server information and stored metrics, plus public health
-with the real PostgreSQL readiness check. Incidents are labeled unavailable
-instead of blocking the available views or substituting demo data.
+with the real PostgreSQL readiness check. Live incidents are stored in PostgreSQL.
 
 ## Run locally (Node.js, npm)
 
@@ -28,7 +27,7 @@ Node/Vite are frontend development tools; the application backend remains Python
 | Overview | CPU/memory/disk cards, open incident count, utilization chart, server/database health, recent incidents, server summary |
 | Metrics | Chart ranges relative to the newest sample, toggles for each metric, hover values, paginated table of loaded measurements |
 | Server details | Server display name, hostname, OS, architecture, stable ID, health and reported uptime |
-| Incidents | Demo-only search, filters, CRUD, and resolution/reopening; live mode explicitly unavailable |
+| Incidents | Search, filters, incident plans, reports, and status changes in demo and live modes |
 
 The layout adapts to narrow screens with a horizontal navigation menu and
 scrollable data tables. Forms use native dialogs, labeled inputs, required
@@ -64,14 +63,30 @@ The client in `frontend/src/services/api.ts` follows [the API contract](api.md):
 
 - Reads authenticated `/server`, then public `/health?server_id=<id>` using
   the returned server ID. No bearer token is sent with the health request.
-- Incidents are explicitly unavailable in API mode until their backend is
-  implemented. No incident read requests are sent, counts display unavailable,
-  and incident creation/editing is disabled. Demo incident editing remains local.
-- Reads the latest 100 stored measurements from authenticated
+- Reads the latest 100 incidents with the reader token. Enter the optional
+  incident admin token at connection time to create, edit, or delete incidents.
+  Live editing is available over HTTPS or localhost, including an SSH tunnel.
+  Both tokens stay in memory. Apply migrations through `0004_incident_triggers` before
+  saving incident plans. On EC2, update the existing checkout, rerun the
+  monitoring installer to apply migrations, then rerun the web installer to
+  rebuild and publish React. Use your existing setup arguments.
+- Choose **New incident → Plan ahead or run a drill**, enter the scenario and
+  response steps, then save. A plan stays out of the open count until activated.
+  Open it and choose **Open now** when the incident occurs or when rehearsing
+  in demo mode. Plans guide manual response. Automated detection and remediation
+  are separate work.
+- Optionally choose a metric, percentage and duration when editing the plan.
+  CPU, memory and storage show the latest reading. Storage measures disk
+  usage on the filesystem sampled by the collector. A gap over 15 seconds
+  breaks a live crossing, and stale readings cannot mark a threshold as met.
+  GPU is unavailable until the collector supports it. Keep the dashboard open
+  to review threshold status as new readings arrive.
+- Reads the latest 100 stored measurements and can look back another 100 for
+  threshold history. Reads use authenticated
   `/metrics?limit=100`. Cards, charts, history, and reported uptime use those
   records. Empty results display no measurements rather than sample values.
   A failed metrics request is an error, not a successful empty collection.
-- The dashboard uses the reader token only. Metric POST requests belong to a
+- The dashboard reads with the reader token. Metric POST requests belong to a
   separately authorized collector; collector credentials never belong in the UI.
   Apply the backend migration before connecting; see
   [local PostgreSQL setup](local-postgresql.md).
@@ -83,7 +98,7 @@ The client in `frontend/src/services/api.ts` follows [the API contract](api.md):
   displays the public explanation and any field-specific reasons. Unstructured server or proxy errors use a local fallback. A structured unhealthy health response with
   HTTP 503 is displayed as unhealthy with its public probe explanation when available.
 - Demo incident search/status filters and metric table pagination apply to
-  loaded records; the API workspace loads at most the latest 100 measurements.
+  loaded records; the API workspace loads at most the latest 200 measurements.
   Fetching further server-side pages is future work.
 - Fetches on connection or explicit refresh, then polls every five seconds in
   API mode. Slow polls do not overlap. Polling stops on unmount, reconnect, or

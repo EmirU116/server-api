@@ -129,8 +129,11 @@ storage without changing metrics; never apply migrations implicitly at startup.
 Reader GET and admin writes use distinct tokens; admin supports environment or
 `_FILE` settings. All three configured role tokens must differ. Admin does not
 inherit reader/collector permissions. See [incident setup](docs/local-postgresql.md#enable-incident-storage-python-postgresql)
-and [the contract](docs/api.md#incident-api). The live frontend still marks
-incidents unavailable; automatic detection/alerts remain pending.
+and [the contract](docs/api.md#incident-api). Migration `0003_planned_incidents`
+supports plans without occurrence timestamps and the live dashboard can manage
+them. Migration `0004_incident_triggers` stores optional metric thresholds
+for manual review in the dashboard. Automatic incident opening and alerts
+remain pending.
 
 ### Ubuntu host monitoring setup
 
@@ -168,7 +171,8 @@ embed bearer tokens in build variables or browser storage. The typed client uses
 same-origin `/api/v1`, with a development-only Vite proxy to FastAPI. Live mode
 loads health, server information, and metrics with a reader token, then polls
 every five seconds without overlapping requests;
-incidents are explicitly unavailable without blocking those APIs. Do not send
+the incident list also uses the reader token, with a separate in-memory admin
+token for writes over HTTPS or localhost. Do not send
 collector credentials to the frontend. Browser visual verification remains pending.
 
 ## 3. Canonical folder ownership

@@ -53,6 +53,31 @@ def test_full_crud_persists_and_deletion_is_final(
     assert client.delete(created.headers["location"], headers=ADMIN).status_code == 404
 
 
+def test_plan_can_be_saved_and_opened_later(client, stored_incidents):
+    trigger = {"metric": "storage", "threshold_percent": 90, "duration_seconds": 600}
+    created = client.post(
+        "/api/v1/incidents",
+        json={**DATA, "occurred_at": None, "trigger": trigger},
+        headers=ADMIN,
+    )
+    assert created.status_code == 201
+    path = created.headers["location"]
+    assert created.json()["status"] == "planned"
+    assert created.json()["occurred_at"] is None
+    assert client.get(path, headers=READER).json()["trigger"] == trigger
+    updated = client.patch(path, json={"title": "Practice recovery"}, headers=ADMIN)
+    assert updated.status_code == 200
+    assert updated.json()["occurred_at"] is None
+    assert updated.json()["trigger"] == trigger
+    opened = client.patch(path, json={"status": "open"}, headers=ADMIN)
+    assert opened.status_code == 200
+    assert opened.json()["occurred_at"] is not None
+    assert client.get(path, headers=READER).json() == opened.json()
+    cleared = client.patch(path, json={"trigger": None}, headers=ADMIN)
+    assert cleared.status_code == 200
+    assert client.get(path, headers=READER).json()["trigger"] is None
+
+
 def test_resolution_preserved_and_reopening_clears_time(stored_incidents):
     now = datetime(2026, 2, 1, tzinfo=UTC)
     stored_incidents.clock = lambda: now
@@ -172,7 +197,7 @@ def test_failed_transaction_rolls_back_and_next_write_succeeds(stored_incidents)
     )
 
 
-def test_upgrade_preserves_existing_metrics(postgres_engine):
+def test_upgrade_preserves_existing_metrics_and_incidents(postgres_engine):
     from pathlib import Path
 
     config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
@@ -188,11 +213,22 @@ def test_upgrade_preserves_existing_metrics(postgres_engine):
             text("INSERT INTO metrics VALUES (:id, '1', now(), 1, 2, 3, 4)"),
             {"id": metric_id},
         )
+        command.upgrade(config, "0002_incidents")
+        incident_id = uuid4()
+        connection.execute(
+            text(
+                "INSERT INTO incidents (id, server_id, title, description, "
+                "severity, status, occurred_at, created_at, updated_at) "
+                "VALUES (:id, '1', 'Existing', 'Keep this record', "
+                "'warning', 'open', now(), now(), now())"
+            ),
+            {"id": incident_id},
+        )
         command.upgrade(config, "head")
         command.upgrade(config, "head")
         assert connection.scalar(text("SELECT id FROM metrics")) == metric_id
-        assert connection.scalar(text("SELECT count(*) FROM incidents")) == 0
+        assert connection.scalar(text("SELECT id FROM incidents")) == incident_id
         assert (
             connection.scalar(text("SELECT version_num FROM alembic_version"))
-            == "0002_incidents"
+            == "0004_incident_triggers"
         )

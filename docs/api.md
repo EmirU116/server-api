@@ -311,7 +311,7 @@ Incidents record server errors, outages, or other operational problems. Records
 remain stored until explicitly deleted, including after resolution. This API
 supports recording incidents; automatic incident detection is separate work.
 
-Implemented with PostgreSQL and migration `0002_incidents`. Run the existing
+Implemented with PostgreSQL. Apply migrations through `0004_incident_triggers` with the existing
 upgrade command before testing; see [local incident setup](local-postgresql.md#enable-incident-storage-python-postgresql).
 GET uses the reader token. POST/PATCH/DELETE require a distinct
 `SERVERWATCH_ADMIN_TOKEN` or `SERVERWATCH_ADMIN_TOKEN_FILE` (file takes precedence).
@@ -328,8 +328,8 @@ return sanitized 500. Writes are transactional; updates/deletes lock their recor
 so concurrent changes cannot corrupt status/resolution consistency. Concurrent
 edits serialize, with the last successful edit to a field taking effect.
 
-The current React live dashboard still marks incidents unavailable. This task
-implements the backend; live incident UI integration remains separate work.
+The React dashboard reads incidents with the reader token and uses the separate
+admin token to save changes. Planned records store a scenario and response steps.
 
 ### `POST /incidents`
 
@@ -349,7 +349,12 @@ Request:
 | `title` | Required string; trim whitespace; 1–200 characters; no null characters |
 | `description` | Required string; trim whitespace; 1–5000 characters; no null characters |
 | `severity` | Required enum: `info`, `warning`, `critical` |
-| `occurred_at` | Required timezone-aware datetime; cannot be in the future |
+| `occurred_at` | Required field. Send a timezone-aware datetime for an actual incident, or `null` to save a plan. A datetime cannot be in the future. |
+| `trigger` | Optional rule with `metric` (`cpu`, `memory`, `storage`, or `gpu`), `threshold_percent` (0–100), and `duration_seconds` (whole number, 5–600). Send `null` in PATCH to remove it. |
+
+The dashboard compares stored samples at or above the threshold. A matching
+rule highlights a plan for manual review. GPU rules can be saved, and their
+readings stay unavailable until GPU collection is implemented.
 
 Return `201 Created`, a `Location: /api/v1/incidents/{incident_id}` header, and the
 complete record:
@@ -368,7 +373,11 @@ complete record:
 }
 ```
 
-The API generates the ID, timestamps, and initial `open` status. Clients cannot
+The API generates the ID, timestamps, and initial status. A null occurrence
+starts as `planned`, and a dated occurrence starts as `open`. Editing a plan
+without changing its status leaves the occurrence blank. Changing its status to
+`open`, `investigating`, or `resolved` records the current time as the occurrence.
+Clients cannot
 set these fields on creation. Separate reports may describe the same problem;
 incident creation does not deduplicate on title.
 
@@ -378,7 +387,7 @@ Return `items`, `total`, `limit`, and `offset`, using the same pagination rules 
 metrics. Each item is a complete incident record. Sort by `created_at` descending,
 then ID ascending. Empty results return `200` with `items: []` and `total: 0`.
 
-Optional filters: `status` (`open`, `investigating`, `resolved`) and `severity`
+Optional filters: `status` (`planned`, `open`, `investigating`, `resolved`) and `severity`
 (`info`, `warning`, `critical`). Apply supplied filters together before counting
 and pagination. Invalid filters return `422`.
 
