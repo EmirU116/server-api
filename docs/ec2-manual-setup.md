@@ -23,13 +23,14 @@ owned by the installing SSH user. Track assignment evidence in the
 | Path | Packages |
 | --- | --- |
 | Before cloning | Ubuntu 24.04+, `git`, `openssh-client` on the student computers and SSH server on EC2, Bash, and sudo. |
-| Native setup | `python3`, `python3-venv`, `python3-pip`, `postgresql`, `postgresql-client`, `iproute2`, `nginx`, and `curl`. The installer installs these Ubuntu packages. |
-| Native frontend build | Node.js 22.12+ and npm on the SSH user's PATH before running setup. Check `node --version` and `npm --version`. Use your approved Node distribution if Ubuntu's package is older. |
+| Native setup | `git`, `python3`, `python3-venv`, `python3-pip`, `postgresql`, `postgresql-client`, `iproute2`, `nginx`, `curl`, `cron`, `ca-certificates`, and `xz-utils`. FastAPI and the other Python dependencies are installed into the project virtual environment. |
+| Native frontend build | Full setup reuses Node.js 22.12+ with npm when available. Otherwise it downloads Node.js 22 and npm from nodejs.org, verifies the archive checksum, and uses a per-user installation for the React build. |
 | Optional account provisioning | `acl` for managed workspace permissions. |
-| Scheduled backups (G5) | `cron` and `postgresql-client`. The backup script still needs implementation. |
-| VG deployment | Docker Engine with the Compose v2 plugin. Certbot and its Nginx plugin for custom-domain HTTPS. |
+| Scheduled backups (G5) | The full native installer supplies `cron` and `postgresql-client` (which includes `pg_dump`). The backup script and schedule still need implementation. |
+| VG deployment | Full setup installs Ubuntu's `docker.io`, `docker-compose-v2`, and `docker-buildx` on a fresh host, then enables Docker. Follow the [Compose guide](docker-deployment.md) to start the stack. Certbot and its Nginx plugin are separate prerequisites for custom-domain HTTPS. |
 
-On the instance, install Git before cloning if it is missing:
+The full installer runs after checkout. If Git is missing, install it before
+the first clone:
 
 ```bash
 sudo apt-get update
@@ -147,6 +148,8 @@ For normal setup and updates, run `bash setup.sh ELASTIC_IP` inside the
 checkout. You can optionally pass the EC2 public DNS hostname as a second
 argument. Use your normal SSH user. The script uses sudo for package and
 service changes and keeps existing credentials and PostgreSQL data.
+It deploys the native services and prepares the Docker tooling. To run the
+containerized application afterward, follow the [Compose guide](docker-deployment.md).
 
 If a host still has the retired API-only test service, inspect it with
 `sudo systemctl status serverwatch-ec2-test.service`. If it is the old

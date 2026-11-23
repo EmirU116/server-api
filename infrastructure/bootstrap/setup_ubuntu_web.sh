@@ -23,10 +23,43 @@ source /etc/os-release
 project=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 python3 -c 'import ipaddress, sys; ipaddress.IPv4Address(sys.argv[1])' "$public_ip" 2>/dev/null ||
     fail "Supply an IPv4 address without a scheme or port."
-command -v node >/dev/null && command -v npm >/dev/null ||
-    fail "Install Node.js 22.12+ with npm for this user first."
-node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 12) ? 0 : 1)' ||
-    fail "Node.js 22.12+ is required."
+node_ready() {
+    command -v node >/dev/null && command -v npm >/dev/null &&
+        node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 12) ? 0 : 1)'
+}
+
+install_node() (
+    case "$(uname -m)" in
+        x86_64) arch=x64 ;;
+        aarch64) arch=arm64 ;;
+        *) fail "Install Node.js 22.12+ with npm for this CPU architecture first." ;;
+    esac
+    release="https://nodejs.org/dist/$node_version"
+    archive="node-$node_version-linux-$arch.tar.xz"
+    mkdir -p -- "$(dirname -- "$node_dir")" || exit 1
+    staging=$(mktemp -d -- "$(dirname -- "$node_dir")/download.XXXXXXXX") || exit 1
+    trap 'rm -rf -- "$staging"' EXIT
+    cd "$staging" || exit 1
+    echo "[SETUP] Installing Node.js $node_version and npm for the frontend build."
+    curl -fsSL --retry 3 -O "$release/SHASUMS256.txt" || exit 1
+    curl -fsSL --retry 3 -O "$release/$archive" || exit 1
+    awk -v archive="$archive" '$2 == archive' SHASUMS256.txt | sha256sum -c - || exit 1
+    tar -xJf "$archive" || exit 1
+    mv -T -- "${archive%.tar.xz}" "$node_dir"
+)
+
+if [[ "$preflight" == true && "${SERVERWATCH_FULL_SETUP:-}" == 1 ]]; then exit 0; fi
+if ! node_ready; then
+    [[ "${SERVERWATCH_FULL_SETUP:-}" == 1 ]] ||
+        fail "Install Node.js 22.12+ with npm first, or run the full setup.sh."
+    node_version=v22.23.5
+    node_dir="$HOME/.local/share/serverwatch/node-$node_version"
+    if [[ ! -d "$node_dir" ]]; then
+        install_node || fail "Could not install Node.js from nodejs.org."
+    fi
+    export PATH="$node_dir/bin:$PATH"
+    node_ready || fail "The ServerWatch Node.js installation is unusable: $node_dir"
+fi
 if [[ "$preflight" == true ]]; then exit 0; fi
 [[ "$(systemctl show serverwatch-api -p User --value)" == "$(id -un)" &&
    "$(systemctl show serverwatch-api -p WorkingDirectory --value)" == "$project" ]] ||

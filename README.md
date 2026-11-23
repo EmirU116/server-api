@@ -49,8 +49,8 @@ configure separate reader/collector tokens privately in `.env`.
 
 ## Deploy to Ubuntu EC2 (Bash, Nginx, systemd)
 
-On EC2, install Git and make Node.js 22.12+ with npm available to your SSH
-user. Clone the repository into that user's home directory and enter it. Replace
+On EC2, install Git and clone the repository into your SSH user's home directory.
+Enter the checkout and replace
 `PUBLIC_IP` with the instance's public IPv4 address.
 
 ```bash
@@ -58,8 +58,10 @@ bash setup.sh PUBLIC_IP
 bash verify.sh PUBLIC_IP
 ```
 
-Setup installs the native packages, applies current migrations, runs FastAPI
-and the collector under systemd, and publishes React and Swagger through Nginx.
+Setup installs the native packages and FastAPI dependencies, applies migrations,
+runs FastAPI and the collector under systemd, and publishes React and Swagger
+through Nginx. It prepares Node.js/npm for the frontend build and installs and
+starts Docker Engine with Compose for the VG1 deployment.
 It runs verification automatically. Use the second command for later checks.
 Open `http://PUBLIC_IP/` and `http://PUBLIC_IP/docs` from your computer. Use
 HTTPS for live dashboard credentials.

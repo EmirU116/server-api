@@ -17,7 +17,12 @@ Docker Engine with the Compose plugin and Bash are needed on the Linux host.
 Python 3.11+ is needed to prepare private configuration and run the optional
 host collector. Git is needed to clone and update the repository. The images
 provide PostgreSQL, Nginx, and the Node/npm frontend build. A host Nginx and
-Certbot are needed to expose the stack under your own HTTPS domain.
+Certbot are needed to expose the stack under your own HTTPS domain. The full
+EC2 `setup.sh` prepares Docker Engine and Compose. Verify `docker compose version`
+and `docker info` as the trusted Compose operator before deployment. If the
+operator needs access to the default Docker socket, grant the chosen account
+membership in the `docker` group and start a new SSH session. Membership grants
+root-equivalent access on the host.
 
 ## Start the stack (Bash, Docker Compose)
 

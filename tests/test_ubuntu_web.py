@@ -52,7 +52,7 @@ def test_full_setup_runs_preflight_before_changes(tmp_path):
         timeout=10,
     )
     assert trace.read_text().splitlines() == [
-        "web::--preflight 192.0.2.1",
+        "web:1:--preflight 192.0.2.1",
         f"monitor:1:{tmp_path}",
         "web:1:192.0.2.1",
     ]

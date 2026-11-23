@@ -59,13 +59,20 @@ Server GET returns native host identity with reader authentication. Metrics GET/
 now persist samples through SQLAlchemy with a versioned Alembic migration and
 separate reader/collector credentials. A local collector now submits real host
 measurements with a five-second sleep, and the API dashboard polls every five
-seconds. Incident CRUD now uses reader GET and admin writes; Ubuntu systemd units provide continuous collection. Discord alert delivery and Cron backups still need EC2 evidence. The Cron backup script remains to be implemented. React live mode reads the three available APIs and explicitly marks
-incidents use reader access and admin writes. Planned incidents can store response
+seconds. Ubuntu systemd units provide continuous collection. React live mode
+reads health, server details, metrics, and incidents. Incident reads use the
+reader token and writes use the admin token. Planned incidents can store response
 steps and a metric threshold before an occurrence. The dashboard signals a
 sustained crossing for manual opening. GPU readings and automated opening
 remain future work. Live browser verification of the new editor remains pending.
 The user reported 8/8 native monitoring checks passing on EC2. Reboot and
 public browser verification remain pending.
+
+The full EC2 installer now prepares Node.js/npm, builds React, installs the
+FastAPI dependencies, and enables Docker Engine with Compose and Buildx. It
+installs Cron and PostgreSQL client tools for G5. The backup script and schedule
+still need implementation, and the updated installer needs a fresh EC2 rehearsal.
+See the [EC2 package list](ec2-manual-setup.md#packages-for-each-deployment-path).
 
 | Workstream | Current status | Evidence |
 | --- | --- | --- |
@@ -198,12 +205,12 @@ evidence for the EC2 requirements.
 | G2 Pair access (SSH, Linux) | The EC2 guide covers an individual SSH connection. | Show both students logging into the same host from their own computers with independent keys. |
 | G3 Bootstrap (Bash, SCP, Ubuntu) | Bash setup installs packages and configures services and permissions. The EC2 guide demonstrates SCP. | Include useful shell aliases, rehearse transferring and running the chosen bootstrap on a fresh instance, and explain account choices. |
 | G4 Repository checkout (Git, Linux) | Home-directory clone documented. Full installer expects an existing user-owned checkout. | Perform the clone as the deployment user and show ownership and the order of steps. |
-| G5 Backups (Bash, Cron, PostgreSQL) | Cron directory reserved. | Implement scheduled on-instance backups, show the files created and verify a database restore. |
+| G5 Backups (Bash, Cron, PostgreSQL) | Full setup installs Cron and PostgreSQL client tools. | Implement scheduled on-instance backups, show the files created and verify a database restore. |
 | G6 Monitoring and alerts (Linux, Python, Discord) | EC2 verification confirmed a fresh measurement was persisted by the systemd collector. | Complete the [Discord alerts to-do list](#discord-alerts-to-do-g6) and demonstrate delivery during a controlled threshold breach. |
 | G7 Public API docs (systemd, FastAPI, HTTP) | Web installer opts into Swagger and OpenAPI on the existing loopback API. | Open public-IP `/docs` and `/openapi.json` from a browser on EC2 rehearsal. |
 | G8 Reverse proxy (Nginx) | Site serves the static React build and proxies API requests. | Run the web installer and verifier on EC2 and confirm public HTTP routing. |
 | G9 Database connection (FastAPI, PostgreSQL) | Local health and Windows incident CRUD verified against PostgreSQL. Migrations and persistence tested with disposable PostgreSQL. | Show the deployed API reading and writing through the instance's database. |
-| VG1 Containers (Docker, Compose, PostgreSQL) | Dockerfiles and Compose configuration are implemented. | Build and run API and database containers on EC2, demonstrate persistence and also show the native process manager. |
+| VG1 Containers (Docker, Compose, PostgreSQL) | Dockerfiles and Compose configuration are implemented. Full setup prepares Docker, Compose, and Buildx. | Verify installation on fresh EC2, build and run the stack, demonstrate persistence, and show the native process manager. |
 | VG2 Custom domain (DNS, HTTPS, Certbot) | No verified domain or TLS setup. | Point a domain at the instance, issue a certificate and demonstrate working HTTPS. |
 | Optional VG3/VG4 (AWS RDS, GitHub Actions) | An opt-in delivery workflow is implemented. RDS remains optional. | If selected, demonstrate the RDS alternative or automatic Docker image deployment to EC2. |
 | Team and recording (Classroom, documentation, presentation) | Team membership and a timed rehearsal are unverified. | Accept the invitation, document the pair, rehearse from scratch, record within 60 minutes, check playback and the link, then stop the instances. |

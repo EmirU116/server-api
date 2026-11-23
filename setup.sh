@@ -7,6 +7,6 @@ if [[ "${1:-}" == --help ]]; then
     exit 0
 fi
 project=${SERVERWATCH_PROJECT_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)}
-bash "$project/infrastructure/bootstrap/setup_ubuntu_web.sh" --preflight "$@"
+SERVERWATCH_FULL_SETUP=1 bash "$project/infrastructure/bootstrap/setup_ubuntu_web.sh" --preflight "$@"
 SERVERWATCH_FULL_SETUP=1 bash "$project/infrastructure/bootstrap/setup_ubuntu_monitoring.sh" "$project"
 SERVERWATCH_FULL_SETUP=1 bash "$project/infrastructure/bootstrap/setup_ubuntu_web.sh" "$@"

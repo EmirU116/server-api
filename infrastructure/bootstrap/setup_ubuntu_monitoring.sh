@@ -56,13 +56,25 @@ if systemctl is-active --quiet serverwatch-ec2-test.service; then
     exit 1
 fi
 
-echo "[SETUP] Installing Ubuntu Python and PostgreSQL packages."
-sudo apt-get update
 packages=(python3 python3-venv python3-pip postgresql postgresql-client iproute2)
 if [[ "${SERVERWATCH_FULL_SETUP:-}" == 1 ]]; then
-    packages+=(nginx curl)
+    packages+=(git nginx curl cron ca-certificates xz-utils)
+    if dpkg-query -W -f='${db:Status-Status}' docker-ce 2>/dev/null | grep -qx installed; then
+        docker compose version >/dev/null 2>&1 || packages+=(docker-compose-plugin)
+        docker buildx version >/dev/null 2>&1 || packages+=(docker-buildx-plugin)
+    else
+        docker compose version >/dev/null 2>&1 || packages+=(docker.io docker-compose-v2)
+        docker buildx version >/dev/null 2>&1 || packages+=(docker-buildx)
+    fi
 fi
+echo "[SETUP] Installing Ubuntu packages: ${packages[*]}"
+sudo apt-get update
 sudo apt-get install -y "${packages[@]}"
+if [[ "${SERVERWATCH_FULL_SETUP:-}" == 1 ]]; then
+    sudo systemctl enable --now docker.service
+    docker compose version
+    docker buildx version
+fi
 python3 -c 'import sys; assert sys.version_info >= (3, 11), "Python 3.11+ required"'
 if ! systemctl is-active --quiet serverwatch-api.service; then
     python3 - <<'CHECK_PORT'

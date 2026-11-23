@@ -21,6 +21,10 @@ server uses that server's resources and disk space.
 
 ## Setup (Bash, Ubuntu packages, PostgreSQL)
 
+For the full EC2 deployment, use the root `setup.sh`. It also prepares
+Node.js/npm, publishes React and Swagger through Nginx, and installs Docker
+tooling and Cron. See the [EC2 guide](ec2-manual-setup.md#packages-for-each-deployment-path).
+
 Clone or transfer the current code first. On the Ubuntu server, from the project
 root, run as your normal SSH user:
 
@@ -41,7 +45,8 @@ Setup performs these steps:
 1. Checks Ubuntu/systemd, checkout ownership assumptions, conflicting managed
    services, and whether port 8000 is free (or our API is already running).
 2. Installs Python/venv/pip, PostgreSQL/client, and iproute2 from Ubuntu.
-   Creates `.venv` and installs pinned backend runtime requirements.
+   Creates `.venv` and installs pinned backend runtime requirements, including
+   FastAPI and Uvicorn.
 3. Creates private managed configuration under
    `~/.config/serverwatch-monitoring/` (directory 700, files 600).
 4. Generates separate reader, collector, admin, and database secrets only when
