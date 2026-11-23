@@ -77,7 +77,8 @@ CI on pull requests and pushes continues to run independently.
 ### One-time preparation (Ubuntu, Docker, GitHub)
 
 1. On each target, install Docker Engine with the Compose plugin, Git, Bash,
-   curl, Python 3, and util-linux. Use two Linux identities. The trusted
+   curl, Python 3, util-linux, and OpenSSH tools with `ssh-keygen -Y verify`
+   support. Use two Linux identities. The trusted
    Compose operator (example `swoperator`) owns `~/serverwatch`, the host
    Compose configuration, secrets, and Git/GHCR read credentials. The CI SSH
    account (example `swdeploy`) has a locked password, no Docker group or
@@ -100,13 +101,20 @@ CI on pull requests and pushes continues to run independently.
    Replace `OWNER/REPOSITORY` with the lowercase GitHub owner and repository.
    Use `production` on the production host. Keep staging and production
    volumes and secrets independent.
-3. As the host administrator, install the reviewed scripts from the checkout
-   and install only the CI **public** key in the root-managed key file.
+3. Generate a dedicated Ed25519 release signing key for each environment
+   outside the checkout, using `ssh-keygen -t ed25519 -N '' -f /private/path/release-signing-key`.
+   Use a private directory and keep the signing key separate from the SSH
+   login key. As the host administrator, install the reviewed scripts from
+   the checkout, install the CI login public key, and pin the release signing
+   public key alongside the scripts.
 
    ```bash
    sudo install -d -m 0755 /usr/local/libexec/serverwatch /etc/ssh/serverwatch
    sudo install -o root -g root -m 0755 scripts/deployment/{deploy_ssh_entry,deploy_compose,compose_host}.sh /usr/local/libexec/serverwatch/
    sudo install -o root -g root -m 0644 serverwatch-ci.pub /etc/ssh/serverwatch/swdeploy
+   # Use production and its corresponding public key on the production host.
+   printf 'staging namespaces="serverwatch-release-v1" %s\n' "$(cat /private/path/release-signing-key.pub)" |
+       sudo install -o root -g root -m 0644 /dev/stdin /usr/local/libexec/serverwatch/release-signers
    sudo visudo -f /etc/sudoers.d/serverwatch-deploy
    ```
 
@@ -139,11 +147,15 @@ CI on pull requests and pushes continues to run independently.
    ServerWatch rejection. Check that forwarding is denied, then run an approved
    staging release. Keep the former unrestricted configuration disabled.
 4. In GitHub, configure the `staging` and (if used) `production`
-   environments. Restrict both to `main` and configure production approval
-   where supported. For each environment set the variables `DEPLOY_HOST`
+   environments. Restrict both to `main`. Enable production promotion only
+   after configuring required reviewers and disabling protection-rule bypass
+   for production. For each environment set the variables `DEPLOY_HOST`
    and `DEPLOY_USER`, and the secrets `DEPLOY_SSH_KEY` (dedicated deploy
    identity) and `DEPLOY_KNOWN_HOSTS` (a verified OpenSSH known-hosts entry
-   matching the host variable). Verify the host key independently before
+   matching the host variable) and `DEPLOY_RELEASE_SIGNING_KEY` (the release
+   signing private key corresponding to the host's pinned public key). Store
+   the signing key only as an environment-scoped GitHub Actions secret.
+   Verify the host key independently before
    adding it. The runner needs an approved SSH route to EC2. If your
    instance only permits your own IP, use a trusted runner with a fixed
    allowlisted IP. Set the repository variable
@@ -153,11 +165,21 @@ CI on pull requests and pushes continues to run independently.
 
 ### Release verification and recovery (GitHub Actions, Docker, PostgreSQL)
 
-The forced command accepts only the deployment request. The installed script checks the host environment, reviewed main ancestry, and repository-scoped digests. It loads the Compose manifest from the selected commit on
+Once GitHub's environment rules pass, the deployment job signs the environment,
+commit SHA, and exact API and web digest references built by the publish job.
+The forced command requires this signature. The installed script checks the
+host environment and image repository, then verifies the exact record against
+the pinned signing key before fetching Git or invoking Docker. It checks main
+ancestry and loads the Compose manifest from the selected commit on
 `origin/main` and leaves the checkout and host secret files in place.
 It pulls the two application digests, waits for startup and migrations,
 then checks loopback health and Swagger on the port from the host Compose file. Keep Nginx as the public entry
 point and verify public access and fresh host measurements separately.
+
+Update the installed host scripts and pin the signing key before running the
+updated workflow. Previously signed records can be retried for the same
+environment and exact release while their signing key is trusted and their
+commit is reachable from main.
 
 Before enabling production promotion, take and verify a database backup.
 If deployment fails, the job stops and leaves the last successful marker in

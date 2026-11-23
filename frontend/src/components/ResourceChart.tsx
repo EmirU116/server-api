@@ -24,10 +24,8 @@ export function ResourceChart({
   const [result, setResult] = useState<{
     range: HistoryMinutes;
     loader: typeof loadHistory;
-    outcome:
-      | { status: 'loading' }
-      | { status: 'ready'; history: MetricHistory }
-      | { status: 'error'; message: string };
+    history: MetricHistory | null;
+    error: string | null;
   } | null>(null);
   const [visible, setVisible] = useState<string[]>(
     series.map((item) => item.key),
@@ -39,32 +37,24 @@ export function ResourceChart({
     if (!loadHistory) return;
     let active = true;
     let timer: number;
+    let history: MetricHistory | null = null;
+    setResult({ range, loader: loadHistory, history, error: null });
+
     async function refresh(fetchHistory: NonNullable<typeof loadHistory>) {
-      setResult({
-        range,
-        loader: fetchHistory,
-        outcome: { status: 'loading' },
-      });
       try {
-        const history = await fetchHistory(range);
+        history = await fetchHistory(range);
         if (active)
-          setResult({
-            range,
-            loader: fetchHistory,
-            outcome: { status: 'ready', history },
-          });
+          setResult({ range, loader: fetchHistory, history, error: null });
       } catch (failure) {
         if (active)
           setResult({
             range,
             loader: fetchHistory,
-            outcome: {
-              status: 'error',
-              message:
-                failure instanceof Error
-                  ? failure.message
-                  : 'Could not load metric history.',
-            },
+            history,
+            error:
+              failure instanceof Error && failure.message
+                ? failure.message
+                : 'Could not load metric history.',
           });
       } finally {
         if (active)
@@ -79,11 +69,12 @@ export function ResourceChart({
   }, [loadHistory, range]);
 
   const duration = range * 60_000;
-  const outcome =
+  const currentResult =
     result?.range === range && result.loader === loadHistory
-      ? result.outcome
+      ? result
       : undefined;
-  const currentHistory = outcome?.status === 'ready' ? outcome.history : null;
+  const currentHistory = currentResult?.history;
+  const error = currentResult?.error;
   const end = loadHistory
     ? currentHistory
       ? Date.parse(currentHistory.end)
@@ -144,14 +135,22 @@ export function ResourceChart({
           ))}
         </div>
       </div>
-      {loadHistory && outcome?.status === 'error' ? (
-        <p role="alert" className="empty-state">
-          {outcome.message}
+      {loadHistory && error && (
+        <p
+          role="alert"
+          className={currentHistory ? 'form-error' : 'empty-state'}
+        >
+          {currentHistory
+            ? `Could not refresh metric history. ${error}`
+            : error}
         </p>
-      ) : loadHistory && outcome?.status !== 'ready' ? (
-        <p role="status" className="empty-state">
-          Loading metric history…
-        </p>
+      )}
+      {loadHistory && !currentHistory ? (
+        !error && (
+          <p role="status" className="empty-state">
+            Loading metric history…
+          </p>
+        )
       ) : samples.length ? (
         <>
           <div className="chart-wrap">

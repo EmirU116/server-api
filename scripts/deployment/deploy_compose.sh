@@ -3,11 +3,12 @@
 set -Eeuo pipefail
 fail() { echo "[FAIL] $*" >&2; exit 1; }
 
-(( $# == 4 )) || fail 'Supply environment, Git revision, API image digest, and web image digest.'
+(( $# == 5 )) || fail 'Supply environment, Git revision, API and web image digests, and the release signature.'
 target=$1
 revision=$2
 api_image=$3
 web_image=$4
+signature=$5
 image_ref='^ghcr[.]io/[a-z0-9._-]+/[a-z0-9._-]+-(api|web)@sha256:[0-9a-f]{64}$'
 [[ "$target" == staging || "$target" == production ]] || fail 'Invalid deployment environment.'
 [[ "$revision" =~ ^[0-9a-f]{40}$ ]] || fail 'Expected a full Git commit SHA.'
@@ -22,19 +23,30 @@ state="$HOME/.config/serverwatch-delivery"
 [[ -r "$state/repository" && "${api_image%-api@*}" == "$(<"$state/repository")" ]] ||
     fail 'The image repository does not match the host release repository.'
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+allowed_signers="$script_dir/release-signers"
+[[ -f "$allowed_signers" && -r "$allowed_signers" ]] ||
+    fail 'The host release signers file is missing or unreadable.'
 cd "$project" || fail 'Clone the repository to ~/serverwatch as the Compose operator first.'
 umask 077
 exec 9>"$state/deploy.lock"
 flock -n 9 || fail 'Another deployment is already running on this host.'
 trap 'echo "[FAIL] Deployment stopped at line $LINENO. Review the output, then inspect the services and database before retrying." >&2' ERR
 
+temporary=$(mktemp "$state/.release.XXXXXX")
+trap 'rm -f -- "$temporary"' EXIT
+printf '%s' "$signature" | base64 --decode > "$temporary" 2>/dev/null ||
+    fail 'Invalid release signature encoding.'
+# The signed record is four newline-terminated fields in request order.
+printf '%s\n' "$target" "$revision" "$api_image" "$web_image" |
+    ssh-keygen -Y verify -f "$allowed_signers" -I "$target" -n serverwatch-release-v1 \
+        -s "$temporary" >/dev/null 2>&1 ||
+    fail 'Release approval signature does not match this environment, commit, and image pair.'
+
 # Read the release config from the exact reviewed commit without editing local files.
 git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
 git merge-base --is-ancestor "$revision" refs/remotes/origin/main ||
     fail 'The requested commit is no longer reachable from origin/main.'
 manifest="$state/compose-$revision.yaml"
-temporary=$(mktemp "$state/.release.XXXXXX")
-trap 'rm -f -- "$temporary"' EXIT
 git show "$revision:compose.yaml" > "$temporary"
 mv -- "$temporary" "$manifest"
 

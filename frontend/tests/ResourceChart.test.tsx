@@ -1,6 +1,13 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { ResourceChart } from '../src/components/ResourceChart';
+import type { MetricHistory } from '../src/types';
 
 it('loads bounded history for the selected clock window', async () => {
   const end = Date.UTC(2026, 10, 23, 12);
@@ -97,4 +104,52 @@ it('shows the failure without presenting it as empty history', async () => {
   );
   expect(screen.queryByRole('status')).not.toBeInTheDocument();
   expect(screen.queryByText(/No measurements/)).not.toBeInTheDocument();
+});
+
+it('keeps the chart during a delayed refresh and shows the failure alongside it', async () => {
+  vi.useFakeTimers();
+  try {
+    const history: MetricHistory = {
+      ...empty,
+      items: [
+        {
+          collected_at: empty.start,
+          cpu_percent: 30,
+          memory_percent: 40,
+          disk_percent: 50,
+        },
+      ],
+    };
+    let rejectRefresh!: (error: Error) => void;
+    const loadHistory = vi
+      .fn(async () => history)
+      .mockImplementationOnce(async () => history)
+      .mockImplementationOnce(
+        () =>
+          new Promise((_, reject) => {
+            rejectRefresh = reject;
+          }),
+      );
+    await act(async () => {
+      render(<ResourceChart metrics={[]} loadHistory={loadHistory} />);
+    });
+    const chart = screen.getByRole('img');
+
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
+    expect(loadHistory).toHaveBeenCalledTimes(2);
+    expect(chart).toBeVisible();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+    await act(async () => rejectRefresh(new Error('Network unavailable')));
+    expect(screen.getByRole('alert')).toHaveTextContent('Network unavailable');
+    expect(chart).toBeVisible();
+    expect(screen.getByText('1 bucket')).toBeVisible();
+
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
+    expect(loadHistory).toHaveBeenCalledTimes(3);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(chart).toBeVisible();
+  } finally {
+    vi.useRealTimers();
+  }
 });

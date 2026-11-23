@@ -4,7 +4,7 @@ set -euo pipefail
 fail() { echo '[FAIL] This SSH key only accepts a ServerWatch deployment request.' >&2; exit 1; }
 (( $# == 0 )) || fail
 IFS= read -r request || fail
-pattern='^serverwatch-deploy ([a-z]+) ([0-9a-f]{40}) ([-a-z0-9./_@:]+) ([-a-z0-9./_@:]+)$'
+pattern='^serverwatch-deploy ([a-z]+) ([0-9a-f]{40}) ([-a-z0-9./_@:]+) ([-a-z0-9./_@:]+) ([A-Za-z0-9+/=]+)$'
 [[ "$request" =~ $pattern ]] || fail
 args=("${BASH_REMATCH[@]:1}")
 if IFS= read -r extra || [[ -n "$extra" ]]; then

@@ -38,7 +38,7 @@ describe requirements and conventions; verify implementation status separately.
 | [Local PostgreSQL](docs/local-postgresql.md) | Database settings, Windows startup, and connectivity checks. |
 | [Project overview](README.md) | Starting work and finding project documentation. |
 | [Codex model usage](docs/codex-model-usage.md) | Choosing a model and reasoning effort, limiting token usage, or escalating a difficult task. |
-| [Git and GitHub Actions workflow](docs/github-actions-plan.md) | Branches, agent worktrees, human review, test-only PR checks, manual promotion of a verified image digest, and the restricted EC2 deployment key. |
+| [Git and GitHub Actions workflow](docs/github-actions-plan.md) | Branches, agent worktrees, human review, test-only PR checks, environment-gated release signing, and EC2 verification of the signed commit and image digest pair. |
 | [Course assignment](docs/assignment-brief.md) | Checking the supplied G/VG criteria, team responsibilities, optional bonuses, and recording rules. |
 | [Project plan and progress](docs/project-plan.md) | Checking the current stage, choosing the next milestone, and tracking assignment completion. Update it with evidence after milestone completion or material scope changes. |
 | [Folder structure](docs/FOLDER_STRUCTURE.md) | Creating, moving, or organizing files and modules. |

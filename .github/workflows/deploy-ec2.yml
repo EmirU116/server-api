@@ -35,4 +35,5 @@ jobs:
           DEPLOY_USER: ${{ vars.DEPLOY_USER }}
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_RELEASE_SIGNING_KEY: ${{ secrets.DEPLOY_RELEASE_SIGNING_KEY }}
         run: bash scripts/deployment/ssh_compose.sh "$TARGET" "$GITHUB_SHA" "$API_IMAGE" "$WEB_IMAGE"
