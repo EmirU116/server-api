@@ -49,6 +49,25 @@ const empty = {
   items: [],
 };
 
+it('shows the latest sample and lets keyboard users inspect an older one', async () => {
+  const loadHistory = async () => ({
+    ...empty,
+    items: [25, 40].map((cpu_percent, index) => ({
+      collected_at: new Date(start + index * 15_000).toISOString(),
+      cpu_percent,
+      memory_percent: 60,
+      disk_percent: 20,
+    })),
+  });
+  render(<ResourceChart metrics={[]} loadHistory={loadHistory} />);
+  expect(await screen.findByText('40.0%')).toBeVisible();
+  const plot = screen.getByRole('group', { name: /Inspect measurements/ });
+  fireEvent.keyDown(plot, { key: 'ArrowLeft' });
+  expect(screen.getByText('25.0%')).toBeVisible();
+  fireEvent.keyDown(plot, { key: 'Escape' });
+  expect(screen.getByText('40.0%')).toBeVisible();
+});
+
 it('draws two groups of lines and CPU fill around a missing bucket', async () => {
   const loadHistory = async () => ({
     ...empty,

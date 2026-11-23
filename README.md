@@ -69,6 +69,26 @@ HTTPS for live dashboard credentials.
 Follow the [EC2 guide](docs/ec2-manual-setup.md) for package prerequisites, SCP,
 security groups, public browser checks, and the assignment recording.
 
+### Start Compose on EC2
+
+From `~/serverwatch` on EC2, run these as the trusted Docker operator:
+
+```bash
+bash scripts/deployment/compose_host.sh start
+bash scripts/deployment/compose_host.sh collect
+```
+
+`start` creates the default configuration when needed and starts Compose.
+`collect` records real host metrics in the Compose database until you press
+Ctrl+C. The [Compose guide](docs/docker-deployment.md) covers Docker access,
+opening the live dashboard, and demonstrating database persistence.
+
+### Request a project review
+
+Type `code-review` in Codex to review the project, or add a scope such as
+`code-review deployment`. You can also invoke the [review skill](.agents/skills/code-review/SKILL.md)
+as `$code-review`.
+
 ## Local backend setup (Python, FastAPI)
 
 Use Python 3.11 or newer. Run these commands from the repository root on

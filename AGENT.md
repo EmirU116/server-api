@@ -79,6 +79,10 @@ this file must perform the synchronization during relevant tasks.
 
 ### Repository maintenance skills
 
+- When the user says `code-review` or `code-review <scope>`, apply
+  [code-review](.agents/skills/code-review/SKILL.md). With no scope, review the
+  current project.
+
 - When implementing, editing, or reviewing an API operation, apply [explain-api-errors](.agents/skills/explain-api-errors/SKILL.md). Every handled failure across every method and status must explain its known cause safely. Test the public response.
 - Use a scoped task branch for agent changes and a separate worktree for concurrent contributors. Agents run the same checks as humans and report test evidence. The human maintains publication and merge authority. See the [CI workflow guide](docs/github-actions-plan.md).
 - Use [maintain-gitkeep](.agents/skills/maintain-gitkeep/SKILL.md) when changing which files preserve a project directory in Git.

@@ -11,6 +11,79 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SETUP = ROOT / "scripts/setup/prepare_compose.sh"
+HOST = ROOT / "scripts/deployment/compose_host.sh"
+
+
+def test_start_creates_private_defaults_and_collect_uses_the_published_port(tmp_path):
+    project = tmp_path / "serverwatch"
+    setup_script = project / "scripts/setup/prepare_compose.sh"
+    setup_script.parent.mkdir(parents=True)
+    shutil.copyfile(SETUP, setup_script)
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    docker = bin_dir / "docker"
+    docker.write_text(
+        "#!/bin/bash\n"
+        'case "$*" in\n'
+        '  "info "*) ;;\n'
+        '  *" config --format json")\n'
+        '    printf \'{"secrets":{"db_password":{"file":"%s/db_password"}}}\\n\' '
+        '"$HOME/.config/serverwatch-compose/secrets" ;;\n'
+        '  *" up -d --build --wait"|*" ps -a") printf "%s\\n" "$*" ;;\n'
+        '  *" port web 80") echo 127.0.0.1:8197 ;;\n'
+        "  *) exit 1 ;;\n"
+        "esac\n"
+    )
+    docker.chmod(0o755)
+    environment = {**os.environ, "HOME": str(tmp_path)}
+    environment["PATH"] = f"{bin_dir}:{environment['PATH']}"
+    command = ["bash", str(HOST)]
+    result = subprocess.run(
+        [*command, "start"],
+        env=environment,
+        check=True,
+        capture_output=True,
+        timeout=10,
+    )
+    assert b"up -d --build --wait" in result.stdout
+    assert b"ps -a" in result.stdout
+    config = tmp_path / ".config/serverwatch-delivery/compose.env"
+    assert stat.S_IMODE(config.stat().st_mode) == 0o600
+    assert config.read_text().splitlines() == [
+        "SERVERWATCH_WEB_PORT=8080",
+        'SERVERWATCH_COMPOSE_SECRETS="${HOME}/.config/serverwatch-compose/secrets"',
+    ]
+    config.write_text(config.read_text().replace("8080", "8197"))
+    existing = config.read_bytes()
+    python = project / ".venv/bin/python"
+    python.parent.mkdir(parents=True)
+    python.write_text(
+        '#!/bin/bash\nif [[ "$1" == -c ]]; then exit 0; fi\nprintf "%s\\n" "$@"\n'
+    )
+    python.chmod(0o755)
+    subprocess.run(
+        [*command, "start"],
+        env=environment,
+        check=True,
+        capture_output=True,
+        timeout=10,
+    )
+    assert config.read_bytes() == existing
+    result = subprocess.run(
+        [*command, "collect"],
+        env=environment,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.stdout.splitlines() == [
+        str(project / "scripts/monitoring/collect_local.py"),
+        "--env-file",
+        str(tmp_path / ".config/serverwatch-compose/secrets/collector.env"),
+        "--api-port",
+        "8197",
+    ]
 
 
 def test_compose_preparation_preserves_private_files(tmp_path):

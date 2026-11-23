@@ -74,6 +74,12 @@ installs Cron and PostgreSQL client tools for G5. The backup script and schedule
 still need implementation, and the updated installer needs a fresh EC2 rehearsal.
 See the [EC2 package list](ec2-manual-setup.md#packages-for-each-deployment-path).
 
+The user reported healthy API, web, and PostgreSQL containers on EC2, with
+the migration job exiting successfully. The [Compose guide](docker-deployment.md)
+now uses `start` to prepare and launch the stack and `collect` to send host
+metrics. Rehearse these commands on EC2 and demonstrate that a stored sample
+survives container recreation.
+
 | Workstream | Current status | Evidence |
 | --- | --- | --- |
 | Project scope and API design | Four API resources implemented | `README.md`, `docs/api.md` |
@@ -210,7 +216,7 @@ evidence for the EC2 requirements.
 | G7 Public API docs (systemd, FastAPI, HTTP) | Web installer opts into Swagger and OpenAPI on the existing loopback API. | Open public-IP `/docs` and `/openapi.json` from a browser on EC2 rehearsal. |
 | G8 Reverse proxy (Nginx) | Site serves the static React build and proxies API requests. | Run the web installer and verifier on EC2 and confirm public HTTP routing. |
 | G9 Database connection (FastAPI, PostgreSQL) | Local health and Windows incident CRUD verified against PostgreSQL. Migrations and persistence tested with disposable PostgreSQL. | Show the deployed API reading and writing through the instance's database. |
-| VG1 Containers (Docker, Compose, PostgreSQL) | Dockerfiles and Compose configuration are implemented. Full setup prepares Docker, Compose, and Buildx. | Verify installation on fresh EC2, build and run the stack, demonstrate persistence, and show the native process manager. |
+| VG1 Containers (Docker, Compose, PostgreSQL) | Compose was reported healthy on EC2, and migrations exited successfully. | Rehearse the simplified commands, demonstrate persistence on EC2, and show the native process manager. |
 | VG2 Custom domain (DNS, HTTPS, Certbot) | No verified domain or TLS setup. | Point a domain at the instance, issue a certificate and demonstrate working HTTPS. |
 | Optional VG3/VG4 (AWS RDS, GitHub Actions) | An opt-in delivery workflow is implemented. RDS remains optional. | If selected, demonstrate the RDS alternative or automatic Docker image deployment to EC2. |
 | Team and recording (Classroom, documentation, presentation) | Team membership and a timed rehearsal are unverified. | Accept the invitation, document the pair, rehearse from scratch, record within 60 minutes, check playback and the link, then stop the instances. |

@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useState, type PointerEvent } from 'react';
 import type { HistoryMinutes, Metric, MetricHistory } from '../types';
 
 const series = [
@@ -30,7 +30,7 @@ export function ResourceChart({
   const [visible, setVisible] = useState<string[]>(
     series.map((item) => item.key),
   );
-  const [hover, setHover] = useState<number | null>(null);
+  const [selectedTime, setSelectedTime] = useState<number | null>(null);
   const gradientId = useId().replaceAll(':', '');
 
   useEffect(() => {
@@ -92,14 +92,14 @@ export function ResourceChart({
   const sampleX = (index: number) => x(Date.parse(samples[index].collected_at));
   const y = (value: number) => 205 - value * 1.7;
   // The API omits empty buckets. Start a new path when a bucket is missing.
-  const groups: (typeof samples)[] = [[]];
+  const groups: (typeof samples)[] = [];
   for (const sample of samples) {
     const previous = groups.at(-1)?.at(-1);
     if (
-      currentHistory &&
-      previous &&
-      Date.parse(sample.collected_at) - Date.parse(previous.collected_at) >
-        currentHistory.bucket_seconds * 1000
+      !previous ||
+      (currentHistory &&
+        Date.parse(sample.collected_at) - Date.parse(previous.collected_at) >
+          currentHistory.bucket_seconds * 1000)
     ) {
       groups.push([]);
     }
@@ -107,7 +107,31 @@ export function ResourceChart({
   }
   const pointX = (sample: (typeof samples)[number]) =>
     x(Date.parse(sample.collected_at));
-  const focused = hover === null ? null : samples[hover];
+  const nearestSample = (time: number) =>
+    samples.reduce(
+      (nearest, sample, index) =>
+        Math.abs(Date.parse(sample.collected_at) - time) <
+        Math.abs(Date.parse(samples[nearest].collected_at) - time)
+          ? index
+          : nearest,
+      0,
+    );
+  const selected = selectedTime === null ? null : nearestSample(selectedTime);
+  const displayed = samples[selected ?? samples.length - 1];
+  const visibleSeries = series.filter((item) => visible.includes(item.key));
+
+  function scrub(event: PointerEvent<SVGSVGElement>) {
+    const matrix = event.currentTarget.getScreenCTM();
+    if (!matrix) return;
+    const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(
+      matrix.inverse(),
+    );
+    if (point.x < 48 || point.x > 728 || point.y < 30 || point.y > 205) {
+      setSelectedTime(null);
+      return;
+    }
+    setSelectedTime(start + ((point.x - 48) / 680) * duration);
+  }
 
   return (
     <section className="panel chart-panel" aria-labelledby="resource-title">
@@ -127,7 +151,7 @@ export function ResourceChart({
               aria-pressed={range === minutes}
               onClick={() => {
                 setRange(minutes);
-                setHover(null);
+                setSelectedTime(null);
               }}
             >
               {label}
@@ -153,12 +177,56 @@ export function ResourceChart({
         )
       ) : samples.length ? (
         <>
-          <div className="chart-wrap">
+          <div className="chart-readout">
+            <time dateTime={displayed.collected_at}>
+              {new Date(displayed.collected_at).toLocaleString([], {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+              })}
+            </time>
+            <div>
+              {visibleSeries.map((item) => (
+                <span key={item.key}>
+                  {item.name}{' '}
+                  <strong style={{ color: item.color }}>
+                    {displayed[item.key].toFixed(1)}%
+                  </strong>
+                </span>
+              ))}
+            </div>
+          </div>
+          <div
+            className="chart-wrap"
+            tabIndex={0}
+            role="group"
+            aria-label="Inspect measurements with the left and right arrow keys"
+            onBlur={() => setSelectedTime(null)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setSelectedTime(null);
+                return;
+              }
+              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')
+                return;
+              event.preventDefault();
+              const index =
+                (selected ?? samples.length - 1) +
+                (event.key === 'ArrowLeft' ? -1 : 1);
+              const sample =
+                samples[Math.max(0, Math.min(samples.length - 1, index))];
+              setSelectedTime(Date.parse(sample.collected_at));
+            }}
+          >
             <svg
               viewBox="0 0 760 245"
               role="img"
               aria-label="CPU, memory, and disk utilization history. Exact values are available in the metrics table."
-              onMouseLeave={() => setHover(null)}
+              onPointerMove={scrub}
+              onPointerDown={scrub}
+              onPointerLeave={() => setSelectedTime(null)}
             >
               <defs>
                 <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
@@ -193,9 +261,16 @@ export function ResourceChart({
                       d={`M${pointX(group[0])},205 ${group.map((sample) => `L${pointX(sample)},${y(sample.cpu_percent)}`).join(' ')} L${pointX(group[group.length - 1])},205 Z`}
                     />
                   )}
-                  {series
-                    .filter((item) => visible.includes(item.key))
-                    .map((item) => (
+                  {visibleSeries.map((item) =>
+                    group.length === 1 ? (
+                      <circle
+                        key={item.key}
+                        cx={pointX(group[0])}
+                        cy={y(group[0][item.key])}
+                        r="2.7"
+                        fill={item.color}
+                      />
+                    ) : (
                       <polyline
                         key={item.key}
                         fill="none"
@@ -209,7 +284,8 @@ export function ResourceChart({
                           )
                           .join(' ')}
                       />
-                    ))}
+                    ),
+                  )}
                 </g>
               ))}
               {[start, start + duration / 2, end].map((time) => (
@@ -231,41 +307,26 @@ export function ResourceChart({
                   })}
                 </text>
               ))}
-              {hover !== null && focused && (
-                <line
-                  x1={sampleX(hover)}
-                  x2={sampleX(hover)}
-                  y1="30"
-                  y2="205"
-                  stroke="#777e76"
-                  strokeDasharray="4 4"
-                />
+              {selected !== null && displayed && (
+                <g className="chart-cursor" aria-hidden="true">
+                  <line
+                    x1={sampleX(selected)}
+                    x2={sampleX(selected)}
+                    y1="30"
+                    y2="205"
+                  />
+                  {visibleSeries.map((item) => (
+                    <circle
+                      key={item.key}
+                      cx={sampleX(selected)}
+                      cy={y(displayed[item.key])}
+                      r="4"
+                      fill={item.color}
+                    />
+                  ))}
+                </g>
               )}
-              {samples.map((item, index) => (
-                <rect
-                  key={item.collected_at}
-                  x={sampleX(index) - 3}
-                  y="30"
-                  width="6"
-                  height="175"
-                  fill="transparent"
-                  onMouseEnter={() => setHover(index)}
-                />
-              ))}
             </svg>
-            {focused && (
-              <div className="chart-tooltip">
-                {new Date(focused.collected_at).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-                <strong>
-                  CPU {focused.cpu_percent.toFixed(1)}% · Memory{' '}
-                  {focused.memory_percent.toFixed(1)}% · Disk{' '}
-                  {focused.disk_percent.toFixed(1)}%
-                </strong>
-              </div>
-            )}
           </div>
           <div className="chart-legend">
             {series.map((item) => (

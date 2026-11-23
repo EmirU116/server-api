@@ -68,6 +68,9 @@ The client in `frontend/src/services/api.ts` follows [the API contract](api.md):
   Live reads and edits require HTTPS or localhost, including an SSH tunnel.
 - The chart requests bounded bucket averages for the selected window and refreshes
   about every 30 seconds. Missing buckets break each line and the CPU fill.
+  Move across the plot, tap it, or focus it and use the arrow keys to inspect
+  the nearest measurement. The readout above the plot shows its timestamp and
+  values for the visible series. Escape returns the readout to the latest sample.
   The chart shows loading during a request, the error on failure, and no
   measurements only when the API succeeds with zero buckets. Latest metric
   cards and the raw sample table retain their five-second refresh.

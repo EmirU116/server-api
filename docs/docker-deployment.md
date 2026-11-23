@@ -15,7 +15,8 @@ application and its PostgreSQL data can stay in place during the rehearsal.
 
 Docker Engine with the Compose plugin and Bash are needed on the Linux host.
 Python 3.11+ is needed to prepare private configuration and run the optional
-host collector. Git is needed to clone and update the repository. The images
+host collector. Install `python3-venv` if using the collector on a Compose-only
+host. Git is needed to clone and update the repository. The images
 provide PostgreSQL, Nginx, and the Node/npm frontend build. A host Nginx and
 Certbot are needed to expose the stack under your own HTTPS domain. The full
 EC2 `setup.sh` prepares Docker Engine and Compose. Verify `docker compose version`
@@ -27,8 +28,22 @@ root-equivalent access on the host.
 ## Start the stack (Bash, Docker Compose)
 
 Run as the trusted Compose operator, with the checkout at `~/serverwatch`.
-Create the host configuration once. If upgrading an existing stack, use its
-current web port and **absolute path to its existing secret directory**.
+For a fresh host or a normal manual restart, run:
+
+```bash
+bash scripts/deployment/compose_host.sh start
+```
+
+This creates a private host configuration when needed, prepares the Compose
+secrets, builds the images, and shows service status after startup. The default
+web address is `127.0.0.1:8080`. It reuses existing settings and credentials.
+If port 8080 is occupied, edit `SERVERWATCH_WEB_PORT` and run `start` again.
+
+### Customize host settings
+
+For a different port or secret directory, edit the private host configuration.
+When upgrading a stack, use its current web port and **absolute path to its
+existing secret directory**.
 
 ```bash
 install -d -m 700 "$HOME/.config/serverwatch-delivery"
@@ -81,23 +96,26 @@ curl -f http://127.0.0.1:8080/api/v1/health?server_id=1
 curl -f http://127.0.0.1:8080/openapi.json
 ```
 
-Open `http://127.0.0.1:8080/docs` from a browser on the same host. For a
-browser on your computer while using an EC2 instance, verify through your
-existing access route or configure HTTPS below. Use demo mode until you have an
-encrypted route to authenticated endpoints.
+To see the Compose dashboard on your computer, add
+`-L 8080:127.0.0.1:8080` to your working SSH command, run it locally, and leave
+that session open. Open `http://localhost:8080/` and choose **Connect your API**.
+Use the `reader_token` from the configured Compose secret directory on EC2.
+Retrieve it privately. Adjust the tunnel destination port if you customized
+the Compose web port. The public Nginx site continues serving its configured
+upstream until you change it.
 
 ## Collect host metrics (Python, FastAPI)
 
-In a second terminal on the Docker host, use the native deployment's Python
-virtual environment, or create one from `backend/requirements.txt` first.
+In a second EC2 terminal, from the checkout, run:
 
 ```bash
-.venv/bin/python scripts/monitoring/collect_local.py \
-  --env-file "$HOME/.config/serverwatch-compose/secrets/collector.env" \
-  --api-port 8080
+bash scripts/deployment/compose_host.sh collect
 ```
 
-The collector reads the Docker host's CPU, memory, and disk usage, and sends
+The command finds the published Compose port and collector configuration. It
+reuses the native Python virtual environment if available or prepares a private
+collector environment on first use. The collector runs in that terminal until
+you press Ctrl+C. It reads the Docker host's CPU, memory, and disk usage, and sends
 samples every five seconds. The host identity snapshot is created by
 `prepare_compose.sh` from the same machine. Compose's metrics and incident
 records are separate from the native database.
