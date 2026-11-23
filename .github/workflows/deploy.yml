@@ -1,0 +1,92 @@
+name: ServerWatch delivery
+
+on:
+  workflow_dispatch:
+    inputs:
+      promote:
+        description: Also promote to production after staging passes and the environment gate opens
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: serverwatch-delivery
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      actions: read
+      contents: read
+      packages: write
+    outputs:
+      api_image: ${{ steps.images.outputs.api_image }}
+      web_image: ${{ steps.images.outputs.web_image }}
+    steps:
+      - name: Require green main CI for this exact revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh api --method GET "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+            -f branch=main -f event=push -f head_sha="$GITHUB_SHA" -f per_page=1 \
+            --jq '.workflow_runs[] | select(.conclusion == "success") | .id')
+          if [[ -z "$run_id" ]]; then
+            echo '[FAIL] Main CI must pass for this commit before delivery.'
+            exit 1
+          fi
+          echo "[PASS] Main CI run $run_id covers $GITHUB_SHA."
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Build and publish immutable release images
+        id: images
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s\n' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          trap 'docker logout ghcr.io > /dev/null' EXIT
+          repository="ghcr.io/${GITHUB_REPOSITORY,,}"
+          for component in api web; do
+            image="$repository-$component"
+            tag="$image:$GITHUB_SHA"
+            dockerfile=Dockerfile
+            context=.
+            if [[ "$component" == web ]]; then
+              dockerfile=frontend/Dockerfile
+              context=frontend
+            fi
+            metadata="$RUNNER_TEMP/$component-image.json"
+            docker buildx build --platform linux/amd64 --push --metadata-file "$metadata" \
+              -f "$dockerfile" -t "$tag" "$context"
+            digest=$(jq -r '."containerimage.digest" // empty' "$metadata")
+            if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "[FAIL] Could not determine the published $component digest."
+              exit 1
+            fi
+            printf '%s_image=%s@%s\n' "$component" "$image" "$digest" >> "$GITHUB_OUTPUT"
+          done
+
+  staging:
+    needs: publish
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-ec2.yml
+    with:
+      target: staging
+      api_image: ${{ needs.publish.outputs.api_image }}
+      web_image: ${{ needs.publish.outputs.web_image }}
+
+  production:
+    if: inputs.promote
+    needs: [publish, staging]
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-ec2.yml
+    with:
+      target: production
+      api_image: ${{ needs.publish.outputs.api_image }}
+      web_image: ${{ needs.publish.outputs.web_image }}

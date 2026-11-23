@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     expose_api_docs: bool = False
     server_id: int = Field(default=1, ge=1)
     server_name: str = Field(default="ServerWatch server", min_length=1, max_length=200)
+    host_identity_file: Path | None = None
     reader_token: SecretStr | None = Field(default=None, repr=False)
     reader_token_file: Path | None = Field(default=None, repr=False)
     collector_token: SecretStr | None = Field(default=None, repr=False)

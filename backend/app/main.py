@@ -56,7 +56,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         else None,
         local_server_id=settings.server_id,
     )
-    app.state.server_service = ServerService(settings.server_id, settings.server_name)
+    app.state.server_service = ServerService(
+        settings.server_id, settings.server_name, settings.host_identity_file
+    )
     app.state.reader_token = load_reader_token(settings)
     app.state.collector_token = load_token(
         settings.collector_token, settings.collector_token_file, "Collector"

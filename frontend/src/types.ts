@@ -38,6 +38,15 @@ export interface Metric {
   uptime_seconds: number;
 }
 
+export type HistoryMinutes = 30 | 60 | 1440;
+export type MetricPoint = Omit<Metric, 'id' | 'uptime_seconds'>;
+export interface MetricHistory {
+  start: string;
+  end: string;
+  bucket_seconds: number;
+  items: MetricPoint[];
+}
+
 export interface Incident {
   id: string;
   title: string;

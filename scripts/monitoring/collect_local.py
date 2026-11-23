@@ -51,10 +51,10 @@ def collect_sample() -> dict[str, str | float | int]:
     }
 
 
-def post_sample(sample: dict, token: str) -> int:
+def post_sample(sample: dict, token: str, api_port: int = 8000) -> int:
     """POST only to the local API, with a timeout and no redirect following."""
     body = json.dumps(sample, allow_nan=False).encode()
-    connection = HTTPConnection("127.0.0.1", 8000, timeout=3)
+    connection = HTTPConnection("127.0.0.1", api_port, timeout=3)
     try:
         connection.request(
             "POST",
@@ -70,7 +70,7 @@ def post_sample(sample: dict, token: str) -> int:
         connection.close()
 
 
-def run_collector(token: str) -> None:
+def run_collector(token: str, api_port: int = 8000) -> None:
     """Keep the local test deliberately simple: collect, send, sleep, repeat.
 
     Failed samples are skipped, with the next fresh sample attempted after the
@@ -79,7 +79,7 @@ def run_collector(token: str) -> None:
     """
     while True:
         try:
-            status = post_sample(collect_sample(), token)
+            status = post_sample(collect_sample(), token, api_port)
             if status == 201:
                 print("PASS: Local measurement recorded.", flush=True)
             else:
@@ -96,7 +96,10 @@ def run_collector(token: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env")
+    parser.add_argument("--api-port", type=int, default=8000, help="Loopback HTTP port")
     args = parser.parse_args()
+    if not 1 <= args.api_port <= 65535:
+        parser.error("--api-port must be between 1 and 65535")
     try:
         token = load_collector_token(args.env_file)
     except Exception:
@@ -106,7 +109,7 @@ def main() -> None:
         ) from None
     print("Local collector started. Collect -> POST -> sleep 5s. Ctrl+C stops it.")
     try:
-        run_collector(token)
+        run_collector(token, args.api_port)
     except KeyboardInterrupt:
         print("Local collector stopped.")
 

@@ -25,7 +25,7 @@ Node/Vite are frontend development tools; the application backend remains Python
 | View | Implemented interface |
 | --- | --- |
 | Overview | CPU/memory/disk cards, open incident count, utilization chart, server/database health, recent incidents, server summary |
-| Metrics | Chart ranges relative to the newest sample, toggles for each metric, hover values, paginated table of loaded measurements |
+| Metrics | 30-minute, 1-hour and 24-hour charts, metric toggles, hover values, and a paginated table of raw measurements |
 | Server details | Server display name, hostname, OS, architecture, stable ID, health and reported uptime |
 | Incidents | Search, filters, incident plans, reports, and status changes in demo and live modes |
 
@@ -65,7 +65,10 @@ The client in `frontend/src/services/api.ts` follows [the API contract](api.md):
   the returned server ID. No bearer token is sent with the health request.
 - Reads the latest 100 incidents with the reader token. Enter the optional
   incident admin token at connection time to create, edit, or delete incidents.
-  Live editing is available over HTTPS or localhost, including an SSH tunnel.
+  Live reads and edits require HTTPS or localhost, including an SSH tunnel.
+- The chart requests bounded bucket averages for the selected window and refreshes
+  about every 30 seconds. Latest metric cards and the raw sample table retain
+  their five-second refresh.
   Both tokens stay in memory. Apply migrations through `0004_incident_triggers` before
   saving incident plans. On EC2, update the existing checkout, rerun the
   monitoring installer to apply migrations, then rerun the web installer to

@@ -1,11 +1,11 @@
 """Strict measurement inputs and UTC response contracts."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.reusable import EventTimestamp
+from app.reusable import EventTimestamp, UtcDatetime
 
 Percentage = Annotated[float, Field(strict=True, ge=0, le=100, allow_inf_nan=False)]
 
@@ -30,3 +30,20 @@ class MetricPage(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+HistoryMinutes = Literal[30, 60, 1440]
+
+
+class MetricPoint(BaseModel):
+    collected_at: UtcDatetime
+    cpu_percent: Percentage
+    memory_percent: Percentage
+    disk_percent: Percentage
+
+
+class MetricHistory(BaseModel):
+    start: UtcDatetime
+    end: UtcDatetime
+    bucket_seconds: int
+    items: list[MetricPoint]

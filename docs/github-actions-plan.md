@@ -2,15 +2,17 @@
 
 The test-only [CI workflow](../.github/workflows/ci.yml) is implemented locally.
 GitHub runs it after it is published to the repository with Actions enabled.
-The first hosted result and branch protection settings are pending. Docker and
-EC2 deployment automation are later milestones. The [assignment](assignment-brief.md) requires the native and container demonstrations for VG. Automatic image deployment to EC2 is the separate VG4 bonus.
+CD is an opt-in workflow for the container deployment. Its first hosted
+deployment is pending. The [assignment](assignment-brief.md) requires the native
+and container demonstrations for VG. Automatic image deployment to EC2 is the
+separate VG4 bonus.
 
 ## How one change travels through the project (Git, GitHub)
 
 1. **Work locally.** Start a short-lived branch from an up-to-date `main`, such as `fix/server-id-errors`. Reproduce the problem with a failing test, change the code, and rerun the test. A local commit records a version on your machine. A push sends it to GitHub.
 2. **Open a pull request to main.** Describe the problem, the change and the test result. Each new push to the open PR reruns CI. Review your own diff, including accidental files, and fix failures on that branch. Small commits that each express one change are easier to review and undo. [GitHub flow](https://docs.github.com/en/get-started/using-github/github-flow) · [Pro Git on contributing and commit guidelines](https://git-scm.com/book/en/v2/Distributed-Git-Contributing-to-a-Project)
 3. **Merge after green checks.** For a solo developer, require successful checks on `main` where the repository plan allows it. Leave mandatory second-person reviews off during solo work. Squash merging is a reasonable default for one small PR per change. Delete the merged topic branch. Run CI on the resulting main commit too. Keep one long-lived branch, `main`. Each environment records which commit is deployed. [GitHub branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)
-4. **Promote the tested version.** Once deployment is available, send the successful main commit to an EC2 test environment, verify it there, then deliberately promote that same version to production. Use the image digest to identify the exact Docker image when containers are introduced. A failed test deployment leaves the previous production version in place.
+4. **Promote the tested version.** Send the successful main commit to an EC2 staging environment. Once the workflow verifies staging, you can promote the same image digests to production. A failed test deployment leaves the previous production version in place.
 
 For example, with a clean, synchronized checkout the local commands for the first step would be:
 
@@ -62,17 +64,65 @@ The workflow lives at `.github/workflows/ci.yml`. Its `on` section selects the e
 
 Run these three jobs in parallel with stable names, job timeouts, and a per-PR concurrency group that cancels superseded test runs. Start with all three jobs on every PR. For required checks, whole-workflow path filters can leave a skipped check pending. Grant CI `contents: read`, give test jobs disposable inputs, and pin actions to reviewed full commit SHAs with a comment identifying the release. [Workflow syntax and filtering](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax) · [GitHub Actions secure use](https://docs.github.com/en/actions/reference/security/secure-use)
 
-## Later deployment workflow (Ubuntu, EC2, Docker)
+## Opt-in deployment workflow (GitHub Actions, Compose, EC2)
 
-| Environment | What happens there |
-| --- | --- |
-| Local | Develop and test against the local database. Local and CI tests can run before anyone rents an instance. |
-| EC2 test / staging | Deploy the candidate to a rehearsal instance using staging-only settings. Run the existing Ubuntu verifier for native deployment. For Compose, verify container health, database persistence, the expected host identity and a fresh stored measurement. Exercise public `/docs` through Nginx. Store the tested commit and image digest with the workflow run. |
-| Production / assessed deployment | Promote the staging-tested digest, apply reviewed migrations, then check public HTTPS, Swagger, health and a fresh measurement. Record the previous digest and database backup. On failure, stop promotion. Roll back the image only if it is compatible with the current schema. Follow the course requirement to create a fresh instance during recording. |
+[ServerWatch delivery](../.github/workflows/deploy.yml) is manually triggered
+from the Actions tab on `main`. It checks that the exact commit passed main CI,
+builds and publishes API and web images to GHCR for Linux x86-64, then deploys
+those digests to staging. If you select **promote**, the same digests proceed
+to production after staging passes and the production environment gate opens.
+CI on pull requests and pushes continues to run independently.
+[GitHub deployment environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
 
-Later, keep delivery in `.github/workflows/deploy.yml`. The first version can use a deliberate manual trigger (`workflow_dispatch`) restricted to the trusted main branch and verify the selected commit passed CI. Build the image once, deploy to staging and gate production on staging success. Use separate GitHub environments named `staging` and `production`, separate credentials and data, and one deployment at a time per target. Environment names alone do not isolate hosts or databases. Rehearsals can be temporary to avoid maintaining two always-on instances. [Deployments and environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
+### One-time preparation (Ubuntu, Docker, GitHub)
 
-Keep deployment credentials out of PR jobs. Scope write permissions to the job that publishes the image. When deploying over SSH, use a dedicated deploy identity and verify the host key. Check the classroom repository's plan and organization permissions before relying on environment secrets, required reviewers or branch rules. For solo work, a deliberate manual promotion is workable. If the necessary protections are unavailable, keep production deployment manual until an appropriately configured repository is available. [Environment feature availability](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments) · [Actions security guidance](https://docs.github.com/en/actions/reference/security/secure-use)
+1. Prepare the staging host with Docker Engine, the Compose v2 plugin,
+   Git, Bash, curl, Python 3, and util-linux (`flock`). Use a dedicated
+   deployment account with access to the Docker daemon. The documented
+   Compose flow assumes rootful Docker and matching host/container numeric
+   IDs for private file mounts. Docker group access is equivalent to root
+   privileges on the host, so restrict this SSH identity and its credentials.
+2. As that account, clone the repository to `~/serverwatch` and complete
+   the [Compose preparation](docker-deployment.md). Give that account
+   read access to the Git remote and both GHCR image packages. A private
+   package requires registry authentication on the host. Keep all Compose
+   secrets and any registry credential on the host.
+3. Mark the staging account so it rejects deployments for other environments.
 
-The current CI workflow has read-only repository permissions and three independent
-jobs. Docker image publishing, deployment workflows and AWS credentials are deferred.
+   ```bash
+   install -d -m 700 "$HOME/.config/serverwatch-delivery"
+   printf '%s\n' staging > "$HOME/.config/serverwatch-delivery/environment"
+   chmod 600 "$HOME/.config/serverwatch-delivery/environment"
+   ```
+
+   If you prepare production, repeat on its own host and use `production`
+   in place of `staging`. Keep the database volumes and secrets independent.
+4. In GitHub, configure the `staging` and (if used) `production`
+   environments. Restrict both to `main` and configure production approval
+   where supported. For each environment set the variables `DEPLOY_HOST`
+   and `DEPLOY_USER`, and the secrets `DEPLOY_SSH_KEY` (dedicated deploy
+   identity) and `DEPLOY_KNOWN_HOSTS` (a verified OpenSSH known-hosts entry
+   matching the host variable). Verify the host key independently before
+   adding it. The runner needs an approved SSH route to EC2. If your
+   instance only permits your own IP, use a trusted runner with a fixed
+   allowlisted IP. Set the repository variable
+   `SERVERWATCH_DEPLOY_RUNNER` to its dedicated runner label. Restrict that
+   runner to trusted workflows so pull-request code cannot use it. Leave
+   delivery disabled until a route is available.
+
+### Release verification and recovery (GitHub Actions, Docker, PostgreSQL)
+
+The remote script loads the Compose manifest from the selected commit on
+`origin/main` and leaves the checkout and host secret files in place.
+It pulls the two application digests, waits for startup and migrations,
+then checks loopback health and Swagger. Keep Nginx as the public entry
+point and verify public access and fresh host measurements separately.
+
+Before enabling production promotion, take and verify a database backup.
+If deployment fails, the job stops and leaves the last successful marker in
+`~/.config/serverwatch-delivery/last-success`. A successful update also saves
+the previous marker as `previous-success`. Review the Compose logs and
+database state before retrying. Use the previous manifest and digests for
+recovery only after checking compatibility with the migrated schema. An
+unsuccessful rollout can leave some services updated. Use care when choosing
+between repairing the rollout and restoring from a verified backup.

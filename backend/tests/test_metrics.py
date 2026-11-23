@@ -210,6 +210,29 @@ def test_missing_database_returns_503(client, app):
     )
 
 
+@pytest.mark.parametrize(
+    ("query", "reason"),
+    [
+        ("minutes=31", "minutes must be 30, 60, or 1440."),
+        ("minutes=30&minutes=60", "Supply the minutes filter only once."),
+    ],
+)
+def test_invalid_history_query_explains_failure(client, app, query, reason):
+    app.state.reader_token = SecretStr("dummy-reader")
+    response = client.get(f"/api/v1/metrics/history?{query}", headers=READER)
+    assert response.status_code == 422
+    assert response.json()["error"]["message"] == reason
+
+
+def test_history_requires_reader_and_storage(client, app):
+    app.state.reader_token = SecretStr("dummy-reader")
+    path = "/api/v1/metrics/history"
+    assert client.get(path).status_code == 401
+    response = client.get(path, headers=READER)
+    assert response.status_code == 503
+    assert "storage has not been configured" in response.json()["error"]["message"]
+
+
 def test_roles_cannot_share_same_token():
     with pytest.raises(RuntimeError, match="must be different"):
         create_app(

@@ -28,6 +28,7 @@ startup and test commands.
 | --- | --- | --- | --- | --- |
 | Health | GET | `/health?server_id=1` | Current server health | 200 or 503 |
 | Metrics | GET | `/metrics` | Read stored server statistics | 200 |
+| Metrics | GET | `/metrics/history` | Read averaged statistics for a chart window | 200 |
 | Metrics | POST | `/metrics` | Store a metric sample | 201 |
 | Server | GET | `/server` | Read server identity and OS information | 200 |
 | Incidents | POST | `/incidents` | Create an incident | 201 |
@@ -208,6 +209,19 @@ Response shape (each item has the fields shown in the POST response):
 ```
 
 `total` is the number of matching records before pagination.
+
+### `GET /metrics/history`
+
+Returns a rolling chart window ending at API receipt time. A reader token is
+required. Supply `minutes=30`, `60`, or `1440` (default 30). Invalid, repeated,
+or unsupported query inputs return 422 with the violated rule. An unavailable
+database returns 503 with its public reason.
+
+The response contains UTC `start`, `end`, `bucket_seconds`, and `items`. Each
+item contains the bucket start `collected_at` and average CPU, memory, and disk
+percentages for the configured server. The bucket sizes are 15, 30, and 720
+seconds respectively. Empty buckets are omitted and each window contains at
+most 120 points. The original GET /metrics keeps returning raw samples.
 
 ## Server API
 

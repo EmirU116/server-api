@@ -6,6 +6,11 @@ if [[ "${1:-}" == --help ]]; then
     echo "Usage: bash setup_ubuntu_web.sh PUBLIC_IPV4 [PUBLIC_DNS_NAME]"
     exit 0
 fi
+preflight=false
+if [[ "${1:-}" == --preflight ]]; then
+    preflight=true
+    shift
+fi
 (( $# >= 1 && $# <= 2 )) || fail "Supply the EC2 public IPv4 address and optionally its public DNS name."
 public_ip=$1
 public_dns=${2:-}
@@ -18,16 +23,17 @@ source /etc/os-release
 project=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 python3 -c 'import ipaddress, sys; ipaddress.IPv4Address(sys.argv[1])' "$public_ip" 2>/dev/null ||
     fail "Supply an IPv4 address without a scheme or port."
+command -v node >/dev/null && command -v npm >/dev/null ||
+    fail "Install Node.js 22.12+ with npm for this user first."
+node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 12) ? 0 : 1)' ||
+    fail "Node.js 22.12+ is required."
+if [[ "$preflight" == true ]]; then exit 0; fi
 [[ "$(systemctl show serverwatch-api -p User --value)" == "$(id -un)" &&
    "$(systemctl show serverwatch-api -p WorkingDirectory --value)" == "$project" ]] ||
     fail "Run from the checkout used by the API service, as its owner."
 for service in postgresql serverwatch-api serverwatch-collector; do
     systemctl is-active --quiet "$service" || fail "$service is inactive. Set up monitoring first."
 done
-command -v node >/dev/null && command -v npm >/dev/null ||
-    fail "Install Node.js 22.12+ with npm for this user first."
-node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 12) ? 0 : 1)' ||
-    fail "Node.js 22.12+ is required."
 
 step="build the React frontend"
 trap 'echo "[FAIL] Could not $step. Review the output above." >&2' ERR
@@ -39,8 +45,10 @@ npm run build
 
 step="install and configure Nginx"
 echo "[SETUP] $step"
-sudo apt-get update
-sudo apt-get install -y nginx curl
+if [[ "${SERVERWATCH_FULL_SETUP:-}" != 1 ]]; then
+    sudo apt-get update
+    sudo apt-get install -y nginx curl
+fi
 work_dir=$(mktemp -d)
 trap 'rm -rf -- "$work_dir"' EXIT
 site=/etc/nginx/sites-enabled/serverwatch.conf

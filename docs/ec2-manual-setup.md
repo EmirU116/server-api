@@ -13,12 +13,28 @@ FastAPI service, and the host collector. The read-only verifier checks that the
 services work and fresh measurements are stored. The setup runs services as the
 normal Linux user who runs the installer.
 
-The project has **not yet automated** Bob/Alice Linux accounts, shared project
-permissions, Cron backups, scheduled alerts, or Docker. User/group access
-is tracked as future task 5.5 in the [project plan](project-plan.md). Do not
-present these as completed setup steps. Before the final assignment recording,
-finish and test the account/permission setup you intend to demonstrate. The
-current installer has not been verified with that future multi-user layout.
+Use the [account provisioning guide](ubuntu-accounts.md) if you are showing
+separate junior and senior workspaces. The deployment still uses one checkout
+owned by the installing SSH user. Track assignment evidence in the
+[project plan](project-plan.md).
+
+### Packages for each deployment path
+
+| Path | Packages |
+| --- | --- |
+| Before cloning | Ubuntu 24.04+, `git`, `openssh-client` on the student computers and SSH server on EC2, Bash, and sudo. |
+| Native setup | `python3`, `python3-venv`, `python3-pip`, `postgresql`, `postgresql-client`, `iproute2`, `nginx`, and `curl`. The installer installs these Ubuntu packages. |
+| Native frontend build | Node.js 22.12+ and npm on the SSH user's PATH before running setup. Check `node --version` and `npm --version`. Use your approved Node distribution if Ubuntu's package is older. |
+| Optional account provisioning | `acl` for managed workspace permissions. |
+| Scheduled backups (G5) | `cron` and `postgresql-client`. The backup script still needs implementation. |
+| VG deployment | Docker Engine with the Compose v2 plugin. Certbot and its Nginx plugin for custom-domain HTTPS. |
+
+On the instance, install Git before cloning if it is missing:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git
+```
 
 ## 1. Prepare the repository and local SSH keys
 
@@ -115,32 +131,27 @@ server. If the repository is private, use the read-only authentication method
 prepared in step 1. Never put a token or private key in a command, URL, or
 tracked file.
 
-If the recording demonstrates SCP transfer of the bootstrap script, run this
-from the project root on a student's computer to transfer it, then run it
-against the checkout on EC2:
+For the SCP demonstration, run this on your computer from the checkout:
 
 ```bash
-scp -i /path/to/initial-ec2-key.pem infrastructure/bootstrap/setup_ubuntu_monitoring.sh ubuntu@ELASTIC_IP:~/setup_ubuntu_monitoring.sh
+scp -i /path/to/initial-ec2-key.pem setup.sh ubuntu@ELASTIC_IP:~/setup.sh
 ```
 
-Then, on EC2, run the transferred script with the checkout path:
+On EC2, run the transferred entry point against the cloned project:
 
 ```bash
-bash "$HOME/setup_ubuntu_monitoring.sh" "$HOME/serverwatch"
+SERVERWATCH_PROJECT_DIR="$HOME/serverwatch" bash "$HOME/setup.sh" ELASTIC_IP
 ```
 
-The installer may install packages, create local database objects and private
-configuration, apply migrations, and enable/restart systemd services. Read the
-[Ubuntu monitoring guide](ubuntu-monitoring.md) first. Run it only on the
-rehearsal instance, as the normal SSH user with sudo access. Do not run it as
-`sudo bash`; it uses sudo for the operations that need it.
+For normal setup and updates, run `bash setup.sh ELASTIC_IP` inside the
+checkout. You can optionally pass the EC2 public DNS hostname as a second
+argument. Use your normal SSH user. The script uses sudo for package and
+service changes and keeps existing credentials and PostgreSQL data.
 
-If SCP is not part of the demonstration, run the copy in the cloned checkout:
-
-```bash
-cd "$HOME/serverwatch"
-bash infrastructure/bootstrap/setup_ubuntu_monitoring.sh
-```
+If a host still has the retired API-only test service, inspect it with
+`sudo systemctl status serverwatch-ec2-test.service`. If it is the old
+ServerWatch smoke test and you are replacing it, stop and disable it with
+`sudo systemctl disable --now serverwatch-ec2-test.service`.
 
 ## 5. Verify the current native monitoring deployment
 
@@ -148,7 +159,7 @@ From the EC2 checkout, still as the installing user:
 
 ```bash
 cd "$HOME/serverwatch"
-bash scripts/verification/verify_ubuntu_monitoring.sh
+bash verify.sh ELASTIC_IP
 ```
 
 Expected: all checks pass, including active PostgreSQL/API/collector services,
@@ -211,55 +222,22 @@ for the server.
 
 ## 7. Serve the dashboard and API through Nginx (Bash, React, FastAPI)
 
-1. Update the existing checkout to a revision containing the web scripts and
-   FastAPI documentation setting. If you edited the monitoring installer on
-   EC2 during troubleshooting, check `git diff` before pulling and reconcile
-   that edit with the incoming change.
-2. In your EC2 SSH session, confirm `node --version` and `npm --version`.
-   Install Node.js 22.12 or newer with npm if needed. Run as the same Ubuntu
-   user who installed monitoring. Replace `EC2_PUBLIC_IP` with the actual
-   IPv4 address, preferably the Elastic IP.
+The setup command in step 4 already builds and publishes React, configures
+Nginx, enables Swagger and OpenAPI, and verifies the web routes over loopback.
+For an update, use `git pull --ff-only` on a clean checkout, then rerun that same
+setup command. It applies pending migrations before publishing the dashboard.
 
-   ```bash
-   cd ~/serverwatch
-   bash infrastructure/bootstrap/setup_ubuntu_web.sh EC2_PUBLIC_IP
-   ```
+For a failure, rerun `bash verify.sh ELASTIC_IP`. Use `sudo nginx -t` and
+`sudo journalctl -u nginx -u serverwatch-api -n 50 --no-pager` for details.
+To explain the proxy during the demo, navigate to `/etc/nginx/sites-enabled`
+and open `serverwatch.conf` in your editor.
 
-   To also use the EC2 public DNS name over HTTP, pass it as the second
-   argument. Copy the hostname from the EC2 console without `http://` or
-   `https://`.
-
-   ```bash
-   bash infrastructure/bootstrap/setup_ubuntu_web.sh EC2_PUBLIC_IP EC2_PUBLIC_DNS
-   ```
-
-   Then open `http://EC2_PUBLIC_DNS/` from your computer. Use the same DNS
-   argument on future installer runs to keep the hostname configured.
-
-   The script installs frontend dependencies, builds React, and publishes the
-   build to `/var/www/serverwatch`. It installs Nginx and validates its
-   configuration before reloading it. A systemd drop-in enables Swagger and
-   OpenAPI in production mode. The script restarts FastAPI once to pick up that
-   setting. It reuses the existing PostgreSQL data and collector and keeps both
-   database and API ports on loopback.
-3. The setup runs the verifier automatically. Rerun it on EC2 after a reboot or
-   when diagnosing the site:
-
-   ```bash
-   bash scripts/verification/verify_ubuntu_web.sh EC2_PUBLIC_IP
-   ```
-
-   It first checks the existing services and a fresh stored metric, then checks
-   that Nginx returns the dashboard, its JavaScript, API health, Swagger UI,
-   and the OpenAPI schema. A failure prints the stage or endpoint to inspect.
-   Use `sudo nginx -t` and
-   `sudo journalctl -u nginx -u serverwatch-api -n 50 --no-pager` for details.
-4. In the EC2 security group, add an inbound **HTTP / TCP 80** rule from your
+1. In the EC2 security group, add an inbound **HTTP / TCP 80** rule from your
    public IPv4 address with a `/32` suffix. Add your teammate's or assessor's
    source if they need access. Use `0.0.0.0/0` only if open access is intended.
    Keep ports 8000 and 5432 closed. If you enabled a host firewall, allow the
    same HTTP traffic there.
-5. On your computer, open these URLs using the public IP. No SSH tunnel is needed.
+2. On your computer, open these URLs using the public IP. No SSH tunnel is needed.
 
    | URL | Expected result |
    | --- | --- |
@@ -291,9 +269,11 @@ rehearse this process separately from the recorded fresh-instance run.
 ## Current limits and next steps
 
 Record the public-IP browser checks as evidence for the native Nginx deployment.
-Cron backups and restore, scheduled monitoring alerts, and the named-user
-permission matrix remain pending. For VG, deploy FastAPI and PostgreSQL in
-Docker Compose with persistent database storage. Point a custom domain at EC2,
-obtain a Certbot certificate, then verify HTTPS, HTTP redirects, and renewal.
+Configure and demonstrate the [Discord timer](discord-alerts.md) and, if using
+separate role accounts, verify their [workspace permissions](ubuntu-accounts.md).
+Cron backups and a restore demonstration remain open. For VG, run the
+[Compose stack](docker-deployment.md) on EC2 and verify database persistence.
+Point a custom domain at EC2, obtain a Certbot certificate, then verify HTTPS,
+HTTP redirects, and renewal.
 See the [assignment coverage tracker](project-plan.md#assignment-coverage-tracker)
-and [GitHub/EC2 workflow](github-actions-plan.md#later-deployment-workflow-ubuntu-ec2-docker).
+and [GitHub/EC2 workflow](github-actions-plan.md#opt-in-deployment-workflow-github-actions-compose-ec2).

@@ -10,7 +10,13 @@ from starlette.concurrency import run_in_threadpool
 from app.core.errors import PublicHTTPError
 from app.core.security import require_collector, require_reader
 from app.reusable import validate_json_write, validate_list_request
-from app.schemas.metric import MetricCreate, MetricPage, MetricRecord
+from app.schemas.metric import (
+    HistoryMinutes,
+    MetricCreate,
+    MetricHistory,
+    MetricPage,
+    MetricRecord,
+)
 from app.services.metrics import (
     DuplicateMetric,
     FutureMetric,
@@ -94,6 +100,39 @@ async def get_metrics(
         raise PublicHTTPError(422, "start must be earlier than or equal to end.")
     try:
         result = await run_in_threadpool(service.list, limit, offset, start, end)
+    except MetricsUnavailable as exc:
+        raise PublicHTTPError(503, exc.reason.value) from None
+    response.headers["Cache-Control"] = "no-store"
+    return result
+
+
+@router.get(
+    "/metrics/history",
+    response_model=MetricHistory,
+    dependencies=[Depends(require_reader)],
+    responses=errors,
+)
+async def get_metric_history(
+    request: Request,
+    response: Response,
+    service: Annotated[MetricsService, Depends(get_metrics_service)],
+    minutes: Annotated[int, Query()] = 30,
+) -> MetricHistory:
+    """Return averaged time buckets for a dashboard window."""
+    await validate_list_request(request, "minutes")
+    selected: HistoryMinutes
+    if minutes == 30:
+        selected = 30
+    elif minutes == 60:
+        selected = 60
+    elif minutes == 1440:
+        selected = 1440
+    else:
+        raise PublicHTTPError(422, "minutes must be 30, 60, or 1440.")
+    try:
+        result = await run_in_threadpool(
+            service.history, selected, request.state.received_at
+        )
     except MetricsUnavailable as exc:
         raise PublicHTTPError(503, exc.reason.value) from None
     response.headers["Cache-Control"] = "no-store"

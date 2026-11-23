@@ -58,7 +58,11 @@ fi
 
 echo "[SETUP] Installing Ubuntu Python and PostgreSQL packages."
 sudo apt-get update
-sudo apt-get install -y python3 python3-venv python3-pip postgresql postgresql-client iproute2
+packages=(python3 python3-venv python3-pip postgresql postgresql-client iproute2)
+if [[ "${SERVERWATCH_FULL_SETUP:-}" == 1 ]]; then
+    packages+=(nginx curl)
+fi
+sudo apt-get install -y "${packages[@]}"
 python3 -c 'import sys; assert sys.version_info >= (3, 11), "Python 3.11+ required"'
 if ! systemctl is-active --quiet serverwatch-api.service; then
     python3 - <<'CHECK_PORT'
@@ -104,5 +108,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable serverwatch-api.service serverwatch-collector.service
 sudo systemctl restart serverwatch-api.service
 sudo systemctl restart serverwatch-collector.service
-bash "$project_dir/scripts/verification/verify_ubuntu_monitoring.sh" "$project_dir"
+if [[ "${SERVERWATCH_FULL_SETUP:-}" != 1 ]]; then
+    bash "$project_dir/scripts/verification/verify_ubuntu_monitoring.sh" "$project_dir"
+fi
 echo "[OK] Monitoring is running; services start at boot. Credentials were not printed."

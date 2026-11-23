@@ -1,8 +1,7 @@
 # ServerWatch project plan and progress
 
-Last reviewed: 2026-11-19. Status is based on repository inspection, not a live
-EC2 audit. This is the progress tracker; endpoint details remain in
-[the API specification](api.md).
+Last reviewed on 2026-11-23. Live status reflects the reported EC2 verification.
+Endpoint details are in the [API specification](api.md).
 
 ## What to do next
 
@@ -14,9 +13,9 @@ test alerts before rehearsing the full deployment from scratch.
 ### Finish the G requirements
 
 1. [ ] **Send a Discord alert (Python, systemd, Discord).** Create the channel
-   webhook and store it privately on EC2. Implement and test a disk usage
-   check, then schedule it every minute. Done when a controlled threshold
-   breach produces one Discord message and you restore the normal threshold.
+   webhook, store it privately on EC2, and install the implemented timer.
+   Done when a controlled threshold breach produces one Discord message and
+   you restore the normal threshold.
    Follow the [Discord checklist](#discord-alerts-to-do-g6).
 2. [ ] **Schedule and test backups (Bash, Cron, PostgreSQL).** Write the
    database and log backup script and install its Cron entry. Done when Cron
@@ -24,7 +23,8 @@ test alerts before rehearsing the full deployment from scratch.
    database.
 3. [ ] **Confirm public access from your computer (HTTP, Nginx, FastAPI).**
    Open the dashboard, `/docs`, and `/openapi.json` using the EC2 public IP.
-   Done when all three load and the dashboard shows a fresh metric.
+   Done when all three load. Verify fresh dashboard metrics over HTTPS or a
+   private localhost connection.
 4. [ ] **Rehearse the pair deployment (AWS EC2, SSH, SCP, Bash, systemd).**
    Start with a fresh EC2 instance, configure the security group and Elastic IP,
    show both SSH logins, transfer and run the bootstrap, and clone into the
@@ -35,7 +35,8 @@ test alerts before rehearsing the full deployment from scratch.
 ### Finish the VG requirements
 
 1. [ ] **Deploy containers on EC2 (Docker, Compose, PostgreSQL).** Build the
-   API image and run it with containerized PostgreSQL. Show the native systemd
+   API and web images and run them with containerized PostgreSQL using the
+   [Docker guide](docker-deployment.md). Show the native systemd
    deployment during the demo as well. Done when the containerized API can save
    and read data and that data survives container recreation.
 2. [ ] **Set up your own domain and HTTPS (DNS, Nginx, Certbot).** Point the
@@ -47,7 +48,7 @@ RDS and automatic GitHub Actions deployment are assignment bonuses.
 
 ## Current position
 
-**All four backend APIs are implemented. The next task is Discord alerting for G6.**
+**All four backend APIs are implemented. The next EC2 task is to configure and demonstrate Discord delivery for G6.**
 
 The project has a runnable FastAPI application factory, validated settings,
 shared error handling, dependency manifests, and a passing foundation test suite.
@@ -58,7 +59,7 @@ Server GET returns native host identity with reader authentication. Metrics GET/
 now persist samples through SQLAlchemy with a versioned Alembic migration and
 separate reader/collector credentials. A local collector now submits real host
 measurements with a five-second sleep, and the API dashboard polls every five
-seconds. Incident CRUD now uses reader GET and admin writes; Ubuntu systemd units provide continuous collection. Threshold alerts and Cron backups are outstanding. React live mode reads the three available APIs and explicitly marks
+seconds. Incident CRUD now uses reader GET and admin writes; Ubuntu systemd units provide continuous collection. Discord alert delivery and Cron backups still need EC2 evidence. The Cron backup script remains to be implemented. React live mode reads the three available APIs and explicitly marks
 incidents use reader access and admin writes. Planned incidents can store response
 steps and a metric threshold before an occurrence. The dashboard signals a
 sustained crossing for manual opening. GPU readings and automated opening
@@ -102,20 +103,19 @@ The assessed deployment runs on EC2. The React dashboard is a project extension.
 
 ## Implementation milestones
 
-Phase 1 is **Verified**; phases 2–5 and 7 are **In progress**. Phases 6 and 8
-remain **Not started**. Phase 5 has native test scripts but no EC2 verification.
-Health and server GET are implemented. Phase 2
-still needs real host verification of identity and database connectivity. Complete
-each milestone with observable evidence. Owners and deadlines are unassigned.
+Phase 1 is **Verified**. Phases 2–7 are **In progress**, with native EC2
+verification reported for phase 5. The fresh-instance demo for phase 8 remains
+open. Each milestone requires the evidence below. Owners and deadlines are
+unassigned.
 
 | Phase | Deliverables | Completion evidence | Status |
 | --- | --- | --- | --- |
 | 1. Local backend foundation (Python, FastAPI, pytest) | Python dependency manifest, application entry point, configuration, structured error handling, test setup, documented local startup | App starts locally; smoke tests pass; invalid configuration fails without exposing values. No required credentials exist at this stage | Verified |
 | 2. Persistence and read endpoints (Python, PostgreSQL, Alembic) | PostgreSQL connection, SQLAlchemy models, Alembic migrations, health and server GET routes | Migrations apply to an isolated database; health reports dependency failure; server identity describes the host correctly | In progress |
 | 3. Metrics and incidents (Python, FastAPI, pytest) | Auth/permissions, metrics GET/POST, full incident CRUD, pagination and validation | Unit and API contract tests cover the matrix in `api.md`; database integration tests prove persistence and rollback | In progress |
-| 4. Monitoring and recovery (Bash, Cron, Python, PostgreSQL) | Host collector, Cron schedules, threshold detection, alert delivery, PostgreSQL/log backup and restore scripts | A collected sample is stored; a controlled breach produces an incident and alert without duplicate open incidents; isolated restore succeeds | In progress |
+| 4. Monitoring and recovery (Bash, Cron, Python, PostgreSQL) | Host collector, Cron schedules, threshold detection, alert delivery, PostgreSQL/log backup and restore scripts | A collected sample is stored; a controlled breach sends one Discord alert; isolated restore succeeds | In progress |
 | 5. Native EC2 deployment — G (AWS EC2, Bash, systemd, Nginx) | Bootstrap via SCP, repository setup, independent student SSH access, native service, Nginx, scheduled operations | Rehearsed fresh-instance deployment; API/database connectivity, restart behavior, monitoring, and backups demonstrated | In progress |
-| 6. Containers and HTTPS — VG (Docker, Docker Compose, DNS, Certbot) | API Dockerfile, separate API/PostgreSQL Compose services, persistent volume, domain, Certbot | Compose validation and health checks pass; records survive restart; HTTPS and renewal checks pass; native service stopped before port reuse | Not started |
+| 6. Containers and HTTPS — VG (Docker, Docker Compose, DNS, Certbot) | API Dockerfile, separate API/PostgreSQL Compose services, persistent volume, domain, Certbot | Compose validation and health checks pass; records survive recreation; HTTPS and renewal checks pass on the public domain | In progress |
 | 7. Frontend (React, TypeScript) | React/TypeScript app, typed API client, health/metrics/server views, incident management | Type checking/build pass; UI handles loading, empty, validation, permission, and unavailable states; core flows work against the API | In progress |
 | 8. Demo preparation (Documentation, Deployment, Presentation) | Deployment runbook, requirement checklist, timed rehearsal, evidence and speaking roles | Both students complete and explain a fresh-instance rehearsal within the 60-minute limit | Not started |
 
@@ -152,23 +152,23 @@ evidence for its parent milestone above.
 | 3.4 API and business logic tests (Python, pytest, PostgreSQL) | Metrics and incident API/PostgreSQL tests implemented; Windows incident CRUD verified, full Windows metrics flow pending. | In progress |
 | 4.1 Host metrics collection (Python, Bash, Linux, HTTP) | Local Python loop and Ubuntu systemd installer/verifier implemented; native server/reboot verification and Cron evidence pending. | In progress |
 | 4.2 Scheduled health checks (Linux, Monitoring) | Verify monitoring starts on boot and configure recurring threshold checks for G6. Cron is required for backups in G5. | In progress |
-| 4.3 Incident detection and alerts (Python, Monitoring) | Detect threshold breaches, avoid duplicate open incidents, and deliver alerts through the selected channel. | Not started |
+| 4.3 Disk threshold alerts (Python, Monitoring, Discord) | Disk alert checker and systemd timer implemented. Demonstrate delivery and suppression on EC2. | In progress |
 | 4.4 Backup and restore (Bash, PostgreSQL, Cron) | Script database/log backups, schedule them, and verify an isolated restore. | Not started |
 | 5.1 EC2 and student access (AWS EC2, Linux, SSH) | Prepare the instance configuration and independent access for both students. | Not started |
 | 5.2 Server bootstrap (Bash, SCP, Git, Linux) | Ubuntu installer prepares a cloned checkout with Python, PostgreSQL, and migrations. SCP and fresh instance verification remain pending. | In progress |
 | 5.3 Native service and reverse proxy (systemd, Nginx, Linux) | Native verifier passed 8/8 on EC2, as reported by the user. Nginx setup and web verification scripts are implemented. Run the [public IP rehearsal](ec2-manual-setup.md#7-serve-the-dashboard-and-api-through-nginx-bash-react-fastapi) and capture browser evidence. | In progress |
 | 5.4 Native deployment verification (Bash, Linux, Testing) | Localhost smoke verifier added; fresh-instance verification, restarts, scheduled monitoring, and backups remain pending. | In progress |
-| 5.5 Define and verify environment access (Ubuntu, Bash, Linux users, groups, ACLs) | Define dev/prod ownership and role membership, provision accounts and inherited permissions, then check effective allowed and denied operations as each identity. See the [proposed access matrix](ubuntu-monitoring.md#planned-linux-users-groups-and-permissions). | Future task. No host changes applied. |
-| 6.1 API image (Docker, Python) | Create the API Dockerfile and build a runnable image. | Not started |
-| 6.2 Container services and storage (Docker Compose, PostgreSQL) | Configure separate API/database services, private networking, health checks, and persistent storage. | Not started |
+| 5.5 Define and verify environment access (Ubuntu, Bash, Linux users, groups, ACLs) | Define dev/prod ownership and role membership, provision accounts and inherited permissions, then check effective allowed and denied operations as each identity. See [Ubuntu accounts and permissions](ubuntu-accounts.md). | Implemented and tested with simulated system commands. Verify ACLs on EC2. |
+| 6.1 API and web images (Docker, Python, React) | Dockerfiles and build exclusions implemented. Build and verify on EC2. | In progress |
+| 6.2 Container services and storage (Docker Compose, PostgreSQL) | Compose includes a private DB, migration job, API, and loopback web proxy. Demonstrate persisted data after recreation. | In progress |
 | 6.3 Domain and TLS (DNS, Nginx, Certbot, HTTPS) | Configure the custom domain, certificate, redirects, and renewal. | Not started |
-| 6.4 Container deployment verification (Docker Compose, Testing) | Validate configuration, health, and persistence; stop the native API before reusing its port. | Not started |
+| 6.4 Container deployment verification (Docker Compose, Testing) | Local Compose smoke test verified the dashboard, Swagger, health, and a metric that survived container recreation. Repeat on EC2. | Verified locally |
 | 7.1 Frontend foundation (React, TypeScript) | Set up the frontend project and typed API client. | Verified |
 | 7.2 Dashboard and incident management (React, TypeScript, CSS) | Build health, metrics, server, and incident views with the required UI states. | In progress |
 | 7.3 Frontend verification (TypeScript, Frontend testing) | Run type checking/build and verify core UI flows against the API. | In progress |
 | 8.1 Runbook and assessment checklist (Documentation) | Record deployment steps, requirement evidence, and speaking roles. | Not started |
 | 8.2 Timed pair rehearsal (AWS EC2, Deployment, Presentation) | Rehearse from a fresh instance within 60 minutes, with both students explaining their work. | Not started |
-| PR checks and optional VG4 delivery (Git, GitHub Actions, Docker) | [Human and agent workflow](github-actions-plan.md). Test PRs and pushes to main with backend, dashboard and Bash jobs. | Test-only workflow implemented locally. Hosted run and branch rules pending. Docker delivery deferred. |
+| PR checks and optional VG4 delivery (Git, GitHub Actions, Docker) | [Human and agent workflow](github-actions-plan.md). Test PRs and pushes to main with backend, dashboard and Bash jobs. | CI and opt-in delivery workflows implemented. Configure environments and demonstrate staging delivery. |
 
 Python tasks include unit tests and clear comments or multiline docstrings for
 non-obvious behavior. Bash tasks include syntax checks and failure-path checks;
@@ -181,9 +181,9 @@ EC2 verification confirmed that the collector saved a fresh measurement. A
 Discord alert will notify you of a problem while the dashboard is closed.
 
 - [ ] (Discord, Security) Create a channel webhook and store its URL in a private EC2 configuration file outside Git.
-- [ ] (Python, Monitoring) Implement a disk usage threshold check. Send one alert per breach and rearm the check after usage recovers.
-- [ ] (Linux, systemd) Schedule the check to run every minute on EC2.
-- [ ] (Python, Testing) Test normal usage, a threshold breach, duplicate suppression, recovery, and webhook delivery failure.
+- [x] (Python, Monitoring) Implement a disk usage threshold check that sends one alert per breach and rearms after recovery.
+- [ ] (Linux, systemd) Install the timer on EC2 using the [Discord setup guide](discord-alerts.md).
+- [x] (Python, Testing) Test normal usage, a threshold breach, duplicate suppression, recovery, and webhook delivery failure.
 - [ ] (EC2, Discord, Demo) Temporarily lower the threshold below current disk usage, confirm the scheduled check sends a Discord message, then restore the normal threshold.
 
 ## Assignment coverage tracker
@@ -196,17 +196,30 @@ evidence for the EC2 requirements.
 | --- | --- | --- |
 | G1 Fresh instance (AWS EC2, networking) | No instance creation verified. | Create a free-tier-configured instance on camera with suitable AMI, security groups and Elastic IP. |
 | G2 Pair access (SSH, Linux) | The EC2 guide covers an individual SSH connection. | Show both students logging into the same host from their own computers with independent keys. |
-| G3 Bootstrap (Bash, SCP, Ubuntu) | Bash setup installs packages and configures services and permissions. The older smoke-test guide demonstrates SCP. | Include useful shell aliases, rehearse transferring and running the chosen bootstrap on a fresh instance, and explain account choices. |
+| G3 Bootstrap (Bash, SCP, Ubuntu) | Bash setup installs packages and configures services and permissions. The EC2 guide demonstrates SCP. | Include useful shell aliases, rehearse transferring and running the chosen bootstrap on a fresh instance, and explain account choices. |
 | G4 Repository checkout (Git, Linux) | Home-directory clone documented. Full installer expects an existing user-owned checkout. | Perform the clone as the deployment user and show ownership and the order of steps. |
 | G5 Backups (Bash, Cron, PostgreSQL) | Cron directory reserved. | Implement scheduled on-instance backups, show the files created and verify a database restore. |
 | G6 Monitoring and alerts (Linux, Python, Discord) | EC2 verification confirmed a fresh measurement was persisted by the systemd collector. | Complete the [Discord alerts to-do list](#discord-alerts-to-do-g6) and demonstrate delivery during a controlled threshold breach. |
 | G7 Public API docs (systemd, FastAPI, HTTP) | Web installer opts into Swagger and OpenAPI on the existing loopback API. | Open public-IP `/docs` and `/openapi.json` from a browser on EC2 rehearsal. |
 | G8 Reverse proxy (Nginx) | Site serves the static React build and proxies API requests. | Run the web installer and verifier on EC2 and confirm public HTTP routing. |
 | G9 Database connection (FastAPI, PostgreSQL) | Local health and Windows incident CRUD verified against PostgreSQL. Migrations and persistence tested with disposable PostgreSQL. | Show the deployed API reading and writing through the instance's database. |
-| VG1 Containers (Docker, Compose, PostgreSQL) | No project Dockerfile or Compose configuration. | Build and run API and database containers on EC2, demonstrate persistence and also show the native process manager. |
+| VG1 Containers (Docker, Compose, PostgreSQL) | Dockerfiles and Compose configuration are implemented. | Build and run API and database containers on EC2, demonstrate persistence and also show the native process manager. |
 | VG2 Custom domain (DNS, HTTPS, Certbot) | No verified domain or TLS setup. | Point a domain at the instance, issue a certificate and demonstrate working HTTPS. |
-| Optional VG3/VG4 (AWS RDS, GitHub Actions) | Neither bonus is implemented. | If selected, demonstrate the RDS alternative or automatic Docker image deployment to EC2. |
+| Optional VG3/VG4 (AWS RDS, GitHub Actions) | An opt-in delivery workflow is implemented. RDS remains optional. | If selected, demonstrate the RDS alternative or automatic Docker image deployment to EC2. |
 | Team and recording (Classroom, documentation, presentation) | Team membership and a timed rehearsal are unverified. | Accept the invitation, document the pair, rehearse from scratch, record within 60 minutes, check playback and the link, then stop the instances. |
+
+## Assignment audit notes
+
+The numbered G8 criterion requires a reverse proxy and prefers Nginx. The
+numbered VG2 criterion requires custom-domain HTTPS with Certbot. The
+introductory examples describe these differently. The checklist follows the
+numbered criteria and leaves the assignment wording unchanged.
+
+Record the pair's names in the project documentation and accept the Classroom
+invitation. For the recording, create EC2 from scratch, demonstrate both SSH
+logins, explain terminal commands and choices, and show the full pipeline within
+60 minutes. Both students need to appear and speak, with readable terminal text.
+Verify the video link and playback before shutting down the instances.
 
 ## Decisions to settle
 
@@ -382,7 +395,7 @@ Verification: **55 backend tests passed**; Ruff lint and formatting checks passe
 
 - Added Ubuntu setup under `infrastructure/bootstrap/`, a localhost-only
   `serverwatch-ec2-test.service` template, and a read-only API/setup verifier under
-  `scripts/verification/`. Usage and scope: [EC2 testing guide](ec2-testing.md).
+  `scripts/verification/`. The old API-only smoke test was retired. See the [EC2 guide](ec2-manual-setup.md).
 - Setup installs runtime prerequisites into an existing checkout, creates a
   private reader token outside Git, and enables/restarts the dedicated service.
   It does not provision EC2, clone/update Git, or configure the full deployment.

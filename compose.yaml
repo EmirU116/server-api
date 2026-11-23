@@ -1,0 +1,98 @@
+name: serverwatch
+
+x-api-image: &api-image
+  image: ${SERVERWATCH_API_IMAGE:-serverwatch-api:local}
+  build: .
+  user: "${SERVERWATCH_RUNTIME_UID:-1000}:${SERVERWATCH_RUNTIME_GID:-1000}"
+  security_opt:
+    - no-new-privileges:true
+
+x-database-env: &database-env
+  SERVERWATCH_DATABASE_HOST: db
+  SERVERWATCH_DATABASE_NAME: serverwatch
+  SERVERWATCH_DATABASE_USER: serverwatch_app
+  SERVERWATCH_DATABASE_PASSWORD_FILE: /run/secrets/db_password
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: serverwatch
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_admin_password
+    secrets: [db_admin_password]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [database]
+    healthcheck:
+      test: [CMD, pg_isready, -h, '127.0.0.1', -U, postgres, -d, serverwatch]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  migrate:
+    <<: *api-image
+    command: [sh, -ec, 'python provision_database.py && exec python migrate.py']
+    environment: *database-env
+    secrets: [db_admin_password, db_password]
+    networks: [database]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *api-image
+    environment:
+      <<: *database-env
+      SERVERWATCH_ENVIRONMENT: production
+      SERVERWATCH_EXPOSE_API_DOCS: 'true'
+      SERVERWATCH_SERVER_ID: '1'
+      SERVERWATCH_SERVER_NAME: ${SERVERWATCH_SERVER_NAME:-ServerWatch EC2}
+      SERVERWATCH_READER_TOKEN_FILE: /run/secrets/reader_token
+      SERVERWATCH_COLLECTOR_TOKEN_FILE: /run/secrets/collector_token
+      SERVERWATCH_ADMIN_TOKEN_FILE: /run/secrets/admin_token
+      SERVERWATCH_HOST_IDENTITY_FILE: /run/secrets/host_identity
+    secrets: [db_password, reader_token, collector_token, admin_token, host_identity]
+    networks: [database, web]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -c, 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/api/v1/health?server_id=1", timeout=3).close()']
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    restart: unless-stopped
+
+  web:
+    image: ${SERVERWATCH_WEB_IMAGE:-serverwatch-web:local}
+    build: ./frontend
+    ports:
+      - "${SERVERWATCH_WEB_BIND:-127.0.0.1}:${SERVERWATCH_WEB_PORT:-8080}:80"
+    networks: [web]
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  database:
+    internal: true
+  web:
+
+volumes:
+  postgres_data:
+
+secrets:
+  db_admin_password:
+    file: "${SERVERWATCH_COMPOSE_SECRETS:-./secrets}/db_admin_password"
+  db_password:
+    file: "${SERVERWATCH_COMPOSE_SECRETS:-./secrets}/db_password"
+  reader_token:
+    file: "${SERVERWATCH_COMPOSE_SECRETS:-./secrets}/reader_token"
+  collector_token:
+    file: "${SERVERWATCH_COMPOSE_SECRETS:-./secrets}/collector_token"
+  admin_token:
+    file: "${SERVERWATCH_COMPOSE_SECRETS:-./secrets}/admin_token"
+  host_identity:
+    file: "${SERVERWATCH_COMPOSE_SECRETS:-./secrets}/host_identity.json"

@@ -350,6 +350,13 @@ describe('demo workspace', () => {
         if (path.includes('/health?')) return Response.json(demo.health);
         if (path.includes('/incidents?'))
           return Response.json({ items: [], total: 0, limit: 100, offset: 0 });
+        if (path.includes('/metrics/history?'))
+          return Response.json({
+            items: [],
+            start: '2026-11-23T11:30:00Z',
+            end: '2026-11-23T12:00:00Z',
+            bucket_seconds: 15,
+          });
         metricCalls += 1;
         if (metricCalls === 2) {
           return new Promise<Response>((resolve) => {

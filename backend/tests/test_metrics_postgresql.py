@@ -52,6 +52,31 @@ def test_post_get_duplicate_rollback_and_restart(
     assert restarted.list(50, 0, None, None).total == 2
 
 
+def test_history_buckets_older_readings_and_excludes_other_servers(
+    client, stored_metrics, postgres_engine
+):
+    now = datetime.now(UTC)
+    for seconds, cpu in [(0, 10), (2, 30)]:
+        sample = MetricCreate(
+            **{
+                **SAMPLE,
+                "cpu_percent": cpu,
+                "collected_at": now - timedelta(hours=2, seconds=seconds),
+            }
+        )
+        stored_metrics.create(sample, now)
+        MetricsService(postgres_engine, 2).create(
+            sample.model_copy(update={"cpu_percent": 100}), now
+        )
+    path = "/api/v1/metrics/history"
+    assert client.get(f"{path}?minutes=30", headers=READER).json()["items"] == []
+    day = client.get(f"{path}?minutes=1440", headers=READER)
+    assert day.status_code == 200
+    assert day.headers["cache-control"] == "no-store"
+    assert day.json()["bucket_seconds"] == 720
+    assert [item["cpu_percent"] for item in day.json()["items"]] == [20]
+
+
 def test_order_filters_pagination_and_server_isolation(stored_metrics, postgres_engine):
     now = datetime.now(UTC)
     for minute in range(3):

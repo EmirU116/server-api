@@ -6,15 +6,43 @@ from datetime import UTC, datetime
 import pytest
 from fastapi import HTTPException, Request
 from pydantic import TypeAdapter, ValidationError
+from sqlalchemy import create_engine, text
 
 from app.reusable import (
     EventTimestamp,
     parse_server_id,
     reject_null_characters,
+    storage_transaction,
     validate_json_write,
     validate_list_request,
     validate_read_request,
 )
+from app.services.errors import StorageFailure, StorageUnavailable
+
+
+def test_storage_transaction_commits_and_rolls_back():
+    engine = create_engine("sqlite://")
+    try:
+        with storage_transaction(engine, StorageUnavailable) as session:
+            session.execute(text("CREATE TABLE sample (value INTEGER)"))
+            session.execute(text("INSERT INTO sample VALUES (1)"))
+
+        with pytest.raises(ValueError, match="abort"):
+            with storage_transaction(engine, StorageUnavailable) as session:
+                session.execute(text("INSERT INTO sample VALUES (2)"))
+                raise ValueError("abort")
+
+        with storage_transaction(engine, StorageUnavailable) as session:
+            assert session.scalars(text("SELECT value FROM sample")).all() == [1]
+    finally:
+        engine.dispose()
+
+
+def test_storage_transaction_maps_missing_configuration():
+    with pytest.raises(StorageUnavailable) as failure:
+        with storage_transaction(None, StorageUnavailable):
+            pytest.fail("Storage is required before entering the transaction.")
+    assert failure.value.reason is StorageFailure.UNCONFIGURED
 
 
 def make_request(query="", body=b"", content_type=None):

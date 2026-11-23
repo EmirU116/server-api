@@ -1,12 +1,54 @@
 """Shared input rules for the ServerWatch API routers and payload schemas."""
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Request
 from pydantic import AfterValidator, AwareDatetime, BeforeValidator
+from sqlalchemy import Engine
+from sqlalchemy.exc import (
+    InterfaceError,
+    OperationalError,
+    ProgrammingError,
+    TimeoutError,
+)
+from sqlalchemy.orm import Session
 
 from app.core.errors import PublicHTTPError, PublicInputError
+from app.services.errors import StorageFailure, StorageUnavailable
+
+
+@contextmanager
+def storage_transaction(
+    engine: Engine | None,
+    unavailable: type[StorageUnavailable],
+    *,
+    snapshot: bool = False,
+) -> Iterator[Session]:
+    """Commit one operation or map storage failures after rollback.
+
+    Use a repeatable snapshot when a list reads its count and page separately.
+    Resource-specific constraints and row locks belong to the caller.
+    """
+    if engine is None:
+        raise unavailable(StorageFailure.UNCONFIGURED)
+    try:
+        with engine.connect() as connection:
+            if snapshot:
+                connection = connection.execution_options(
+                    isolation_level="REPEATABLE READ"
+                )
+            with Session(bind=connection) as session, session.begin():
+                yield session
+    except (
+        OperationalError,
+        InterfaceError,
+        ProgrammingError,
+        TimeoutError,
+    ) as exc:
+        raise unavailable.from_database_error(exc) from None
 
 
 def parse_server_id(request: Request, server_id: str) -> int:

@@ -37,13 +37,15 @@ describe requirements and conventions; verify implementation status separately.
 | [Local stack launcher](docs/local-development.md) | Starting the existing Windows database, FastAPI, and React together from Git Bash/WSL; launcher checks, process cleanup, and Windows-only limitations. |
 | [Local PostgreSQL](docs/local-postgresql.md) | Database settings, Windows startup, and connectivity checks. |
 | [Project overview](README.md) | Starting work and finding project documentation. |
-| [Git and GitHub Actions workflow](docs/github-actions-plan.md) | Branches, agent worktrees, human review, test-only PR checks and planned production promotion. |
+| [Git and GitHub Actions workflow](docs/github-actions-plan.md) | Branches, agent worktrees, human review, test-only PR checks, and manual promotion of a verified image digest. |
 | [Course assignment](docs/assignment-brief.md) | Checking the supplied G/VG criteria, team responsibilities, optional bonuses, and recording rules. |
 | [Project plan and progress](docs/project-plan.md) | Checking the current stage, choosing the next milestone, and tracking assignment completion. Update it with evidence after milestone completion or material scope changes. |
 | [Folder structure](docs/FOLDER_STRUCTURE.md) | Creating, moving, or organizing files and modules. |
 | [Frontend development](docs/frontend.md) | Working on the React/TypeScript UI, demo/live data separation, API client, local development proxy, or frontend checks. |
-| [Ubuntu host monitoring](docs/ubuntu-monitoring.md) | Installing native Ubuntu PostgreSQL, migrations, API/collector systemd services, or verifying fresh persisted measurements. This is separate from the older smoke-test setup. |
-| [Native EC2 testing](docs/ec2-testing.md) | Preparing an existing Ubuntu EC2 host with the bootstrap script, running the localhost systemd test service, or interpreting verification feedback. Full deployment remains pending. |
+| [Ubuntu host monitoring](docs/ubuntu-monitoring.md) | Installing native Ubuntu PostgreSQL, migrations, API/collector systemd services, or verifying fresh persisted measurements. |
+| [Discord alerts](docs/discord-alerts.md) | Configuring the webhook privately, scheduling disk monitoring, and demonstrating alert delivery. |
+| [Docker deployment](docs/docker-deployment.md) | Building and running Compose, verifying data persistence, keeping secrets private, and exposing the stack through host Nginx. |
+| [Ubuntu accounts and permissions](docs/ubuntu-accounts.md) | Creating junior and senior accounts, verifying ACLs, and keeping workspace access separate from service credentials. |
 | [EC2 manual setup and deployment rehearsal](docs/ec2-manual-setup.md) | Creating a fresh instance, deploying monitoring, publishing the React build and FastAPI via Nginx, and testing the public IP. |
 | [API specification](docs/api.md) | Implementing or changing health, metrics, server information, incident CRUD, validation, error handling, API tests, or code comments. The current contract targets one monitored server. |
 | [Secrets management](docs/SECRETS_MANAGEMENT.md) | Handling credentials, authentication configuration, containers, monitoring, or deployment; use its storage and approval rules. |
@@ -219,8 +221,8 @@ Browser/client -> HTTPS :443 -> Nginx on EC2 -> FastAPI/Uvicorn -> PostgreSQL
 **Local monitoring flow:**
 
 ```text
-Cron -> Bash host metrics collector -> authenticated local FastAPI endpoint
-     -> PostgreSQL -> incident detection -> Discord notification when needed
+systemd -> Python host metrics collector -> authenticated local FastAPI endpoint -> PostgreSQL
+systemd timer -> disk threshold check -> Discord webhook
 ```
 
 **Deployment flow (optional bonus):**

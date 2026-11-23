@@ -1,20 +1,15 @@
 """Transactional incident CRUD scoped to the configured server."""
 
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
+from contextlib import AbstractContextManager
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import Engine, func, select
-from sqlalchemy.exc import (
-    InterfaceError,
-    OperationalError,
-    ProgrammingError,
-    TimeoutError,
-)
 from sqlalchemy.orm import Session
 
 from app.models.incident import Incident
+from app.reusable import storage_transaction
 from app.schemas.incident import (
     IncidentCreate,
     IncidentPage,
@@ -23,7 +18,7 @@ from app.schemas.incident import (
     Severity,
     Status,
 )
-from app.services.errors import StorageFailure, StorageUnavailable
+from app.services.errors import StorageUnavailable
 
 
 class IncidentsUnavailable(StorageUnavailable):
@@ -49,30 +44,9 @@ class IncidentsService:
         self.server_id = str(server_id)
         self.clock = clock if clock is not None else lambda: datetime.now(UTC)
 
-    @contextmanager
-    def transaction(self, snapshot: bool = False) -> Iterator[Session]:
-        """Commit complete operations; roll back failures before reporting them.
-
-        Lists use one repeatable snapshot for their count and page. Mutations
-        use ordinary transactions with row locks to serialize concurrent edits.
-        """
-        if self.engine is None:
-            raise IncidentsUnavailable(StorageFailure.UNCONFIGURED)
-        try:
-            with self.engine.connect() as connection:
-                if snapshot:
-                    connection = connection.execution_options(
-                        isolation_level="REPEATABLE READ"
-                    )
-                with Session(bind=connection) as session, session.begin():
-                    yield session
-        except (
-            OperationalError,
-            InterfaceError,
-            ProgrammingError,
-            TimeoutError,
-        ) as exc:
-            raise IncidentsUnavailable.from_database_error(exc) from None
+    def transaction(self, snapshot: bool = False) -> AbstractContextManager[Session]:
+        """Use the shared transaction rules with incident-specific errors."""
+        return storage_transaction(self.engine, IncidentsUnavailable, snapshot=snapshot)
 
     def find(self, session: Session, incident_id: UUID, lock: bool = False) -> Incident:
         query = select(Incident).where(

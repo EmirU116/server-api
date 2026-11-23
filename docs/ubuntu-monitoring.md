@@ -157,8 +157,8 @@ incident detection, notifications, and backup/restore remain separate tasks.
 The five-second collector skips failed samples and retries; it has no durable
 queue. Disk usage measures the host root filesystem, not every mounted volume.
 
-The legacy [EC2 smoke-test guide](ec2-testing.md) remains available for its older
-health/server-only setup. Use this guide when you want persisted host monitoring.
+For a complete deployment, use the root-level commands in the
+[EC2 guide](ec2-manual-setup.md). The commands here diagnose the monitoring stage.
 See [API contracts](api.md) and [secret handling](SECRETS_MANAGEMENT.md).
 
 Implementation references: [systemd restart behavior](https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html)
@@ -177,12 +177,13 @@ A fresh native Ubuntu/EC2 installation and reboot check are still required.
 Passing simulated/local tests does not prove apt installation or systemd startup
 on an actual server. Keep this limitation explicit in assignment evidence.
 
-## Planned Linux users, groups and permissions
+## Linux users, groups and permissions
 
 Future task 5.5 defines accounts and verifies effective access on Ubuntu. Today
 the installer runs the API and collector as the installing SSH user. Its
 `validate` command checks that user's private configuration. The following is a
-proposed environment layout for the future Bash setup and verifier.
+broader environment layout. Use the [account provisioning guide](ubuntu-accounts.md)
+for the implemented junior and senior workspace ACLs and their manual checks.
 
 | Identity | Development workspace | Production releases | Production secrets and administration |
 | --- | --- | --- | --- |

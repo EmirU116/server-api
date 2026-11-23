@@ -1,21 +1,22 @@
 """Read and record metrics with atomic transactions and safe domain errors."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from sqlalchemy import Engine, func, select
-from sqlalchemy.exc import (
-    IntegrityError,
-    InterfaceError,
-    OperationalError,
-    ProgrammingError,
-    TimeoutError,
-)
-from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.models.metric import Metric
-from app.schemas.metric import MetricCreate, MetricPage, MetricRecord
-from app.services.errors import StorageFailure, StorageUnavailable
+from app.reusable import storage_transaction
+from app.schemas.metric import (
+    HistoryMinutes,
+    MetricCreate,
+    MetricHistory,
+    MetricPage,
+    MetricPoint,
+    MetricRecord,
+)
+from app.services.errors import StorageUnavailable
 
 
 class MetricsUnavailable(StorageUnavailable):
@@ -43,11 +44,8 @@ class MetricsService:
         """
         if sample.collected_at > received_at.astimezone(UTC):
             raise FutureMetric
-        if self.engine is None:
-            raise MetricsUnavailable(StorageFailure.UNCONFIGURED)
-
         try:
-            with Session(self.engine) as session, session.begin():
+            with storage_transaction(self.engine, MetricsUnavailable) as session:
                 record = Metric(
                     id=uuid4(), server_id=self.server_id, **sample.model_dump()
                 )
@@ -62,13 +60,6 @@ class MetricsService:
             ):
                 raise DuplicateMetric from None
             raise
-        except (
-            OperationalError,
-            InterfaceError,
-            ProgrammingError,
-            TimeoutError,
-        ) as exc:
-            raise MetricsUnavailable.from_database_error(exc) from None
 
     def list(
         self, limit: int, offset: int, start: datetime | None, end: datetime | None
@@ -78,40 +69,61 @@ class MetricsService:
         Filter before counting. Server identity is supplied by configuration,
         so neither a reader nor collector can switch to another server's data.
         """
-        if self.engine is None:
-            raise MetricsUnavailable(StorageFailure.UNCONFIGURED)
         filters = [Metric.server_id == self.server_id]
         if start is not None:
             filters.append(Metric.collected_at >= start)
         if end is not None:
             filters.append(Metric.collected_at <= end)
 
-        try:
-            with self.engine.connect() as connection:
-                connection = connection.execution_options(
-                    isolation_level="REPEATABLE READ"
-                )
-                with Session(bind=connection) as session, session.begin():
-                    total = session.scalar(
-                        select(func.count()).select_from(Metric).where(*filters)
-                    )
-                    records = session.scalars(
-                        select(Metric)
-                        .where(*filters)
-                        .order_by(Metric.collected_at.desc(), Metric.id.asc())
-                        .limit(limit)
-                        .offset(offset)
-                    )
-                    return MetricPage(
-                        items=[MetricRecord.model_validate(row) for row in records],
-                        total=total,
-                        limit=limit,
-                        offset=offset,
-                    )
-        except (
-            OperationalError,
-            InterfaceError,
-            ProgrammingError,
-            TimeoutError,
-        ) as exc:
-            raise MetricsUnavailable.from_database_error(exc) from None
+        with storage_transaction(
+            self.engine, MetricsUnavailable, snapshot=True
+        ) as session:
+            total = session.scalar(
+                select(func.count()).select_from(Metric).where(*filters)
+            )
+            records = session.scalars(
+                select(Metric)
+                .where(*filters)
+                .order_by(Metric.collected_at.desc(), Metric.id.asc())
+                .limit(limit)
+                .offset(offset)
+            )
+            return MetricPage(
+                items=[MetricRecord.model_validate(row) for row in records],
+                total=total,
+                limit=limit,
+                offset=offset,
+            )
+
+    def history(self, minutes: HistoryMinutes, now: datetime) -> MetricHistory:
+        """Average stored samples into UTC buckets for bounded chart responses."""
+        bucket_seconds = {30: 15, 60: 30, 1440: 720}[minutes]
+        start = now - timedelta(minutes=minutes)
+        bucket = func.date_bin(
+            timedelta(seconds=bucket_seconds), Metric.collected_at, start
+        )
+        query = (
+            select(
+                bucket.label("collected_at"),
+                func.avg(Metric.cpu_percent).label("cpu_percent"),
+                func.avg(Metric.memory_percent).label("memory_percent"),
+                func.avg(Metric.disk_percent).label("disk_percent"),
+            )
+            .where(
+                Metric.server_id == self.server_id,
+                Metric.collected_at >= start,
+                Metric.collected_at < now,
+            )
+            .group_by(bucket)
+            .order_by(bucket)
+        )
+        with storage_transaction(self.engine, MetricsUnavailable) as session:
+            return MetricHistory(
+                start=start,
+                end=now,
+                bucket_seconds=bucket_seconds,
+                items=[
+                    MetricPoint.model_validate(row)
+                    for row in session.execute(query).mappings()
+                ],
+            )

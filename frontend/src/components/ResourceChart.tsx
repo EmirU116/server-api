@@ -1,5 +1,5 @@
-import { useId, useState } from 'react';
-import type { Metric } from '../types';
+import { useEffect, useId, useState } from 'react';
+import type { HistoryMinutes, Metric, MetricHistory } from '../types';
 
 const series = [
   { key: 'cpu_percent', name: 'CPU', color: '#b7e98b' },
@@ -7,24 +7,78 @@ const series = [
   { key: 'disk_percent', name: 'Disk', color: '#e9ba7d' },
 ] as const;
 
-export function ResourceChart({ metrics }: { metrics: Metric[] }) {
-  const [range, setRange] = useState(24);
+const ranges = [
+  { minutes: 30, label: '30 min' },
+  { minutes: 60, label: '1 h' },
+  { minutes: 1440, label: '24 h' },
+] as const;
+
+export function ResourceChart({
+  metrics,
+  loadHistory,
+}: {
+  metrics: Metric[];
+  loadHistory?: (minutes: HistoryMinutes) => Promise<MetricHistory>;
+}) {
+  const [range, setRange] = useState<HistoryMinutes>(30);
+  const [history, setHistory] = useState<MetricHistory | null>(null);
+  const [error, setError] = useState('');
   const [visible, setVisible] = useState<string[]>(
     series.map((item) => item.key),
   );
   const [hover, setHover] = useState<number | null>(null);
   const gradientId = useId().replaceAll(':', '');
-  const latest = metrics[0] ? new Date(metrics[0].collected_at).getTime() : 0;
-  // Relative to the newest sample so demo and historical data use honest labels.
-  const samples = metrics
-    .filter(
-      (item) =>
-        new Date(item.collected_at).getTime() >= latest - range * 3600_000,
-    )
-    .slice()
-    .reverse();
-  const x = (index: number) =>
-    48 + (index / Math.max(samples.length - 1, 1)) * 680;
+
+  useEffect(() => {
+    if (!loadHistory) return;
+    let active = true;
+    let timer: number;
+    async function refresh(fetchHistory: NonNullable<typeof loadHistory>) {
+      try {
+        const next = await fetchHistory(range);
+        if (active) {
+          setHistory(next);
+          setError('');
+        }
+      } catch (failure) {
+        if (active)
+          setError(
+            failure instanceof Error
+              ? failure.message
+              : 'Could not load metric history.',
+          );
+      } finally {
+        if (active)
+          timer = window.setTimeout(() => void refresh(fetchHistory), 30_000);
+      }
+    }
+    void refresh(loadHistory);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [loadHistory, range]);
+
+  const duration = range * 60_000;
+  const currentHistory =
+    history && Date.parse(history.end) - Date.parse(history.start) === duration
+      ? history
+      : null;
+  const end = loadHistory
+    ? currentHistory
+      ? Date.parse(currentHistory.end)
+      : Date.now()
+    : metrics[0]
+      ? Date.parse(metrics[0].collected_at)
+      : Date.now();
+  const start = end - duration;
+  const samples = loadHistory
+    ? (currentHistory?.items ?? [])
+    : metrics
+        .filter((item) => Date.parse(item.collected_at) >= start)
+        .reverse();
+  const x = (time: number) => 48 + ((time - start) / duration) * 680;
+  const sampleX = (index: number) => x(Date.parse(samples[index].collected_at));
   const y = (value: number) => 205 - value * 1.7;
   const focused = hover === null ? null : samples[hover];
 
@@ -33,23 +87,33 @@ export function ResourceChart({ metrics }: { metrics: Metric[] }) {
       <div className="panel-heading">
         <div>
           <h2 id="resource-title">Resource utilization</h2>
-          <p>Percent used · ending at latest sample</p>
+          <p>
+            {loadHistory
+              ? 'Average percent used'
+              : 'Percent used · demo history'}
+          </p>
         </div>
         <div className="segmented" aria-label="Chart time range">
-          {[1, 6, 24].map((hours) => (
+          {ranges.map(({ minutes, label }) => (
             <button
-              key={hours}
-              aria-pressed={range === hours}
+              key={minutes}
+              aria-pressed={range === minutes}
               onClick={() => {
-                setRange(hours);
+                setRange(minutes);
+                setError('');
                 setHover(null);
               }}
             >
-              {hours}h
+              {label}
             </button>
           ))}
         </div>
       </div>
+      {error && (
+        <p role="status" className="field-hint">
+          {error}
+        </p>
+      )}
       {samples.length ? (
         <>
           <div className="chart-wrap">
@@ -87,7 +151,7 @@ export function ResourceChart({ metrics }: { metrics: Metric[] }) {
               {visible.includes('cpu_percent') && (
                 <path
                   fill={`url(#${gradientId})`}
-                  d={`M48,205 ${samples.map((item, index) => `L${x(index)},${y(item.cpu_percent)}`).join(' ')} L${x(samples.length - 1)},205 Z`}
+                  d={`M${sampleX(0)},205 ${samples.map((item, index) => `L${sampleX(index)},${y(item.cpu_percent)}`).join(' ')} L${sampleX(samples.length - 1)},205 Z`}
                 />
               )}
               {series
@@ -101,45 +165,35 @@ export function ResourceChart({ metrics }: { metrics: Metric[] }) {
                     strokeLinejoin="round"
                     points={samples
                       .map(
-                        (sample, index) => `${x(index)},${y(sample[item.key])}`,
+                        (sample, index) =>
+                          `${sampleX(index)},${y(sample[item.key])}`,
                       )
                       .join(' ')}
                   />
                 ))}
-              {samples
-                .filter(
-                  (_, index) =>
-                    index === 0 ||
-                    index === Math.floor((samples.length - 1) / 2) ||
-                    index === samples.length - 1,
-                )
-                .map((item) => {
-                  const index = samples.indexOf(item);
-                  return (
-                    <text
-                      key={item.id}
-                      x={x(index)}
-                      y="232"
-                      textAnchor={
-                        index === 0
-                          ? 'start'
-                          : index === samples.length - 1
-                            ? 'end'
-                            : 'middle'
-                      }
-                      className="chart-label"
-                    >
-                      {new Date(item.collected_at).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </text>
-                  );
-                })}
-              {hover !== null && (
+              {[start, start + duration / 2, end].map((time) => (
+                <text
+                  key={time}
+                  x={x(time)}
+                  y="232"
+                  textAnchor={
+                    time === start ? 'start' : time === end ? 'end' : 'middle'
+                  }
+                  className="chart-label"
+                >
+                  {new Date(time).toLocaleTimeString([], {
+                    ...(range === 1440
+                      ? { month: 'short', day: 'numeric' }
+                      : {}),
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </text>
+              ))}
+              {hover !== null && focused && (
                 <line
-                  x1={x(hover)}
-                  x2={x(hover)}
+                  x1={sampleX(hover)}
+                  x2={sampleX(hover)}
                   y1="30"
                   y2="205"
                   stroke="#777e76"
@@ -148,10 +202,10 @@ export function ResourceChart({ metrics }: { metrics: Metric[] }) {
               )}
               {samples.map((item, index) => (
                 <rect
-                  key={item.id}
-                  x={x(index) - 680 / Math.max(samples.length, 1) / 2}
+                  key={item.collected_at}
+                  x={sampleX(index) - 3}
                   y="30"
-                  width={680 / Math.max(samples.length - 1, 1)}
+                  width="6"
                   height="175"
                   fill="transparent"
                   onMouseEnter={() => setHover(index)}
@@ -194,12 +248,17 @@ export function ResourceChart({ metrics }: { metrics: Metric[] }) {
                 {item.name}
               </button>
             ))}
-            <span className="sample-count">{samples.length} samples</span>
+            <span className="sample-count">
+              {samples.length} {loadHistory ? 'bucket' : 'sample'}
+              {samples.length !== 1 && 's'}
+            </span>
           </div>
         </>
       ) : (
         <div className="empty-state">
-          No measurements yet. Collected samples will appear here.
+          {loadHistory && !currentHistory && !error
+            ? 'Loading metric history…'
+            : 'No measurements in this time window.'}
         </div>
       )}
     </section>

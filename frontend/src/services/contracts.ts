@@ -1,4 +1,12 @@
-import type { Health, Incident, Metric, Page, ServerInfo } from '../types';
+import type {
+  Health,
+  Incident,
+  Metric,
+  MetricHistory,
+  MetricPoint,
+  Page,
+  ServerInfo,
+} from '../types';
 
 const record = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -42,17 +50,35 @@ export function isMetric(value: unknown): value is Metric {
   return (
     record(value) &&
     typeof value.id === 'string' &&
+    typeof value.uptime_seconds === 'number' &&
+    Number.isInteger(value.uptime_seconds) &&
+    value.uptime_seconds >= 0 &&
+    isMetricPoint(value)
+  );
+}
+
+function isMetricPoint(value: unknown): value is MetricPoint {
+  return (
+    record(value) &&
     timestamp(value.collected_at) &&
     ['cpu_percent', 'memory_percent', 'disk_percent'].every(
       (key) =>
-        typeof value[key] === 'number' &&
-        Number.isFinite(value[key]) &&
-        value[key] >= 0 &&
-        value[key] <= 100,
-    ) &&
-    typeof value.uptime_seconds === 'number' &&
-    Number.isInteger(value.uptime_seconds) &&
-    value.uptime_seconds >= 0
+        typeof value[key] === 'number' && value[key] >= 0 && value[key] <= 100,
+    )
+  );
+}
+
+export function isMetricHistory(value: unknown): value is MetricHistory {
+  return (
+    record(value) &&
+    timestamp(value.start) &&
+    timestamp(value.end) &&
+    Date.parse(value.start) < Date.parse(value.end) &&
+    typeof value.bucket_seconds === 'number' &&
+    value.bucket_seconds > 0 &&
+    Array.isArray(value.items) &&
+    value.items.length <= 120 &&
+    value.items.every(isMetricPoint)
   );
 }
 

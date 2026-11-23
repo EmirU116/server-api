@@ -1,5 +1,6 @@
 """Read native host identity without a database or shell commands."""
 
+import json
 import platform
 from pathlib import Path
 
@@ -56,9 +57,12 @@ def read_host_info() -> dict[str, str]:
 
 
 class ServerService:
-    def __init__(self, server_id: int, name: str) -> None:
+    def __init__(
+        self, server_id: int, name: str, host_identity_file: Path | None = None
+    ) -> None:
         self.server_id = server_id
         self.name = name
+        self.host_identity_file = host_identity_file
 
     def get_info(self, server_id: int | None = None) -> ServerInfo:
         """Treat missing or unreadable metadata as unavailable, not invented data."""
@@ -66,9 +70,27 @@ class ServerService:
             raise UnknownServer
 
         try:
-            metadata = read_host_info()
+            metadata = (
+                json.loads(self.host_identity_file.read_text(encoding="utf-8"))
+                if self.host_identity_file is not None
+                else read_host_info()
+            )
+            if not isinstance(metadata, dict):
+                raise IncompleteHostIdentity
+            if self.host_identity_file is not None:
+                # The settings still own id/name. Read only host metadata fields.
+                metadata = {
+                    field: metadata.get(field)
+                    for field in (
+                        "hostname",
+                        "os_type",
+                        "os_name",
+                        "os_version",
+                        "architecture",
+                    )
+                }
             return ServerInfo(id=self.server_id, name=self.name, **metadata)
         except ValidationError:
             raise IncompleteHostIdentity from None
-        except OSError:
+        except (OSError, ValueError):
             raise ServerInfoUnavailable from None

@@ -17,6 +17,7 @@ def test_openapi_describes_the_implemented_endpoints(client):
         "/api/v1/health",
         "/api/v1/server",
         "/api/v1/metrics",
+        "/api/v1/metrics/history",
         "/api/v1/incidents",
         "/api/v1/incidents/{incident_id}",
     }

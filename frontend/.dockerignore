@@ -1,0 +1,17 @@
+**
+!package.json
+!package-lock.json
+!index.html
+!tsconfig*.json
+!vite.config.ts
+!nginx.conf
+!src
+!src/**
+!public
+!public/**
+**/.env*
+**/secrets/
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx

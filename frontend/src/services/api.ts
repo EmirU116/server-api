@@ -2,9 +2,18 @@ import type {
   Incident,
   IncidentInput,
   IncidentUpdate,
+  HistoryMinutes,
+  MetricHistory,
   Snapshot,
 } from '../types';
-import { isHealth, isIncident, isMetric, isPage, isServer } from './contracts';
+import {
+  isHealth,
+  isIncident,
+  isMetric,
+  isMetricHistory,
+  isPage,
+  isServer,
+} from './contracts';
 
 export class ApiError extends Error {
   constructor(
@@ -86,6 +95,14 @@ export function createApi(token: string, adminToken = '') {
   }
 
   return {
+    async history(minutes: HistoryMinutes): Promise<MetricHistory> {
+      const result = await request<unknown>(
+        `/metrics/history?minutes=${minutes}`,
+      );
+      if (!isMetricHistory(result))
+        throw new ApiError(502, 'The API returned invalid metric history.');
+      return result;
+    },
     async snapshot(): Promise<Snapshot> {
       const server = await request<unknown>('/server');
       if (!isServer(server)) {

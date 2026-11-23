@@ -47,25 +47,25 @@ See [local launcher setup and troubleshooting](docs/local-development.md).
 Install updated Python requirements first (the collector uses `psutil`) and
 configure separate reader/collector tokens privately in `.env`.
 
-## Start Ubuntu host monitoring (Bash, PostgreSQL, systemd)
+## Deploy to Ubuntu EC2 (Bash, Nginx, systemd)
 
-On a native Ubuntu 24.04+ server with a cloned checkout, run as your normal SSH
-user with sudo access:
+On EC2, install Git and make Node.js 22.12+ with npm available to your SSH
+user. Clone the repository into that user's home directory and enter it. Replace
+`PUBLIC_IP` with the instance's public IPv4 address.
 
 ```bash
-bash infrastructure/bootstrap/setup_ubuntu_monitoring.sh
-bash scripts/verification/verify_ubuntu_monitoring.sh
+bash setup.sh PUBLIC_IP
+bash verify.sh PUBLIC_IP
 ```
 
-Setup installs local PostgreSQL/Python, creates private credentials, applies
-migrations, and starts API/collector services at boot. The collector measures
-that Ubuntu host every five-second sleep cycle. Verification checks fresh stored
-measurements. Read [Ubuntu setup and verification](docs/ubuntu-monitoring.md)
-for prerequisites, service commands, and limits. Follow the
-[EC2 manual setup and deployment rehearsal](docs/ec2-manual-setup.md) to create a
-fresh instance, clone and update the repository, and verify the deployment.
-Follow the [Nginx web setup](docs/ec2-manual-setup.md#7-serve-the-dashboard-and-api-through-nginx-bash-react-fastapi)
-after verifying monitoring to access ServerWatch via the public IP.
+Setup installs the native packages, applies current migrations, runs FastAPI
+and the collector under systemd, and publishes React and Swagger through Nginx.
+It runs verification automatically. Use the second command for later checks.
+Open `http://PUBLIC_IP/` and `http://PUBLIC_IP/docs` from your computer. Use
+HTTPS for live dashboard credentials.
+
+Follow the [EC2 guide](docs/ec2-manual-setup.md) for package prerequisites, SCP,
+security groups, public browser checks, and the assignment recording.
 
 ## Local backend setup (Python, FastAPI)
 
@@ -292,10 +292,15 @@ verified migration and deployment commands here when those workflows exist.
 - [Ubuntu host monitoring](docs/ubuntu-monitoring.md) covers setup and verification
   for the API, local PostgreSQL, and the host collector.
 
-- [Native EC2 setup and verification](docs/ec2-testing.md): Bash setup, protected
-  reader token, localhost systemd service, and checks with PASS/FAIL/WARN feedback.
+- [Ubuntu accounts and permissions](docs/ubuntu-accounts.md) covers provisioning
+  separate junior and senior workspace access.
 
-- [Git and GitHub Actions workflow](docs/github-actions-plan.md) covers human and agent branches, test-only checks, and the planned EC2 delivery process.
+- [Discord alerts](docs/discord-alerts.md) covers private webhook setup and
+  demonstrates a scheduled disk usage notification.
+- [Docker deployment](docs/docker-deployment.md) covers the Compose services,
+  persistence, host monitoring, and the domain handoff.
+- [Git and GitHub Actions workflow](docs/github-actions-plan.md) covers CI and
+  opt-in delivery to staging and production.
 - [Project plan and progress](docs/project-plan.md): current status, milestones,
   assignment coverage, and next steps.
 

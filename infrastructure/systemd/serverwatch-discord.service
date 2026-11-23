@@ -1,0 +1,18 @@
+[Unit]
+Description=ServerWatch root disk check and Discord notification
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+StateDirectory=serverwatch-discord
+StateDirectoryMode=0700
+LoadCredential=webhook:/etc/serverwatch-discord/webhook
+ExecStart=/usr/bin/python3 /usr/local/lib/serverwatch/discord_disk_alert.py --threshold @THRESHOLD@
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+UMask=0077
+TimeoutStartSec=20

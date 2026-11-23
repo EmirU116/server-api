@@ -13,7 +13,7 @@ Keep credentials **out of source code, Git history, Docker images, and public lo
 | Secret | Local development | EC2 deployment | Notes |
 |---|---|---|---|
 | PostgreSQL application password | Ignored `.env` | Compose-mounted secret file | Never commit it or publish port 5432. |
-| Discord webhook URL | Ignored `.env` | Compose-mounted secret file | Treat the URL as a credential. |
+| Discord webhook URL | Private file | Root-owned file loaded by the dedicated systemd alert service | Treat the URL as a credential. [Discord alert setup](discord-alerts.md) |
 | Monitoring API key | Ignored `.env` | Protected file for the host monitoring script; mounted into FastAPI | The API validates each monitoring request. |
 | Student SSH private keys | Each student's own computer | **Not** stored on EC2 | Only their **public** keys belong in `authorized_keys`. |
 | Automated deployment credential | Not required locally | GitHub Actions secret or safer identity-based deployment | Keep deployment permissions narrow. |
@@ -212,6 +212,10 @@ managed environment files under the setup user's mode-700
 ignores the cloned project's `.env`. API settings point to secret files; the
 collector receives only its token path. Both services run as the setup user, so
 this is not isolation from other processes owned by that same user.
+The optional [Discord alert setup](discord-alerts.md) keeps the webhook under
+`/etc/serverwatch-discord/`. systemd exposes it only to the alert service
+for the duration of a check. The API, collector, and frontend never receive it.
+
 Database provisioning sends a SCRAM verifier through stdin to psql, suppressing
 raw SQL errors; never print this internal stream or invoke setup with shell
 tracing. Neither the password nor bearer tokens go into command arguments.
