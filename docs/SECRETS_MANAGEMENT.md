@@ -223,7 +223,7 @@ This native path precedes the future Compose setup; it does not install Compose.
 
 ## 7. GitHub Actions and deployment
 
-Store deployment secrets in **GitHub Actions Secrets**, not in workflow YAML or committed shell scripts. Restrict deployment to the approved branch/environment and use least-privilege credentials. If deploying to AWS APIs, prefer short-lived identity through **GitHub OIDC + IAM role** rather than permanent AWS access keys. For SSH-based deployments, use a narrowly scoped deployment key and protect it as a secret.
+Store deployment secrets in **GitHub Actions Secrets**, not in workflow YAML or committed shell scripts. Restrict deployment to the approved branch/environment and use least-privilege credentials. If deploying to AWS APIs, prefer short-lived identity through **GitHub OIDC + IAM role** rather than permanent AWS access keys. For SSH-based deployments, use the [forced deployment command](github-actions-plan.md#one-time-preparation-ubuntu-docker-github) and protect its private key as a secret. Keep the SSH account separate from the Compose operator and Docker daemon. Compose mounts the migration password only into the migration job. FastAPI receives only its runtime database password.
 
 A deploy should **not** print credentials, copy production `.env` into Git, or overwrite production secret files during an ordinary release.
 

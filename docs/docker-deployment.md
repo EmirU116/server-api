@@ -8,7 +8,7 @@ application and its PostgreSQL data can stay in place during the rehearsal.
 | Component | Role |
 | --- | --- |
 | `db` | PostgreSQL 17 with no published port and a named volume for its data. |
-| `migrate` | One-off job that provisions the restricted application role and runs Alembic before FastAPI starts. |
+| `migrate` | One-off job that assigns PostgreSQL roles, runs Alembic as the schema owner, and grants FastAPI its runtime permissions. |
 | `api` | Non-root FastAPI process on the private Compose network. |
 | `web` | React built with Node and served by Nginx, including same-origin routes for the API and Swagger. |
 | Host collector | Runs on the system being measured and posts to the loopback web port. |
@@ -21,28 +21,52 @@ Certbot are needed to expose the stack under your own HTTPS domain.
 
 ## Start the stack (Bash, Docker Compose)
 
-Run as the user who will operate Compose.
+Run as the trusted Compose operator, with the checkout at `~/serverwatch`.
+Create the host configuration once. If upgrading an existing stack, use its
+current web port and **absolute path to its existing secret directory**.
 
 ```bash
-bash scripts/setup/prepare_compose.sh
-export SERVERWATCH_RUNTIME_UID="$(id -u)"
-export SERVERWATCH_RUNTIME_GID="$(id -g)"
-docker compose config --quiet
-docker compose up -d --build --wait
-docker compose ps -a
+install -d -m 700 "$HOME/.config/serverwatch-delivery"
+umask 077
+nano "$HOME/.config/serverwatch-delivery/compose.env"
 ```
 
-The setup script creates private files under the ignored `secrets/` directory,
-including separate database passwords and separate reader, collector, and
-incident admin tokens. Rerunning it preserves existing files. Compose bind
-mounts these files using their numeric host ownership. Use the same account to
-prepare the files and launch Compose. To keep private files outside the checkout,
-set `SERVERWATCH_COMPOSE_SECRETS` to an absolute private directory before setup
-and keep that variable set for subsequent Compose commands.
+Example file contents for an operator named `swoperator`:
 
-If starting the stack fails, check `docker compose logs migrate api web` and
-the status of `db` with `docker compose ps -a`. If startup cannot bind 8080,
-choose a free host port with `SERVERWATCH_WEB_PORT`.
+```dotenv
+SERVERWATCH_WEB_PORT=8080
+SERVERWATCH_COMPOSE_SECRETS=/home/swoperator/.config/serverwatch-compose/secrets
+```
+
+Use an available port, such as 8197, if 8080 is taken. Both manual and CI
+deployments use this file and bind the port to loopback. Use the selected port
+in the health checks, collector, and host Nginx upstream below.
+
+```bash
+bash scripts/deployment/compose_host.sh prepare
+bash scripts/deployment/compose_host.sh config --quiet
+bash scripts/deployment/compose_host.sh up -d --build --wait
+bash scripts/deployment/compose_host.sh ps -a
+```
+
+`prepare` reads the secret directory from Compose configuration and creates any
+missing private files using the operator's numeric ownership. It preserves
+existing files, including the PostgreSQL and API credentials.
+
+### Upgrade an existing Compose volume
+
+Keep the same Compose project and volume. Back up the database and verify the
+backup before the upgrade. Run `compose_host.sh prepare` as above before the
+first rollout to add the migration password. Then bring up the stack using the
+same configuration. Provisioning transfers ownership of `public`, the two
+application tables, and Alembic's version table to `serverwatch_migrator`.
+FastAPI's existing login keeps its password and can read/insert metrics and
+read/create/update/delete incidents. PostgreSQL keeps the database itself under
+the administrator role. FastAPI receives only its runtime password.
+
+Rerun the same commands after fixing a startup problem. Inspect
+`bash scripts/deployment/compose_host.sh logs migrate api web` if startup fails.
+Keep the volume and credentials in place.
 
 ## Verify the deployment (HTTP, Bash)
 
@@ -64,8 +88,8 @@ virtual environment, or create one from `backend/requirements.txt` first.
 
 ```bash
 .venv/bin/python scripts/monitoring/collect_local.py \
-  --env-file "${SERVERWATCH_COMPOSE_SECRETS:-$PWD/secrets}/collector.env" \
-  --api-port "${SERVERWATCH_WEB_PORT:-8080}"
+  --env-file "$HOME/.config/serverwatch-compose/secrets/collector.env" \
+  --api-port 8080
 ```
 
 The collector reads the Docker host's CPU, memory, and disk usage, and sends
@@ -78,8 +102,8 @@ records are separate from the native database.
 After recording a metric and stopping the foreground collector, run:
 
 ```bash
-docker compose down
-docker compose up -d --wait
+bash scripts/deployment/compose_host.sh down
+bash scripts/deployment/compose_host.sh up -d --wait
 ```
 
 Reconnect to the dashboard and confirm the previous sample remains. Keep the

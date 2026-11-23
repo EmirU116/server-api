@@ -21,8 +21,14 @@ export function ResourceChart({
   loadHistory?: (minutes: HistoryMinutes) => Promise<MetricHistory>;
 }) {
   const [range, setRange] = useState<HistoryMinutes>(30);
-  const [history, setHistory] = useState<MetricHistory | null>(null);
-  const [error, setError] = useState('');
+  const [result, setResult] = useState<{
+    range: HistoryMinutes;
+    loader: typeof loadHistory;
+    outcome:
+      | { status: 'loading' }
+      | { status: 'ready'; history: MetricHistory }
+      | { status: 'error'; message: string };
+  } | null>(null);
   const [visible, setVisible] = useState<string[]>(
     series.map((item) => item.key),
   );
@@ -34,19 +40,32 @@ export function ResourceChart({
     let active = true;
     let timer: number;
     async function refresh(fetchHistory: NonNullable<typeof loadHistory>) {
+      setResult({
+        range,
+        loader: fetchHistory,
+        outcome: { status: 'loading' },
+      });
       try {
-        const next = await fetchHistory(range);
-        if (active) {
-          setHistory(next);
-          setError('');
-        }
+        const history = await fetchHistory(range);
+        if (active)
+          setResult({
+            range,
+            loader: fetchHistory,
+            outcome: { status: 'ready', history },
+          });
       } catch (failure) {
         if (active)
-          setError(
-            failure instanceof Error
-              ? failure.message
-              : 'Could not load metric history.',
-          );
+          setResult({
+            range,
+            loader: fetchHistory,
+            outcome: {
+              status: 'error',
+              message:
+                failure instanceof Error
+                  ? failure.message
+                  : 'Could not load metric history.',
+            },
+          });
       } finally {
         if (active)
           timer = window.setTimeout(() => void refresh(fetchHistory), 30_000);
@@ -60,10 +79,11 @@ export function ResourceChart({
   }, [loadHistory, range]);
 
   const duration = range * 60_000;
-  const currentHistory =
-    history && Date.parse(history.end) - Date.parse(history.start) === duration
-      ? history
-      : null;
+  const outcome =
+    result?.range === range && result.loader === loadHistory
+      ? result.outcome
+      : undefined;
+  const currentHistory = outcome?.status === 'ready' ? outcome.history : null;
   const end = loadHistory
     ? currentHistory
       ? Date.parse(currentHistory.end)
@@ -80,6 +100,22 @@ export function ResourceChart({
   const x = (time: number) => 48 + ((time - start) / duration) * 680;
   const sampleX = (index: number) => x(Date.parse(samples[index].collected_at));
   const y = (value: number) => 205 - value * 1.7;
+  // The API omits empty buckets. Start a new path when a bucket is missing.
+  const groups: (typeof samples)[] = [[]];
+  for (const sample of samples) {
+    const previous = groups.at(-1)?.at(-1);
+    if (
+      currentHistory &&
+      previous &&
+      Date.parse(sample.collected_at) - Date.parse(previous.collected_at) >
+        currentHistory.bucket_seconds * 1000
+    ) {
+      groups.push([]);
+    }
+    groups[groups.length - 1].push(sample);
+  }
+  const pointX = (sample: (typeof samples)[number]) =>
+    x(Date.parse(sample.collected_at));
   const focused = hover === null ? null : samples[hover];
 
   return (
@@ -100,7 +136,6 @@ export function ResourceChart({
               aria-pressed={range === minutes}
               onClick={() => {
                 setRange(minutes);
-                setError('');
                 setHover(null);
               }}
             >
@@ -109,12 +144,15 @@ export function ResourceChart({
           ))}
         </div>
       </div>
-      {error && (
-        <p role="status" className="field-hint">
-          {error}
+      {loadHistory && outcome?.status === 'error' ? (
+        <p role="alert" className="empty-state">
+          {outcome.message}
         </p>
-      )}
-      {samples.length ? (
+      ) : loadHistory && outcome?.status !== 'ready' ? (
+        <p role="status" className="empty-state">
+          Loading metric history…
+        </p>
+      ) : samples.length ? (
         <>
           <div className="chart-wrap">
             <svg
@@ -148,29 +186,33 @@ export function ResourceChart({
                   </text>
                 </g>
               ))}
-              {visible.includes('cpu_percent') && (
-                <path
-                  fill={`url(#${gradientId})`}
-                  d={`M${sampleX(0)},205 ${samples.map((item, index) => `L${sampleX(index)},${y(item.cpu_percent)}`).join(' ')} L${sampleX(samples.length - 1)},205 Z`}
-                />
-              )}
-              {series
-                .filter((item) => visible.includes(item.key))
-                .map((item) => (
-                  <polyline
-                    key={item.key}
-                    fill="none"
-                    stroke={item.color}
-                    strokeWidth="2.2"
-                    strokeLinejoin="round"
-                    points={samples
-                      .map(
-                        (sample, index) =>
-                          `${sampleX(index)},${y(sample[item.key])}`,
-                      )
-                      .join(' ')}
-                  />
-                ))}
+              {groups.map((group) => (
+                <g key={group[0].collected_at}>
+                  {visible.includes('cpu_percent') && (
+                    <path
+                      fill={`url(#${gradientId})`}
+                      d={`M${pointX(group[0])},205 ${group.map((sample) => `L${pointX(sample)},${y(sample.cpu_percent)}`).join(' ')} L${pointX(group[group.length - 1])},205 Z`}
+                    />
+                  )}
+                  {series
+                    .filter((item) => visible.includes(item.key))
+                    .map((item) => (
+                      <polyline
+                        key={item.key}
+                        fill="none"
+                        stroke={item.color}
+                        strokeWidth="2.2"
+                        strokeLinejoin="round"
+                        points={group
+                          .map(
+                            (sample) =>
+                              `${pointX(sample)},${y(sample[item.key])}`,
+                          )
+                          .join(' ')}
+                      />
+                    ))}
+                </g>
+              ))}
               {[start, start + duration / 2, end].map((time) => (
                 <text
                   key={time}
@@ -255,11 +297,7 @@ export function ResourceChart({
           </div>
         </>
       ) : (
-        <div className="empty-state">
-          {loadHistory && !currentHistory && !error
-            ? 'Loading metric history…'
-            : 'No measurements in this time window.'}
-        </div>
+        <div className="empty-state">No measurements in this time window.</div>
       )}
     </section>
   );

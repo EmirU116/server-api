@@ -20,11 +20,10 @@ printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$work_dir/known_hosts"
 unset DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS
 ssh-keygen -F "$DEPLOY_HOST" -f "$work_dir/known_hosts" > /dev/null ||
     fail 'The pinned known_hosts entry does not match DEPLOY_HOST.'
-script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-if ! ssh -F /dev/null -i "$work_dir/key" \
-    -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+if ! ssh -n -T -F /dev/null -i "$work_dir/key" \
+    -o ClearAllForwardings=yes -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
     -o "UserKnownHostsFile=$work_dir/known_hosts" -o GlobalKnownHostsFile=/dev/null \
     -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
-    "$DEPLOY_USER@$DEPLOY_HOST" bash -s -- "$@" < "$script_dir/deploy_compose.sh"; then
+    "$DEPLOY_USER@$DEPLOY_HOST" serverwatch-deploy "$@"; then
     fail 'EC2 deployment failed. Check the SSH fingerprint, connectivity, and remote output.'
 fi

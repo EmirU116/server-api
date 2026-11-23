@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run on the EC2 host through SSH. Keep the existing checkout, secrets and DB volume.
+# Run as the trusted Compose operator. Keep the existing checkout, secrets and DB volume.
 set -Eeuo pipefail
 fail() { echo "[FAIL] $*" >&2; exit 1; }
 
@@ -19,7 +19,10 @@ project="$HOME/serverwatch"
 state="$HOME/.config/serverwatch-delivery"
 [[ -r "$state/environment" && "$(<"$state/environment")" == "$target" ]] ||
     fail 'The host deployment environment marker does not match this job.'
-cd "$project" || fail 'Clone the repository to ~/serverwatch as the deployment user first.'
+[[ -r "$state/repository" && "${api_image%-api@*}" == "$(<"$state/repository")" ]] ||
+    fail 'The image repository does not match the host release repository.'
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+cd "$project" || fail 'Clone the repository to ~/serverwatch as the Compose operator first.'
 umask 077
 exec 9>"$state/deploy.lock"
 flock -n 9 || fail 'Another deployment is already running on this host.'
@@ -36,11 +39,7 @@ git show "$revision:compose.yaml" > "$temporary"
 mv -- "$temporary" "$manifest"
 
 export SERVERWATCH_API_IMAGE="$api_image" SERVERWATCH_WEB_IMAGE="$web_image"
-export SERVERWATCH_WEB_BIND=127.0.0.1
-SERVERWATCH_RUNTIME_UID=$(id -u)
-SERVERWATCH_RUNTIME_GID=$(id -g)
-export SERVERWATCH_RUNTIME_UID SERVERWATCH_RUNTIME_GID
-compose=(docker compose --project-directory "$project" --project-name serverwatch --file "$manifest")
+compose=(bash "$script_dir/compose_host.sh" --file "$manifest")
 # Pull the application images first. Compose creates/reuses its named DB volume.
 "${compose[@]}" pull api migrate web
 "${compose[@]}" up -d --no-build --wait --wait-timeout 120

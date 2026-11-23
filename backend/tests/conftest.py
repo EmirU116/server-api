@@ -5,6 +5,7 @@ import shutil
 import socket
 import subprocess
 from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -51,8 +52,8 @@ def client(app: FastAPI) -> Iterator[TestClient]:
         yield test_client
 
 
-@pytest.fixture(scope="module")
-def postgres_engine(tmp_path_factory):
+@contextmanager
+def private_postgres_engine(tmp_path_factory):
     initdb = shutil.which("initdb")
     if initdb is None:
         candidates = sorted(Path("/usr/lib/postgresql").glob("*/bin/initdb"))
@@ -111,11 +112,6 @@ def postgres_engine(tmp_path_factory):
         )
     )
     try:
-        config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
-        with engine.begin() as connection:
-            config.attributes["connection"] = connection
-            command.upgrade(config, "head")
-            command.upgrade(config, "head")  # Repeating an upgrade preserves schema.
         yield engine
     finally:
         engine.dispose()
@@ -125,3 +121,14 @@ def postgres_engine(tmp_path_factory):
             capture_output=True,
             timeout=30,
         )
+
+
+@pytest.fixture(scope="module")
+def postgres_engine(tmp_path_factory):
+    with private_postgres_engine(tmp_path_factory) as engine:
+        config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
+        with engine.begin() as connection:
+            config.attributes["connection"] = connection
+            command.upgrade(config, "head")
+            command.upgrade(config, "head")  # Repeating an upgrade preserves schema.
+        yield engine

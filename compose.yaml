@@ -32,9 +32,12 @@ services:
 
   migrate:
     <<: *api-image
-    command: [sh, -ec, 'python provision_database.py && exec python migrate.py']
-    environment: *database-env
-    secrets: [db_admin_password, db_password]
+    command: [sh, -ec, 'python provision_database.py && python migrate.py && exec python provision_database.py grant-runtime']
+    environment:
+      <<: *database-env
+      SERVERWATCH_DATABASE_USER: serverwatch_migrator
+      SERVERWATCH_DATABASE_PASSWORD_FILE: /run/secrets/db_migration_password
+    secrets: [db_admin_password, db_migration_password, db_password]
     networks: [database]
     depends_on:
       db:
@@ -86,6 +89,8 @@ volumes:
 secrets:
   db_admin_password:
     file: "${SERVERWATCH_COMPOSE_SECRETS:-./secrets}/db_admin_password"
+  db_migration_password:
+    file: "${SERVERWATCH_COMPOSE_SECRETS:-./secrets}/db_migration_password"
   db_password:
     file: "${SERVERWATCH_COMPOSE_SECRETS:-./secrets}/db_password"
   reader_token:

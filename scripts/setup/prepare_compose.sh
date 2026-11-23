@@ -48,7 +48,10 @@ def preserve_or_create(name, content):
 try:
     directory.mkdir(parents=True, exist_ok=True)
     require_private(directory, stat.S_ISDIR, 0o700)
-    for name in ("db_admin_password", "db_password", "reader_token", "collector_token", "admin_token"):
+    for name in (
+        "db_admin_password", "db_password", "db_migration_password",
+        "reader_token", "collector_token", "admin_token",
+    ):
         preserve_or_create(name, secrets.token_urlsafe(32))
 
     os_type = platform.system()

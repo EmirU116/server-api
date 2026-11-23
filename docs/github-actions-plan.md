@@ -76,27 +76,68 @@ CI on pull requests and pushes continues to run independently.
 
 ### One-time preparation (Ubuntu, Docker, GitHub)
 
-1. Prepare the staging host with Docker Engine, the Compose v2 plugin,
-   Git, Bash, curl, Python 3, and util-linux (`flock`). Use a dedicated
-   deployment account with access to the Docker daemon. The documented
-   Compose flow assumes rootful Docker and matching host/container numeric
-   IDs for private file mounts. Docker group access is equivalent to root
-   privileges on the host, so restrict this SSH identity and its credentials.
-2. As that account, clone the repository to `~/serverwatch` and complete
-   the [Compose preparation](docker-deployment.md). Give that account
-   read access to the Git remote and both GHCR image packages. A private
-   package requires registry authentication on the host. Keep all Compose
-   secrets and any registry credential on the host.
-3. Mark the staging account so it rejects deployments for other environments.
+1. On each target, install Docker Engine with the Compose plugin, Git, Bash,
+   curl, Python 3, and util-linux. Use two Linux identities. The trusted
+   Compose operator (example `swoperator`) owns `~/serverwatch`, the host
+   Compose configuration, secrets, and Git/GHCR read credentials. The CI SSH
+   account (example `swdeploy`) has a locked password, no Docker group or
+   daemon access, and no general sudo access. For an existing stack, keep the
+   existing operator to preserve file ownership and use a separate SSH account.
+   When repurposing an old CI account, remove its Docker group and broad sudo
+   grants, and end old sessions that still have the previous permissions.
+2. As the operator, clone the repository to `~/serverwatch` and follow the
+   [Compose setup guide](docker-deployment.md). Run `compose_host.sh prepare`
+   ahead of the first release, including on an existing volume. Set the host
+   environment and the exact lowercase GHCR release base (omit `-api`/`-web`).
 
    ```bash
    install -d -m 700 "$HOME/.config/serverwatch-delivery"
+   umask 077
    printf '%s\n' staging > "$HOME/.config/serverwatch-delivery/environment"
-   chmod 600 "$HOME/.config/serverwatch-delivery/environment"
+   printf '%s\n' ghcr.io/OWNER/REPOSITORY > "$HOME/.config/serverwatch-delivery/repository"
    ```
 
-   If you prepare production, repeat on its own host and use `production`
-   in place of `staging`. Keep the database volumes and secrets independent.
+   Replace `OWNER/REPOSITORY` with the lowercase GitHub owner and repository.
+   Use `production` on the production host. Keep staging and production
+   volumes and secrets independent.
+3. As the host administrator, install the reviewed scripts from the checkout
+   and install only the CI **public** key in the root-managed key file.
+
+   ```bash
+   sudo install -d -m 0755 /usr/local/libexec/serverwatch /etc/ssh/serverwatch
+   sudo install -o root -g root -m 0755 scripts/deployment/{deploy_ssh_entry,deploy_compose,compose_host}.sh /usr/local/libexec/serverwatch/
+   sudo install -o root -g root -m 0644 serverwatch-ci.pub /etc/ssh/serverwatch/swdeploy
+   sudo visudo -f /etc/sudoers.d/serverwatch-deploy
+   ```
+
+   Enter this single sudoers rule. The final `""` allows only a call with no
+   arguments.
+
+   ```sudoers
+   swdeploy ALL=(swoperator) NOPASSWD:NOSETENV: /usr/local/libexec/serverwatch/deploy_ssh_entry.sh ""
+   ```
+
+   Add the following account block to the **end** of `/etc/ssh/sshd_config`.
+   Set Bash as the login shell for `swdeploy` so sshd can run the
+   forced command. The key file and installed scripts must stay writable only
+   by root.
+
+   ```sshconfig
+   Match User swdeploy
+       AuthorizedKeysFile /etc/ssh/serverwatch/swdeploy
+       AuthenticationMethods publickey
+       DisableForwarding yes
+       PermitTTY no
+       PermitUserRC no
+       ForceCommand /usr/bin/printf '%s\n' "$SSH_ORIGINAL_COMMAND" | /usr/bin/sudo -n -H -u swoperator /usr/local/libexec/serverwatch/deploy_ssh_entry.sh
+   ```
+
+   Run `sudo sshd -t` before `sudo systemctl reload ssh` and keep your existing
+   administrator session open. Check `id swdeploy`, Docker socket access, and
+   `sudo -l -U swdeploy` from the administrator session. From the key holder,
+   try `ssh -T swdeploy@HOST id` with the pinned host key. It must return the
+   ServerWatch rejection. Check that forwarding is denied, then run an approved
+   staging release. Keep the former unrestricted configuration disabled.
 4. In GitHub, configure the `staging` and (if used) `production`
    environments. Restrict both to `main` and configure production approval
    where supported. For each environment set the variables `DEPLOY_HOST`
@@ -112,10 +153,10 @@ CI on pull requests and pushes continues to run independently.
 
 ### Release verification and recovery (GitHub Actions, Docker, PostgreSQL)
 
-The remote script loads the Compose manifest from the selected commit on
+The forced command accepts only the deployment request. The installed script checks the host environment, reviewed main ancestry, and repository-scoped digests. It loads the Compose manifest from the selected commit on
 `origin/main` and leaves the checkout and host secret files in place.
 It pulls the two application digests, waits for startup and migrations,
-then checks loopback health and Swagger. Keep Nginx as the public entry
+then checks loopback health and Swagger on the port from the host Compose file. Keep Nginx as the public entry
 point and verify public access and fresh host measurements separately.
 
 Before enabling production promotion, take and verify a database backup.
@@ -123,6 +164,6 @@ If deployment fails, the job stops and leaves the last successful marker in
 `~/.config/serverwatch-delivery/last-success`. A successful update also saves
 the previous marker as `previous-success`. Review the Compose logs and
 database state before retrying. Use the previous manifest and digests for
-recovery only after checking compatibility with the migrated schema. An
+recovery only after checking compatibility with the migrated schema and database roles. An
 unsuccessful rollout can leave some services updated. Use care when choosing
 between repairing the rollout and restoring from a verified backup.
