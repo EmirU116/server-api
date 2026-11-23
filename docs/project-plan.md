@@ -4,9 +4,50 @@ Last reviewed: 2026-11-19. Status is based on repository inspection, not a live
 EC2 audit. This is the progress tracker; endpoint details remain in
 [the API specification](api.md).
 
+## What to do next
+
+**Start with Discord alerts (G6).** On the current EC2 instance, the database
+migrations are applied, the collector saved a fresh measurement, and the web
+verifier passed for React, health, Swagger, and OpenAPI. Use that instance to
+test alerts before rehearsing the full deployment from scratch.
+
+### Finish the G requirements
+
+1. [ ] **Send a Discord alert (Python, systemd, Discord).** Create the channel
+   webhook and store it privately on EC2. Implement and test a disk usage
+   check, then schedule it every minute. Done when a controlled threshold
+   breach produces one Discord message and you restore the normal threshold.
+   Follow the [Discord checklist](#discord-alerts-to-do-g6).
+2. [ ] **Schedule and test backups (Bash, Cron, PostgreSQL).** Write the
+   database and log backup script and install its Cron entry. Done when Cron
+   creates backup files on EC2 and you restore a dump into a separate test
+   database.
+3. [ ] **Confirm public access from your computer (HTTP, Nginx, FastAPI).**
+   Open the dashboard, `/docs`, and `/openapi.json` using the EC2 public IP.
+   Done when all three load and the dashboard shows a fresh metric.
+4. [ ] **Rehearse the pair deployment (AWS EC2, SSH, SCP, Bash, systemd).**
+   Start with a fresh EC2 instance, configure the security group and Elastic IP,
+   show both SSH logins, transfer and run the bootstrap, and clone into the
+   deployment user's home folder. Done when both partners can demonstrate the
+   native API, public docs, backups, and Discord alert within 60 minutes. Use
+   the [EC2 setup guide](ec2-manual-setup.md).
+
+### Finish the VG requirements
+
+1. [ ] **Deploy containers on EC2 (Docker, Compose, PostgreSQL).** Build the
+   API image and run it with containerized PostgreSQL. Show the native systemd
+   deployment during the demo as well. Done when the containerized API can save
+   and read data and that data survives container recreation.
+2. [ ] **Set up your own domain and HTTPS (DNS, Nginx, Certbot).** Point the
+   domain at the Elastic IP, issue a certificate, and check renewal. Done when
+   the dashboard and `/docs` load over HTTPS from your computer. Then test
+   creating and editing an incident from the dashboard.
+
+RDS and automatic GitHub Actions deployment are assignment bonuses.
+
 ## Current position
 
-**All four backend APIs are implemented. The next milestone is the native Ubuntu deployment for G.**
+**All four backend APIs are implemented. The next task is Discord alerting for G6.**
 
 The project has a runnable FastAPI application factory, validated settings,
 shared error handling, dependency manifests, and a passing foundation test suite.
@@ -134,6 +175,17 @@ non-obvious behavior. Bash tasks include syntax checks and failure-path checks;
 Docker tasks include build/configuration and runtime checks as applicable.
 Keep task status and evidence alongside these rows when implementation begins.
 
+### Discord alerts to-do (G6)
+
+EC2 verification confirmed that the collector saved a fresh measurement. A
+Discord alert will notify you of a problem while the dashboard is closed.
+
+- [ ] (Discord, Security) Create a channel webhook and store its URL in a private EC2 configuration file outside Git.
+- [ ] (Python, Monitoring) Implement a disk usage threshold check. Send one alert per breach and rearm the check after usage recovers.
+- [ ] (Linux, systemd) Schedule the check to run every minute on EC2.
+- [ ] (Python, Testing) Test normal usage, a threshold breach, duplicate suppression, recovery, and webhook delivery failure.
+- [ ] (EC2, Discord, Demo) Temporarily lower the threshold below current disk usage, confirm the scheduled check sends a Discord message, then restore the normal threshold.
+
 ## Assignment coverage tracker
 
 The [assignment brief](assignment-brief.md) is the source for this tracker. Local
@@ -147,7 +199,7 @@ evidence for the EC2 requirements.
 | G3 Bootstrap (Bash, SCP, Ubuntu) | Bash setup installs packages and configures services and permissions. The older smoke-test guide demonstrates SCP. | Include useful shell aliases, rehearse transferring and running the chosen bootstrap on a fresh instance, and explain account choices. |
 | G4 Repository checkout (Git, Linux) | Home-directory clone documented. Full installer expects an existing user-owned checkout. | Perform the clone as the deployment user and show ownership and the order of steps. |
 | G5 Backups (Bash, Cron, PostgreSQL) | Cron directory reserved. | Implement scheduled on-instance backups, show the files created and verify a database restore. |
-| G6 Monitoring and alerts (Linux, Python, Discord or email) | Host collector samples every five seconds, with a systemd unit and verifier for fresh stored measurements. | Verify on EC2 and demonstrate a scheduled check sending a notification for a controlled threshold breach. |
+| G6 Monitoring and alerts (Linux, Python, Discord) | EC2 verification confirmed a fresh measurement was persisted by the systemd collector. | Complete the [Discord alerts to-do list](#discord-alerts-to-do-g6) and demonstrate delivery during a controlled threshold breach. |
 | G7 Public API docs (systemd, FastAPI, HTTP) | Web installer opts into Swagger and OpenAPI on the existing loopback API. | Open public-IP `/docs` and `/openapi.json` from a browser on EC2 rehearsal. |
 | G8 Reverse proxy (Nginx) | Site serves the static React build and proxies API requests. | Run the web installer and verifier on EC2 and confirm public HTTP routing. |
 | G9 Database connection (FastAPI, PostgreSQL) | Local health and Windows incident CRUD verified against PostgreSQL. Migrations and persistence tested with disposable PostgreSQL. | Show the deployed API reading and writing through the instance's database. |
@@ -166,16 +218,6 @@ evidence for the EC2 requirements.
   health without reporting only its own container metadata.
 - Identify domain/DNS ownership, backup storage location, and recovery procedure.
   Local backups alone do not protect against losing the instance.
-
-## Immediate next task
-
-Verify the first [CI workflow run](github-actions-plan.md) when the branch is published and a PR targets main (Git, GitHub Actions).
-Prepare and rehearse the G deployment on a fresh Ubuntu instance (Bash, SCP,
-Git, SSH, systemd). Verify both logins, the home-directory clone, PostgreSQL and
-a fresh host metric. Then add Nginx and configure public Swagger and OpenAPI for
-the demonstration (Nginx, FastAPI). Schedule backups and demonstrate an alert
-before moving on to Compose and HTTPS. Windows and React work can proceed as
-local conveniences outside the grading path.
 
 ## API error feedback (FastAPI, React, pytest)
 
