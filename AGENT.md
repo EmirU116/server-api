@@ -47,7 +47,7 @@ describe requirements and conventions; verify implementation status separately.
 | [Discord alerts](docs/discord-alerts.md) | Configuring the webhook privately, scheduling disk monitoring, and demonstrating alert delivery. |
 | [Docker deployment](docs/docker-deployment.md) | Building and running Compose, host-owned Compose settings, migrating existing volumes with separate migration and runtime roles, and exposing the stack through host Nginx. |
 | [Ubuntu accounts and permissions](docs/ubuntu-accounts.md) | Creating junior and senior accounts, verifying ACLs, and keeping workspace access separate from service credentials. |
-| [EC2 manual setup and deployment rehearsal](docs/ec2-manual-setup.md) | Creating a fresh instance, installing Node.js and Docker Compose through full setup, publishing React and FastAPI via Nginx, and testing the public IP. |
+| [EC2 manual setup and deployment rehearsal](docs/ec2-manual-setup.md) | Creating a fresh instance, running full setup, testing the public IP, and demonstrating native Cron backups and restore. |
 | [API specification](docs/api.md) | Implementing or changing health, metrics, server information, incident CRUD, validation, error handling, API tests, or code comments. The current contract targets one monitored server. |
 | [Secrets management](docs/SECRETS_MANAGEMENT.md) | Handling credentials, authentication configuration, containers, monitoring, or deployment; use its storage and approval rules. |
 
@@ -154,8 +154,8 @@ workstation or cloud server without authorization for host changes.
 Read [the Ubuntu guide](docs/ubuntu-monitoring.md) for ownership, permissions,
 networking, failure recovery, and native verification limits. The full
 `setup.sh` also publishes the frontend and installs Docker tooling and Cron.
-The EC2 guide covers full setup, and the project plan tracks the remaining
-backup implementation and deployment evidence.
+Full setup installs the native backup schedule. The EC2 guide explains how to
+verify a scheduled run and restore into a separate database.
 
 ### Local development launcher
 

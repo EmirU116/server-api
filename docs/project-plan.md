@@ -17,10 +17,10 @@ test alerts before rehearsing the full deployment from scratch.
    Done when a controlled threshold breach produces one Discord message and
    you restore the normal threshold.
    Follow the [Discord checklist](#discord-alerts-to-do-g6).
-2. [ ] **Schedule and test backups (Bash, Cron, PostgreSQL).** Write the
-   database and log backup script and install its Cron entry. Done when Cron
-   creates backup files on EC2 and you restore a dump into a separate test
-   database.
+2. [ ] **Demonstrate backups (Bash, Cron, PostgreSQL).** Full native setup
+   installs the database and log backup schedule. Follow the
+   [EC2 backup and restore walkthrough](ec2-manual-setup.md#verify-cron-backups-and-restore-g5)
+   to capture a scheduled run and restore a dump into a separate database.
 3. [ ] **Confirm public access from your computer (HTTP, Nginx, FastAPI).**
    Open the dashboard, `/docs`, and `/openapi.json` using the EC2 public IP.
    Done when all three load. Verify fresh dashboard metrics over HTTPS or a
@@ -70,8 +70,8 @@ public browser verification remain pending.
 
 The full EC2 installer now prepares Node.js/npm, builds React, installs the
 FastAPI dependencies, and enables Docker Engine with Compose and Buildx. It
-installs Cron and PostgreSQL client tools for G5. The backup script and schedule
-still need implementation, and the updated installer needs a fresh EC2 rehearsal.
+installs the native PostgreSQL and service-log backup script and Cron schedule.
+A scheduled run and isolated restore still need EC2 evidence.
 See the [EC2 package list](ec2-manual-setup.md#packages-for-each-deployment-path).
 
 The user reported healthy API, web, and PostgreSQL containers on EC2, with
@@ -166,7 +166,7 @@ evidence for its parent milestone above.
 | 4.1 Host metrics collection (Python, Bash, Linux, HTTP) | Local Python loop and Ubuntu systemd installer/verifier implemented; native server/reboot verification and Cron evidence pending. | In progress |
 | 4.2 Scheduled health checks (Linux, Monitoring) | Verify monitoring starts on boot and configure recurring threshold checks for G6. Cron is required for backups in G5. | In progress |
 | 4.3 Disk threshold alerts (Python, Monitoring, Discord) | Disk alert checker and systemd timer implemented. Demonstrate delivery and suppression on EC2. | In progress |
-| 4.4 Backup and restore (Bash, PostgreSQL, Cron) | Script database/log backups, schedule them, and verify an isolated restore. | Not started |
+| 4.4 Backup and restore (Bash, PostgreSQL, Cron) | Full setup installs daily native database and service-log backups. Verify the scheduled run and restore on EC2. | In progress |
 | 5.1 EC2 and student access (AWS EC2, Linux, SSH) | Prepare the instance configuration and independent access for both students. | Not started |
 | 5.2 Server bootstrap (Bash, SCP, Git, Linux) | Ubuntu installer prepares a cloned checkout with Python, PostgreSQL, and migrations. SCP and fresh instance verification remain pending. | In progress |
 | 5.3 Native service and reverse proxy (systemd, Nginx, Linux) | Native verifier passed 8/8 on EC2, as reported by the user. Nginx setup and web verification scripts are implemented. Run the [public IP rehearsal](ec2-manual-setup.md#7-serve-the-dashboard-and-api-through-nginx-bash-react-fastapi) and capture browser evidence. | In progress |
@@ -211,7 +211,7 @@ evidence for the EC2 requirements.
 | G2 Pair access (SSH, Linux) | The EC2 guide covers an individual SSH connection. | Show both students logging into the same host from their own computers with independent keys. |
 | G3 Bootstrap (Bash, SCP, Ubuntu) | Bash setup installs packages and configures services and permissions. The EC2 guide demonstrates SCP. | Include useful shell aliases, rehearse transferring and running the chosen bootstrap on a fresh instance, and explain account choices. |
 | G4 Repository checkout (Git, Linux) | Home-directory clone documented. Full installer expects an existing user-owned checkout. | Perform the clone as the deployment user and show ownership and the order of steps. |
-| G5 Backups (Bash, Cron, PostgreSQL) | Full setup installs Cron and PostgreSQL client tools. | Implement scheduled on-instance backups, show the files created and verify a database restore. |
+| G5 Backups (Bash, Cron, PostgreSQL) | Full setup installs the native backup script and Cron entry. | Show the files created by Cron on EC2 and verify a restore into a separate database. |
 | G6 Monitoring and alerts (Linux, Python, Discord) | EC2 verification confirmed a fresh measurement was persisted by the systemd collector. | Complete the [Discord alerts to-do list](#discord-alerts-to-do-g6) and demonstrate delivery during a controlled threshold breach. |
 | G7 Public API docs (systemd, FastAPI, HTTP) | Web installer opts into Swagger and OpenAPI on the existing loopback API. | Open public-IP `/docs` and `/openapi.json` from a browser on EC2 rehearsal. |
 | G8 Reverse proxy (Nginx) | Site serves the static React build and proxies API requests. | Run the web installer and verifier on EC2 and confirm public HTTP routing. |

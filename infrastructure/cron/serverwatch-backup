@@ -1,0 +1,2 @@
+# Run the native ServerWatch backup daily at 03:15 in the EC2 host's timezone.
+15 3 * * * root /usr/bin/systemd-cat -t serverwatch-backup /usr/local/sbin/serverwatch-backup

@@ -120,7 +120,12 @@ sudo systemctl daemon-reload
 sudo systemctl enable serverwatch-api.service serverwatch-collector.service
 sudo systemctl restart serverwatch-api.service
 sudo systemctl restart serverwatch-collector.service
-if [[ "${SERVERWATCH_FULL_SETUP:-}" != 1 ]]; then
+if [[ "${SERVERWATCH_FULL_SETUP:-}" == 1 ]]; then
+    echo "[SETUP] Installing the native PostgreSQL and service log backup schedule."
+    sudo install -o root -g root -m 755 -- "$project_dir/scripts/backup/backup_native.sh" /usr/local/sbin/serverwatch-backup
+    sudo install -o root -g root -m 644 -- "$project_dir/infrastructure/cron/serverwatch-backup" /etc/cron.d/serverwatch-backup
+    sudo systemctl enable --now cron.service
+else
     bash "$project_dir/scripts/verification/verify_ubuntu_monitoring.sh" "$project_dir"
 fi
 echo "[OK] Monitoring is running; services start at boot. Credentials were not printed."

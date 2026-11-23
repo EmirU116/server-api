@@ -26,7 +26,7 @@ owned by the installing SSH user. Track assignment evidence in the
 | Native setup | `git`, `python3`, `python3-venv`, `python3-pip`, `postgresql`, `postgresql-client`, `iproute2`, `nginx`, `curl`, `cron`, `ca-certificates`, and `xz-utils`. FastAPI and the other Python dependencies are installed into the project virtual environment. |
 | Native frontend build | Full setup reuses Node.js 22.12+ with npm when available. Otherwise it downloads Node.js 22 and npm from nodejs.org, verifies the archive checksum, and uses a per-user installation for the React build. |
 | Optional account provisioning | `acl` for managed workspace permissions. |
-| Scheduled backups (G5) | The full native installer supplies `cron` and `postgresql-client` (which includes `pg_dump`). The backup script and schedule still need implementation. |
+| Scheduled backups (G5) | The full native installer installs Cron, PostgreSQL client tools, and the [native backup schedule](#verify-cron-backups-and-restore-g5). |
 | VG deployment | Full setup installs Ubuntu's `docker.io`, `docker-compose-v2`, and `docker-buildx` on a fresh host, then enables Docker. Follow the [Compose guide](docker-deployment.md) to start the stack. Certbot and its Nginx plugin are separate prerequisites for custom-domain HTTPS. |
 
 The full installer runs after checkout. If Git is missing, install it before
@@ -269,12 +269,58 @@ the instance is no longer running and review the AWS console for leftover
 billable resources. The course recording must use a newly created instance, so
 rehearse this process separately from the recorded fresh-instance run.
 
+## Verify Cron backups and restore (G5)
+
+Full setup installs a root-owned command at `/usr/local/sbin/serverwatch-backup`
+and a schedule at `/etc/cron.d/serverwatch-backup`. Every day at 03:15 in the
+host's timezone, Cron saves a custom-format dump of the **native**
+`serverwatch_monitor` database and the past 24 hours of native service logs.
+Completed snapshots are kept in private directories under
+`/var/backups/serverwatch`. Keep an eye on disk space and remove old snapshots
+according to your team's retention needs. These snapshots live on the EC2 disk.
+
+For the demo, inspect the schedule with `sudo cat /etc/cron.d/serverwatch-backup`.
+Use `sudoedit /etc/cron.d/serverwatch-backup` to set the schedule to the next minute
+and wait for Cron to run it. Restore the normal schedule after it runs. Verify
+the scheduled run and find the completed snapshot:
+
+```bash
+sudo journalctl -t serverwatch-backup -n 10 --no-pager
+sudo ls -lt /var/backups/serverwatch
+```
+
+On EC2, substitute the snapshot directory name in the command below. This creates
+a separate database and shows counts from the restored tables. Capture a metric
+timestamp from the native API before the backup and verify it exists in the restored
+database for the demo. Run the commands in Bash as your usual SSH user.
+
+```bash
+(
+    set -euo pipefail
+    unset PGHOST PGHOSTADDR PGPORT PGSERVICE PGSERVICEFILE
+    snapshot=/var/backups/serverwatch/REPLACE_WITH_SNAPSHOT_DIRECTORY
+    restore_db="serverwatch_restore_$(date +%s)"
+    sudo -u postgres createdb --host=/var/run/postgresql --port=5432 "$restore_db"
+    sudo cat "$snapshot/database.dump" |
+        sudo -u postgres pg_restore --host=/var/run/postgresql --port=5432 \
+            --exit-on-error --no-owner --no-privileges --dbname="$restore_db"
+    sudo -u postgres psql -X --host=/var/run/postgresql --port=5432 \
+        --set=ON_ERROR_STOP=1 --dbname="$restore_db" \
+        -c 'SELECT count(*) AS metrics, max(collected_at) AS latest FROM metrics' \
+        -c 'SELECT count(*) AS incidents FROM incidents'
+    printf 'Restored database: %s\n' "$restore_db"
+)
+```
+
+`sudo /usr/local/sbin/serverwatch-backup` runs the same backup immediately for
+troubleshooting. Use the Cron log as evidence of the scheduled run.
+
 ## Current limits and next steps
 
 Record the public-IP browser checks as evidence for the native Nginx deployment.
 Configure and demonstrate the [Discord timer](discord-alerts.md) and, if using
 separate role accounts, verify their [workspace permissions](ubuntu-accounts.md).
-Cron backups and a restore demonstration remain open. For VG, run the
+Verify the scheduled backup and restore on EC2. For VG, run the
 [Compose stack](docker-deployment.md) on EC2 and verify database persistence.
 Point a custom domain at EC2, obtain a Certbot certificate, then verify HTTPS,
 HTTP redirects, and renewal.

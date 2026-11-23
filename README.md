@@ -61,7 +61,8 @@ bash verify.sh PUBLIC_IP
 Setup installs the native packages and FastAPI dependencies, applies migrations,
 runs FastAPI and the collector under systemd, and publishes React and Swagger
 through Nginx. It prepares Node.js/npm for the frontend build and installs and
-starts Docker Engine with Compose for the VG1 deployment.
+starts Docker Engine with Compose for the VG1 deployment. It also schedules
+daily native PostgreSQL and service log backups with Cron.
 It runs verification automatically. Use the second command for later checks.
 Open `http://PUBLIC_IP/` and `http://PUBLIC_IP/docs` from your computer. Use
 HTTPS for live dashboard credentials.
