@@ -7,6 +7,8 @@ secrets/
 *.key
 *.p12
 *.pfx
+# Cloud CLI credentials must never be committed, even if created in the checkout.
+.aws/
 
 # Python environments, generated files, and development tools
 .venv/
