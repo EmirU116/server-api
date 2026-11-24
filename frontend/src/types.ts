@@ -3,7 +3,7 @@ export type Severity = 'info' | 'warning' | 'critical';
 export type IncidentStatus = 'planned' | 'open' | 'investigating' | 'resolved';
 export type View = 'overview' | 'metrics' | 'server' | 'incidents';
 
-export type WatchedMetric = 'cpu' | 'gpu' | 'memory' | 'storage';
+export type WatchedMetric = 'cpu' | 'memory' | 'disk';
 
 export interface IncidentTrigger {
   metric: WatchedMetric;

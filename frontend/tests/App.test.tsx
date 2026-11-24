@@ -67,7 +67,7 @@ describe('demo workspace', () => {
       target: { value: 'planned' },
     });
     fireEvent.change(within(dialog).getByLabelText('Watch a metric'), {
-      target: { value: 'storage' },
+      target: { value: 'disk' },
     });
     fireEvent.change(within(dialog).getByLabelText('At or above (%)'), {
       target: { value: '40' },

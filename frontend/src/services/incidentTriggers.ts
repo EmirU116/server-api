@@ -2,15 +2,14 @@ import type { IncidentTrigger, Metric, WatchedMetric } from '../types';
 
 export const metricNames: Record<WatchedMetric, string> = {
   cpu: 'CPU',
-  gpu: 'GPU',
   memory: 'Memory',
-  storage: 'Storage',
+  disk: 'Disk',
 };
 
 const sampleFields = {
   cpu: 'cpu_percent',
   memory: 'memory_percent',
-  storage: 'disk_percent',
+  disk: 'disk_percent',
 } as const;
 
 /** Evaluate the most recent uninterrupted run of readings above the limit. */
@@ -21,8 +20,6 @@ export function evaluateTrigger(
   now = Date.now(),
 ) {
   const { metric, threshold_percent, duration_seconds } = trigger;
-  if (metric === 'gpu')
-    return { label: 'GPU unavailable', latest: null, seconds: 0 };
   const field = sampleFields[metric];
   const sorted = [...samples].sort(
     (a, b) => Date.parse(b.collected_at) - Date.parse(a.collected_at),

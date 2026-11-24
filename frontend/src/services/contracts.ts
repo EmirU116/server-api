@@ -104,7 +104,7 @@ export function isIncident(value: unknown): value is Incident {
 function isIncidentTrigger(value: unknown): boolean {
   return (
     record(value) &&
-    ['cpu', 'gpu', 'memory', 'storage'].includes(String(value.metric)) &&
+    ['cpu', 'memory', 'disk'].includes(String(value.metric)) &&
     typeof value.threshold_percent === 'number' &&
     value.threshold_percent >= 0 &&
     value.threshold_percent <= 100 &&

@@ -32,7 +32,7 @@ Description = Annotated[
 class IncidentTrigger(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    metric: Literal["cpu", "gpu", "memory", "storage"]
+    metric: Literal["cpu", "memory", "disk"]
     threshold_percent: Annotated[float, Field(strict=True, ge=0, le=100)]
     duration_seconds: Annotated[int, Field(strict=True, ge=5, le=600)]
 

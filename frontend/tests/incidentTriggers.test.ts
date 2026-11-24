@@ -4,7 +4,7 @@ import type { IncidentTrigger, Metric } from '../src/types';
 
 const now = Date.parse('2026-11-20T12:00:00Z');
 const rule: IncidentTrigger = {
-  metric: 'storage',
+  metric: 'disk',
   threshold_percent: 90,
   duration_seconds: 10,
 };
@@ -31,9 +31,6 @@ it('uses the selected metric and measures the contiguous window in time order', 
   expect(
     evaluateTrigger({ ...rule, metric: 'memory' }, readings, false, now).label,
   ).toBe('Below threshold');
-  expect(
-    evaluateTrigger({ ...rule, metric: 'gpu' }, readings, false, now).label,
-  ).toBe('GPU unavailable');
 });
 
 it('does not confirm a crossing through a gap, a drop, or stale data', () => {

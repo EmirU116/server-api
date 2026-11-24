@@ -325,7 +325,7 @@ Incidents record server errors, outages, or other operational problems. Records
 remain stored until explicitly deleted, including after resolution. This API
 supports recording incidents; automatic incident detection is separate work.
 
-Implemented with PostgreSQL. Apply migrations through `0004_incident_triggers` with the existing
+Implemented with PostgreSQL. Apply migrations through `0005_trigger_metric_names` with the existing
 upgrade command before testing; see [local incident setup](local-postgresql.md#enable-incident-storage-python-postgresql).
 GET uses the reader token. POST/PATCH/DELETE require a distinct
 `SERVERWATCH_ADMIN_TOKEN` or `SERVERWATCH_ADMIN_TOKEN_FILE` (file takes precedence).
@@ -364,11 +364,11 @@ Request:
 | `description` | Required string; trim whitespace; 1–5000 characters; no null characters |
 | `severity` | Required enum: `info`, `warning`, `critical` |
 | `occurred_at` | Required field. Send a timezone-aware datetime for an actual incident, or `null` to save a plan. A datetime cannot be in the future. |
-| `trigger` | Optional rule with `metric` (`cpu`, `memory`, `storage`, or `gpu`), `threshold_percent` (0–100), and `duration_seconds` (whole number, 5–600). Send `null` in PATCH to remove it. |
+| `trigger` | Optional rule with `metric` (`cpu`, `memory`, or `disk`), `threshold_percent` (0–100), and `duration_seconds` (whole number, 5–600). Send `null` in PATCH to remove it. |
 
 The dashboard compares stored samples at or above the threshold. A matching
-rule highlights a plan for manual review. GPU rules can be saved, and their
-readings stay unavailable until GPU collection is implemented.
+rule highlights a plan for manual review. Migration `0005_trigger_metric_names`
+renamed the former `storage` rule to `disk` and cleared unsupported `gpu` rules.
 
 Return `201 Created`, a `Location: /api/v1/incidents/{incident_id}` header, and the
 complete record:

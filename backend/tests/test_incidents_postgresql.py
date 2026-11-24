@@ -54,7 +54,7 @@ def test_full_crud_persists_and_deletion_is_final(
 
 
 def test_plan_can_be_saved_and_opened_later(client, stored_incidents):
-    trigger = {"metric": "storage", "threshold_percent": 90, "duration_seconds": 600}
+    trigger = {"metric": "disk", "threshold_percent": 90, "duration_seconds": 600}
     created = client.post(
         "/api/v1/incidents",
         json={**DATA, "occurred_at": None, "trigger": trigger},
@@ -230,5 +230,48 @@ def test_upgrade_preserves_existing_metrics_and_incidents(postgres_engine):
         assert connection.scalar(text("SELECT id FROM incidents")) == incident_id
         assert (
             connection.scalar(text("SELECT version_num FROM alembic_version"))
-            == "0004_incident_triggers"
+            == "0005_trigger_metric_names"
         )
+
+
+def test_trigger_metric_upgrade_renames_storage_and_clears_gpu(postgres_engine):
+    from pathlib import Path
+
+    config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
+    with postgres_engine.begin() as connection:
+        connection.execute(text("CREATE SCHEMA trigger_upgrade_test"))
+        connection.execute(text("SET LOCAL search_path TO trigger_upgrade_test"))
+        config.attributes["connection"] = connection
+        command.upgrade(config, "0004_incident_triggers")
+        rules = {
+            "storage": uuid4(),
+            "gpu": uuid4(),
+            "cpu": uuid4(),
+        }
+        for metric, incident_id in rules.items():
+            connection.execute(
+                text(
+                    "INSERT INTO incidents (id, server_id, title, description, "
+                    "severity, status, created_at, updated_at, trigger) "
+                    "VALUES (:id, '1', 'Plan', 'Steps', 'info', 'planned', "
+                    "now(), now(), CAST(:trigger AS json))"
+                ),
+                {
+                    "id": incident_id,
+                    "trigger": (
+                        f'{{"metric": "{metric}", "threshold_percent": 90, '
+                        '"duration_seconds": 60}'
+                    ),
+                },
+            )
+        command.upgrade(config, "head")
+
+        def metric_of(incident_id):
+            return connection.scalar(
+                text("SELECT trigger->>'metric' FROM incidents WHERE id = :id"),
+                {"id": incident_id},
+            )
+
+        assert metric_of(rules["storage"]) == "disk"
+        assert metric_of(rules["gpu"]) is None
+        assert metric_of(rules["cpu"]) == "cpu"

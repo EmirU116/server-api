@@ -143,7 +143,7 @@ def test_migration_matches_model(postgres_engine):
         )
         assert (
             connection.scalar(text("SELECT version_num FROM alembic_version"))
-            == "0004_incident_triggers"
+            == "0005_trigger_metric_names"
         )
 
 

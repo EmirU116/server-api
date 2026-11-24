@@ -74,7 +74,7 @@ The client in `frontend/src/services/api.ts` follows [the API contract](api.md):
   The chart shows loading during a request, the error on failure, and no
   measurements only when the API succeeds with zero buckets. Latest metric
   cards and the raw sample table retain their five-second refresh.
-  Both tokens stay in memory. Apply migrations through `0004_incident_triggers` before
+  Both tokens stay in memory. Apply migrations through `0005_trigger_metric_names` before
   saving incident plans. On EC2, update the existing checkout, rerun the
   monitoring installer to apply migrations, then rerun the web installer to
   rebuild and publish React. Use your existing setup arguments.
@@ -84,10 +84,10 @@ The client in `frontend/src/services/api.ts` follows [the API contract](api.md):
   in demo mode. Plans guide manual response. Automated detection and remediation
   are separate work.
 - Optionally choose a metric, percentage and duration when editing the plan.
-  CPU, memory and storage show the latest reading. Storage measures disk
-  usage on the filesystem sampled by the collector. A gap over 15 seconds
+  CPU, memory and disk show the latest reading. Disk measures usage on the
+  filesystem sampled by the collector. A gap over 15 seconds
   breaks a live crossing, and stale readings cannot mark a threshold as met.
-  GPU is unavailable until the collector supports it. Keep the dashboard open
+  Keep the dashboard open
   to review threshold status as new readings arrive.
 - Reads the latest 100 stored measurements and can look back another 100 for
   threshold history. Reads use authenticated
