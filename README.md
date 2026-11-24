@@ -285,8 +285,8 @@ docs/                  Specifications and project guides
 AGENT.md               Agent instructions and project constraints
 ```
 
-See the [folder structure guide](docs/FOLDER_STRUCTURE.md) for placement rules
-and the recommended structure as implementation grows.
+See the folder ownership table in [AGENT.md](AGENT.md#3-canonical-folder-ownership)
+for placement rules.
 
 ## Development expectations
 
@@ -322,8 +322,8 @@ verified migration and deployment commands here when those workflows exist.
   demonstrates a scheduled disk usage notification.
 - [Docker deployment](docs/docker-deployment.md) covers the Compose services,
   persistence, host monitoring, and the domain handoff.
-- [Git and GitHub Actions workflow](docs/github-actions-plan.md) covers CI and
-  opt-in delivery to staging and production.
+- [Git and GitHub Actions workflow](docs/github-actions-plan.md) covers branches,
+  review, and the CI checks.
 - [Project plan and progress](docs/project-plan.md): current status, milestones,
   assignment coverage, and next steps.
 
@@ -331,7 +331,6 @@ verified migration and deployment commands here when those workflows exist.
   and integration limitations.
 - [API specification](docs/api.md): endpoint contracts, examples, errors, testing,
   and code explanation requirements.
-- [Folder structure](docs/FOLDER_STRUCTURE.md): file ownership and organization.
 - [Secrets management](docs/SECRETS_MANAGEMENT.md): credential storage and handling.
 - [Agent instructions](AGENT.md): architecture, working conventions, and demo
   constraints.

@@ -18,7 +18,7 @@ Avoid introducing Kubernetes, microservices, RDS, Terraform, message brokers, or
 
 ## 2. First actions for every task
 
-1. Read `README.md`, this file, and `docs/FOLDER_STRUCTURE.md` (if they exist).
+1. Read `README.md` and this file.
 2. Inspect the relevant files and actual repository layout; **do not assume** proposed paths, endpoints, tables, or services have been implemented.
 3. Identify the smallest change that satisfies the request. Describe planned file additions or moves when the change is substantial.
 4. Preserve the existing architecture and naming conventions unless there is a compelling reason to change them.
@@ -42,11 +42,9 @@ describe requirements and conventions; verify implementation status separately.
 | [Local stack launcher](docs/local-development.md) | Starting the existing Windows database, FastAPI, and React together from Git Bash/WSL; launcher checks, process cleanup, and Windows-only limitations. |
 | [Local PostgreSQL](docs/local-postgresql.md) | Database settings, Windows startup, and connectivity checks. |
 | [Project overview](README.md) | Starting work and finding project documentation. |
-| [Codex model usage](docs/codex-model-usage.md) | Choosing a model and reasoning effort, limiting token usage, or escalating a difficult task. |
-| [Git and GitHub Actions workflow](docs/github-actions-plan.md) | Branches, agent worktrees, human review, test-only PR checks, environment-gated release signing, and EC2 verification of the signed commit and image digest pair. |
+| [Git and GitHub Actions workflow](docs/github-actions-plan.md) | Branches, agent worktrees, human review, and the test-only PR checks. |
 | [Course assignment](docs/assignment-brief.md) | Checking the supplied G/VG criteria, team responsibilities, optional bonuses, and recording rules. |
 | [Project plan and progress](docs/project-plan.md) | Checking the current stage, choosing the next milestone, and tracking assignment completion. Update it with evidence after milestone completion or material scope changes. |
-| [Folder structure](docs/FOLDER_STRUCTURE.md) | Creating, moving, or organizing files and modules. |
 | [Frontend development](docs/frontend.md) | Working on the React/TypeScript UI, demo/live data separation, API client, local development proxy, or frontend checks. |
 | [Ubuntu host monitoring](docs/ubuntu-monitoring.md) | Installing native Ubuntu PostgreSQL, migrations, API/collector systemd services, or verifying fresh persisted measurements. |
 | [Discord alerts](docs/discord-alerts.md) | Configuring the webhook privately and reproducing the verified G6 alert during the demo. |
@@ -93,100 +91,51 @@ this file must perform the synchronization during relevant tasks.
 - Use [maintain-gitkeep](.agents/skills/maintain-gitkeep/SKILL.md) when changing which files preserve a project directory in Git.
 - Use [reuse-python-code](.agents/skills/reuse-python-code/SKILL.md) when Python callers duplicate behavior. Shared backend API helpers belong in `backend/app/reusable.py` and have direct tests.
 
-### Implemented backend foundation
+### Implementation rules
 
-Use the local startup and verification commands in [README.md](README.md#local-backend-setup-python-fastapi).
-The factory is `backend/app/main.py:create_app`; settings and shared errors live
-under `backend/app/core/`. Run `python -m pytest backend/tests -q` and the Ruff
-checks from the repository root with the virtual environment active.
-`GET /api/v1/health?server_id=1` is implemented through `app/api/health.py`,
-`app/services/health.py`, and `app/schemas/health.py`. Its default database
-probe executes asynchronous PostgreSQL `SELECT 1` when configured, and fails
-closed without credentials. The user verified local Windows database health.
-Metrics use a SQLAlchemy model and explicit Alembic migration; do not auto-create
-tables at startup. See the local PostgreSQL guide for upgrade commands.
-The server check
-only proves local API-process availability. Health requires a positive numeric
-`server_id`: local ID `1` is registered; invalid IDs return 400, unregistered
-IDs return 404, and failed checks return 503. Missing input returns 422. See
-[the API contract](docs/api.md#health-api) for validation rules. Prefer readable
-`int()` conversion and explicit checks over regex or arbitrary ID limits. This does not
-implement remote monitoring. `GET /api/v1/server` returns native host identity
-through its router/schema/service, using the same numeric ID as health.
-Requests may optionally select `server_id`; invalid IDs return 400 and
-unregistered IDs return 404. Omitted IDs select the configured local server. Reader
-bearer authentication uses a configured secret or mounted secret file; see the
-[server API contract](docs/api.md#server-api) and README for configuration and errors.
-Do not expose container metadata as host identity. Metrics GET/POST persist
-CPU, memory, disk, and uptime samples for the configured server. GET requires a
-reader token; POST requires a separate collector token (environment or `_FILE`).
-Wrong roles return 403. `scripts/monitoring/collect_local.py` provides a simple
-local host measurement/POST loop with `time.sleep(5)`, using `psutil` and a local
-collector credential. The Ubuntu setup also runs the collector through systemd.
-Incident CRUD uses separate admin credentials. Automatic detection and Cron
-scheduling remain pending. Report unconfigured dependencies as unhealthy.
-Health probes use a 150 ms default timeout and run concurrently to target a
-response p95 below 200 ms. Timeouts return structured 503 responses. Keep probes
-nonblocking and cancellation-aware; local timing tests do not verify deployment
-latency. See the API specification for the response-time target and limits.
+Track progress only in [the project plan](docs/project-plan.md); keep status out
+of this file. These rules apply to the implemented code:
 
-### Implemented incident API
-
-`backend/app/api/incidents.py` provides POST/list GET/detail GET/PATCH/DELETE.
-Schemas validate trimmed text, enums, aware occurrence times, and partial updates.
-`IncidentsService` scopes records to the configured server and uses transactions;
-updates/deletes lock rows. Preserve resolution time when editing an already
-resolved incident and clear it when reopening. Migration `0002_incidents` adds
-storage without changing metrics; never apply migrations implicitly at startup.
-Reader GET and admin writes use distinct tokens; admin supports environment or
-`_FILE` settings. All three configured role tokens must differ. Admin does not
-inherit reader/collector permissions. See [incident setup](docs/local-postgresql.md#enable-incident-storage-python-postgresql)
-and [the contract](docs/api.md#incident-api). Migration `0003_planned_incidents`
-supports plans without occurrence timestamps and the live dashboard can manage
-them. Migration `0004_incident_triggers` stores optional metric thresholds
-for manual review in the dashboard. Automatic incident opening and alerts
-remain pending.
-
-### Ubuntu host monitoring setup
-
-`infrastructure/bootstrap/setup_ubuntu_monitoring.sh` prepares an existing native
-Ubuntu 24.04+ checkout with local PostgreSQL, migrations, and separate API/collector
-systemd units. It uses managed configuration under `~/.config/serverwatch-monitoring`,
-preserves existing secrets/data, and never imports the project's `.env`. Reruns
-are maintenance operations and restart services. Do not execute it on a developer
-workstation or cloud server without authorization for host changes.
-`verify_ubuntu_monitoring.sh` observes fresh persisted samples without test writes.
-Read [the Ubuntu guide](docs/ubuntu-monitoring.md) for ownership, permissions,
-networking, failure recovery, and native verification limits. The full
-`setup.sh` also publishes the frontend and installs Docker tooling and Cron.
-Full setup installs the native backup schedule. The EC2 guide explains how to
-verify a scheduled run and restore into a separate database.
-
-### Local development launcher
-
-`scripts/setup/start_local.sh` targets the user's Windows installation. It delegates
-Windows service/process management to `start_local_windows.ps1` and validates
-configuration/storage through `check_local.py`. Use Windows Python/Node even from
-WSL to avoid mixed frontend native dependencies. Reuse private `.env`; never source
-it as Bash, print credentials, install packages, or apply migrations implicitly.
-The launcher also starts the local collector and requires both reader and
-collector tokens plus `psutil`. Stop only app/collector process trees created by
-this invocation and leave PostgreSQL running.
-Read the local launcher guide for checks, service selection, and verification limits.
-
-### Implemented frontend workspace
-
-Health, server, and metrics are now available to the live frontend. Use the
-[frontend guide](docs/frontend.md) and its verification
-commands. The React/TypeScript app starts in labeled demo mode; its incidents
-are in-memory examples. Keep demo data separate from API responses and never
-embed bearer tokens in build variables or browser storage. The typed client uses
-same-origin `/api/v1`, with a development-only Vite proxy to FastAPI. Live mode
-loads health, server information, and metrics with a reader token, then polls
-every five seconds without overlapping requests;
-the incident list also uses the reader token, with a separate in-memory admin
-token for writes over HTTPS or localhost. Do not send
-collector credentials to the frontend. Browser visual verification remains pending.
+- **App wiring:** `backend/app/main.py:create_app` puts settings, the database,
+  services and role tokens on `app.state`. Settings and shared errors live in
+  `backend/app/core/`. Use the README's startup commands and run
+  `python -m pytest backend/tests tests -q` and the Ruff checks from the root.
+- **Schema:** Alembic migrations only. Never create tables or apply migrations
+  at application startup.
+- **Server ID:** health requires a positive numeric `server_id` (invalid → 400,
+  unregistered → 404, missing → 422); `GET /server` accepts it optionally.
+  Prefer readable `int()` conversion over regex or arbitrary limits. See
+  [the API contract](docs/api.md).
+- **Health:** probes run concurrently with a 150 ms timeout (target p95 below
+  200 ms), stay nonblocking and cancellation-aware, and report unconfigured or
+  failed dependencies as down in a structured 503.
+- **Host identity:** `GET /server` describes the native host. Never present
+  container metadata as host identity; Compose mounts a host identity file.
+- **Roles:** reader (GET), collector (POST metrics) and admin (incident writes)
+  tokens are separate, each set by environment or `_FILE`, and must differ.
+  Roles do not inherit permissions; a wrong role returns 403.
+- **Incidents:** `IncidentsService` scopes records to the configured server and
+  locks rows for updates and deletes. Editing a resolved incident keeps its
+  resolution time; reopening clears it. Planned incidents have no occurrence
+  time. Trigger thresholds support manual review only; nothing opens incidents
+  automatically.
+- **Collector:** `scripts/monitoring/collect_local.py` measures with `psutil`
+  and POSTs to the local API every five seconds with the collector token. On
+  Ubuntu it runs under systemd.
+- **Ubuntu setup:** `infrastructure/bootstrap/setup_ubuntu_monitoring.sh` keeps
+  managed configuration in `~/.config/serverwatch-monitoring`, preserves
+  existing secrets and data, never imports the project `.env`, and restarts
+  services when rerun. Do not run it on a workstation or server without
+  authorization. See [the Ubuntu guide](docs/ubuntu-monitoring.md).
+- **Local launcher:** `scripts/setup/start_local.sh` uses Windows Python and
+  Node through PowerShell, even from WSL. It reuses the private `.env` (never
+  source or print it), installs nothing, applies no migrations, and stops only
+  the processes it started. See [the launcher guide](docs/local-development.md).
+- **Frontend:** starts in labeled demo mode; keep demo data separate from API
+  responses. Tokens live only in React memory, never in build variables or
+  browser storage, and live tokens require HTTPS or localhost. The client uses
+  same-origin `/api/v1` (a Vite proxy in development). Never send the collector
+  token to the frontend. See [the frontend guide](docs/frontend.md).
 
 ## 3. Canonical folder ownership
 
@@ -219,6 +168,13 @@ Place files by **responsibility**, not solely by extension.
 
 **Placement rule:** Store a file in exactly one authoritative location. For example, `scripts/monitoring/collect_metrics.sh` performs the work, while `infrastructure/cron/monitoring.cron` specifies its schedule. Do not maintain duplicate implementations.
 
+When placing a new file, ask in order: is it application code (`backend/`,
+`frontend/`)? Host or cloud configuration (`infrastructure/`)? An executable
+operational helper (`scripts/`, or `infrastructure/bootstrap/` for first-boot
+setup)? A test (the component's `tests/`, or root `tests/` for scripts and
+cross-component checks)? An explanation (`docs/`)? Create a folder only when
+several related files share its responsibility.
+
 If the existing repo uses a slightly different structure, follow the established structure unless asked to refactor it.
 
 ## 4. Intended architecture and traffic
@@ -236,11 +192,9 @@ systemd -> Python host metrics collector -> authenticated local FastAPI endpoint
 systemd timer -> disk threshold check -> Discord webhook
 ```
 
-**Deployment flow (optional bonus):**
-
-```text
-GitHub Actions -> tests/build -> versioned Docker image -> approved EC2 deployment
-```
+**Deployment flow:** manual — clone on EC2, then run `setup.sh` (native) or
+`compose_host.sh start` (Compose). Automated GitHub Actions deployment is an
+unimplemented optional bonus.
 
 Architecture constraints:
 - Run FastAPI and PostgreSQL in separate Docker Compose services for VG.
