@@ -5,18 +5,19 @@ Endpoint details are in the [API specification](api.md).
 
 ## What to do next
 
-**Next, verify the Cron backups and restore on EC2 (G5).** Discord delivery
-(G6) was verified on the current instance.
+**Next, confirm public access from your computer.** The Cron backup and restore
+(G5) and Discord delivery (G6) were verified on the current EC2 instance.
 
 ### Finish the G requirements
 
 1. [x] **Send a Discord alert (Python, systemd, Discord).** The scheduled
    check delivered an alert during a controlled threshold test.
    See the [Discord verification record](#discord-alert-verification-g6).
-2. [ ] **Demonstrate backups (Bash, Cron, PostgreSQL).** Full native setup
-   installs the database and log backup schedule. Follow the
-   [EC2 backup and restore walkthrough](ec2-manual-setup.md#verify-cron-backups-and-restore-g5)
-   to capture a scheduled run and restore a dump into a separate database.
+2. [x] **Demonstrate backups (Bash, Cron, PostgreSQL).** On 2026-11-24 at
+   11:22 UTC, Cron produced a database dump and service-log snapshot. The dump
+   restored into a separate database with 18,867 metrics and 0 incidents.
+   Use the [EC2 walkthrough](ec2-manual-setup.md#verify-cron-backups-and-restore-g5)
+   to repeat the test on camera.
 3. [ ] **Confirm public access from your computer (HTTP, Nginx, FastAPI).**
    Open the dashboard, `/docs`, and `/openapi.json` using the EC2 public IP.
    Done when all three load. Verify fresh dashboard metrics over HTTPS or a
@@ -44,7 +45,7 @@ RDS and automatic GitHub Actions deployment are assignment bonuses.
 
 ## Current position
 
-**All four backend APIs are implemented. The next EC2 task is to verify a scheduled backup and restore for G5.**
+**All four backend APIs are implemented. The next EC2 task is to confirm public access from a separate computer.**
 
 The project has a runnable FastAPI application factory, validated settings,
 shared error handling, dependency manifests, and a passing foundation test suite.
@@ -162,11 +163,11 @@ evidence for its parent milestone above.
 | 4.1 Host metrics collection (Python, Bash, Linux, HTTP) | Local Python loop and Ubuntu systemd installer/verifier implemented; native server/reboot verification and Cron evidence pending. | In progress |
 | 4.2 Scheduled health checks (Linux, Monitoring) | The recurring Discord check ran on EC2. Verify monitoring starts after reboot. | In progress |
 | 4.3 Disk threshold alerts (Python, Monitoring, Discord) | Scheduled Discord delivery verified on EC2. Duplicate suppression covered by local tests. | Verified |
-| 4.4 Backup and restore (Bash, PostgreSQL, Cron) | Full setup installs daily native database and service-log backups. Verify the scheduled run and restore on EC2. | In progress |
+| 4.4 Backup and restore (Bash, PostgreSQL, Cron) | Cron created the database and service-log snapshot on EC2. Restored the dump into a separate database and queried both tables. | Verified |
 | 5.1 EC2 and student access (AWS EC2, Linux, SSH) | Prepare the instance configuration and independent access for both students. | Not started |
 | 5.2 Server bootstrap (Bash, SCP, Git, Linux) | Ubuntu installer prepares a cloned checkout with Python, PostgreSQL, and migrations. SCP and fresh instance verification remain pending. | In progress |
 | 5.3 Native service and reverse proxy (systemd, Nginx, Linux) | Native verifier passed 8/8 on EC2, as reported by the user. Nginx setup and web verification scripts are implemented. Run the [public IP rehearsal](ec2-manual-setup.md#7-serve-the-dashboard-and-api-through-nginx-bash-react-fastapi) and capture browser evidence. | In progress |
-| 5.4 Native deployment verification (Bash, Linux, Testing) | Localhost smoke verifier added; fresh-instance verification, restarts, scheduled monitoring, and backups remain pending. | In progress |
+| 5.4 Native deployment verification (Bash, Linux, Testing) | Localhost smoke verifier added; fresh-instance verification, restarts, and scheduled monitoring after reboot remain pending. | In progress |
 | 5.5 Define and verify environment access (Ubuntu, Bash, Linux users, groups, ACLs) | Define dev/prod ownership and role membership, provision accounts and inherited permissions, then check effective allowed and denied operations as each identity. See [Ubuntu accounts and permissions](ubuntu-accounts.md). | Implemented and tested with simulated system commands. Verify ACLs on EC2. |
 | 6.1 API and web images (Docker, Python, React) | Dockerfiles and build exclusions implemented. Build and verify on EC2. | In progress |
 | 6.2 Container services and storage (Docker Compose, PostgreSQL) | Compose includes a private DB, migration job, API, and loopback web proxy. Demonstrate persisted data after recreation. | In progress |
@@ -177,7 +178,7 @@ evidence for its parent milestone above.
 | 7.3 Frontend verification (TypeScript, Frontend testing) | Run type checking/build and verify core UI flows against the API. | In progress |
 | 8.1 Runbook and assessment checklist (Documentation) | Record deployment steps, requirement evidence, and speaking roles. | Not started |
 | 8.2 Timed pair rehearsal (AWS EC2, Deployment, Presentation) | Rehearse from a fresh instance within 60 minutes, with both students explaining their work. | Not started |
-| PR checks and optional VG4 delivery (Git, GitHub Actions, Docker) | [Human and agent workflow](github-actions-plan.md). Test PRs and pushes to main with backend, dashboard and Bash jobs. | CI and opt-in delivery workflows implemented. Configure environments and demonstrate staging delivery. |
+| PR checks and optional VG4 delivery (Git, GitHub Actions, Docker) | [Human and agent workflow](github-actions-plan.md). Test PRs and pushes to main with backend, dashboard and Bash jobs. | CI and opt-in delivery workflows implemented. Staging delivery setup remains deferred for a separate session. G5 backup and restore verification is complete. Resume by confirming the GitHub staging environment, configuring the dedicated EC2 deployment account and keys, adding environment variables and secrets, configuring the runner, and verifying the first staging run. |
 
 Python tasks include unit tests and clear comments or multiline docstrings for
 non-obvious behavior. Bash tasks include syntax checks and failure-path checks;
@@ -208,7 +209,7 @@ evidence for the EC2 requirements.
 | G2 Pair access (SSH, Linux) | The EC2 guide covers an individual SSH connection. | Show both students logging into the same host from their own computers with independent keys. |
 | G3 Bootstrap (Bash, SCP, Ubuntu) | Bash setup installs packages and configures services and permissions. The EC2 guide demonstrates SCP. | Include useful shell aliases, rehearse transferring and running the chosen bootstrap on a fresh instance, and explain account choices. |
 | G4 Repository checkout (Git, Linux) | Home-directory clone documented. Full installer expects an existing user-owned checkout. | Perform the clone as the deployment user and show ownership and the order of steps. |
-| G5 Backups (Bash, Cron, PostgreSQL) | Full setup installs the native backup script and Cron entry. | Show the files created by Cron on EC2 and verify a restore into a separate database. |
+| G5 Backups (Bash, Cron, PostgreSQL) | Verified on the current EC2 instance. The 11:22 UTC snapshot contained the native dump and logs, and the restore contained 18,867 metrics and 0 incidents. | Repeat the scheduled backup and isolated restore during the recorded deployment. |
 | G6 Monitoring and alerts (Linux, Python, Discord) | Verified on the current EC2 instance. The collector saved a fresh measurement and the scheduled disk check delivered a [Discord alert](#discord-alert-verification-g6). | Repeat the controlled threshold test during the recorded deployment. |
 | G7 Public API docs (systemd, FastAPI, HTTP) | Web installer opts into Swagger and OpenAPI on the existing loopback API. | Open public-IP `/docs` and `/openapi.json` from a browser on EC2 rehearsal. |
 | G8 Reverse proxy (Nginx) | Site serves the static React build and proxies API requests. | Run the web installer and verifier on EC2 and confirm public HTTP routing. |
