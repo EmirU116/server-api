@@ -122,9 +122,10 @@ Implemented with SQLAlchemy/PostgreSQL and an explicit Alembic upgrade. See
 [local metrics setup](local-postgresql.md#enable-metrics-storage-python-postgresql-alembic).
 GET requires the reader token; POST requires a distinct collector token. Both
 support environment and `_FILE` configuration. A valid token for the other role
-returns `403`; missing role configuration fails closed with `503`. Admin credentials are implemented for incident writes; production scheduling remains pending. A simple local test
-collector now POSTs real host samples (see [local development](local-development.md)).
-Schema/connection failures
+returns `403`; missing role configuration fails closed with `503`. The host
+collector POSTs a sample every five seconds: under systemd on Ubuntu
+([Ubuntu monitoring](ubuntu-monitoring.md)) or through the local launcher
+([local development](local-development.md)). Schema/connection failures
 return `503`; unexpected failures return sanitized `500`.
 
 The initial fields cover host statistics, not arbitrary application measurements.
@@ -190,11 +191,11 @@ Optional query parameters:
 | --- | --- | --- |
 | `limit` | 50 | Integer, 1–100 |
 | `offset` | 0 | Integer, 0–9223372036854775807 |
-| `start` | Unset | Timezone-aware datetime; inclusive lower collection time |
-| `end` | Unset | Timezone-aware datetime; inclusive upper collection time |
+| `start` | Unset | Timezone-aware ISO 8601 datetime; inclusive lower collection time |
+| `end` | Unset | Timezone-aware ISO 8601 datetime; inclusive upper collection time |
 
-If both time bounds are provided, require `start <= end`. Invalid parameters
-return `422`. To retrieve the latest stored sample, use `GET /metrics?limit=1`.
+If both time bounds are provided, require `start <= end`. Invalid parameters,
+including Unix timestamps such as `start=1700000000`, return `422`. To retrieve the latest stored sample, use `GET /metrics?limit=1`.
 This reads stored data and does not trigger a new measurement.
 
 Response shape (each item has the fields shown in the POST response):
@@ -254,7 +255,9 @@ configured monitored server; a container's hostname or OS must not accidentally
 be reported as the host's identity. `id` is stable across restarts; `name` is a
 configured display name. Defaults are ID `1` and name `ServerWatch server`;
 configure them with `SERVERWATCH_SERVER_ID` and `SERVERWATCH_SERVER_NAME`.
-Health uses that same configured ID. Return `503` if server information is unavailable.
+Health uses that same configured ID. In Compose, the API cannot see the host, so
+`SERVERWATCH_HOST_IDENTITY_FILE` points to a JSON snapshot that
+`prepare_compose.sh` records on the host. Return `503` if server information is unavailable.
 There are no server creation, update, or deletion endpoints in this scope.
 
 Implemented error handling:
@@ -287,8 +290,8 @@ permissions are implemented for metrics POST; admin permissions are implemented 
 Native host metadata comes from Python's `platform` module; Linux distribution
 name/version come from `freedesktop_os_release()`. Common container markers are
 rejected to avoid reporting a container as the host. This is not exhaustive
-container detection. WSL reports its Linux environment, not the Windows host;
-future container deployment needs an explicitly supplied host metadata source.
+container detection. WSL reports its Linux environment, not the Windows host.
+When `SERVERWATCH_HOST_IDENTITY_FILE` is set, its fields are used instead.
 No database, shell commands, SSH, or cloud requests are needed.
 
 ### Testing the server endpoint
@@ -309,8 +312,8 @@ the test machine is Ubuntu or require a live EC2 instance.
 - Configuration/security tests: invalid server settings, token file precedence,
   hidden token representation, invalid tokens, and unreadable files. Use dummy
   credentials and temporary test files exclusively.
-- Deployment smoke test still needed: verify the reported ID, hostname, and OS
-  against the actual native EC2 host, and later the container host metadata source.
+- Deployment check: `verify.sh` compares the reported identity with the native
+  EC2 host. Check the Compose response against the host manually.
 
 This test selection is our project recommendation based on official guidance:
 [FastAPI testing](https://fastapi.tiangolo.com/tutorial/testing/),
@@ -383,7 +386,8 @@ complete record:
   "occurred_at": "2026-11-15T12:00:00Z",
   "created_at": "2026-11-15T12:01:00Z",
   "updated_at": "2026-11-15T12:01:00Z",
-  "resolved_at": null
+  "resolved_at": null,
+  "trigger": null
 }
 ```
 
@@ -412,9 +416,10 @@ Return the complete record with `200 OK`. A valid UUID that does not exist retur
 
 ### `PATCH /incidents/{incident_id}`
 
-Accept one or more of `title`, `description`, `severity`, and `status`. Reuse the
-creation constraints for title, description, and severity. Status must be `open`,
-`investigating`, or `resolved`. Omitted fields keep their current values; explicit
+Accept one or more of `title`, `description`, `severity`, `status`, and
+`trigger`. Reuse the creation constraints for title, description, severity, and
+trigger. Status must be `open`, `investigating`, or `resolved`. Omitted fields
+keep their current values; `"trigger": null` removes the rule. Other explicit
 nulls, empty objects, and unknown or read-only fields return `422`.
 
 ```json
@@ -519,8 +524,8 @@ connection strings, or secrets. Do not turn failures into successful empty data.
 ## Required tests
 
 Write backend unit tests under `backend/tests/` using `pytest`, plus API contract
-tests using FastAPI's test client when the backend is implemented. Unit tests
-should isolate services using injected repositories, clocks, and health probes.
+tests using FastAPI's test client. Unit tests should isolate services using
+injected storage, clocks, and health probes.
 API tests should verify routing, validation, serialization, and error translation.
 
 | Area | Required coverage |

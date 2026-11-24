@@ -6,12 +6,13 @@ the current native ServerWatch monitoring setup. It is a rehearsal guide, not an
 AWS provisioning script. Follow the course requirement to create the instance
 from scratch during the recorded assessment.
 
-## What is ready, and what is still pending
+## What setup does
 
-The current Ubuntu installer configures local PostgreSQL, migrations, the
-FastAPI service, and the host collector. The read-only verifier checks that the
-services work and fresh measurements are stored. The setup runs services as the
-normal Linux user who runs the installer.
+`setup.sh` configures local PostgreSQL, migrations, the FastAPI service and the
+host collector, publishes React and Swagger through Nginx, installs Docker
+tooling and the Cron backup, and optionally adds the Discord timer and student
+accounts. `verify.sh` checks the result without changing anything. Services run
+as the normal Linux user who runs setup.
 
 Use the [account provisioning guide](ubuntu-accounts.md) if you are showing
 separate junior and senior workspaces. The deployment still uses one checkout
@@ -23,13 +24,12 @@ owned by the installing SSH user. Track assignment evidence in the
 | Path | Packages |
 | --- | --- |
 | Before cloning | Ubuntu 24.04+, `git`, `openssh-client` on the student computers and SSH server on EC2, Bash, and sudo. |
-| Native setup | `git`, `python3`, `python3-venv`, `python3-pip`, `postgresql`, `postgresql-client`, `iproute2`, `nginx`, `curl`, `cron`, `ca-certificates`, and `xz-utils`. FastAPI and the other Python dependencies are installed into the project virtual environment. |
-| Native frontend build | Full setup reuses Node.js 22.12+ with npm when available. Otherwise it downloads Node.js 22 and npm from nodejs.org, verifies the archive checksum, and uses a per-user installation for the React build. |
-| Optional account provisioning | `acl` for managed workspace permissions. |
-| Scheduled backups (G5) | The full native installer installs Cron, PostgreSQL client tools, and the [native backup schedule](#verify-cron-backups-and-restore-g5). |
-| VG deployment | Full setup installs Ubuntu's `docker.io`, `docker-compose-v2`, and `docker-buildx` on a fresh host, then enables Docker. Follow the [Compose guide](docker-deployment.md) to start the stack. Certbot and its Nginx plugin are separate prerequisites for custom-domain HTTPS. |
+| Native setup | `git`, `python3`, `python3-venv`, `python3-pip`, `postgresql`, `postgresql-client`, `iproute2`, `nginx`, `curl`, `cron`, `ca-certificates`, `xz-utils`, and `acl`. FastAPI and the other Python dependencies are installed into the project virtual environment. |
+| Native frontend build | Setup reuses Node.js 22.12+ with npm when available. Otherwise it downloads Node.js 22 and npm from nodejs.org, verifies the archive checksum, and uses a per-user installation for the React build. |
+| Scheduled backups (G5) | Setup installs Cron, PostgreSQL client tools, and the [native backup schedule](#verify-cron-backups-and-restore-g5). |
+| VG deployment | Setup installs Ubuntu's `docker.io`, `docker-compose-v2`, and `docker-buildx` on a fresh host, then enables Docker. Follow the [Compose guide](docker-deployment.md) to start the stack. Certbot and its Nginx plugin are separate prerequisites for custom-domain HTTPS. |
 
-The full installer runs after checkout. If Git is missing, install it before
+Setup runs after checkout. If Git is missing, install it before
 the first clone:
 
 ```bash
@@ -107,11 +107,10 @@ students must verify they can connect before proceeding. If the second student
 does not have the initial key, add that student's **public** key to the
 appropriate Linux account; never copy the first student's private key.
 
-The finished project should use distinct human accounts if you choose to
-demonstrate user-level access. That account/group setup is future work, so this
-current installer rehearsal uses one normal setup account. Do not assume that
-adding two public keys to the same `ubuntu` account demonstrates Linux user and
-group permissions.
+To demonstrate user-level access, create separate student accounts with the
+`SERVERWATCH_SENIOR_USER` and `SERVERWATCH_JUNIOR_USER` options in step 4
+([account guide](ubuntu-accounts.md)). Adding two public keys to the same
+`ubuntu` account does not demonstrate Linux user and group permissions.
 
 ## 4. Clone the repository on EC2
 
@@ -231,13 +230,12 @@ Do this after the first deployment is verified:
    Confirm the latest commit matches the merged GitHub commit and the working
    tree is clean. This demonstrates GitHub-to-EC2 update access. It does not
    itself restart or deploy application code.
-5. For an application-code change, follow a reviewed deployment procedure:
-   check release notes and migrations, install changed dependencies, apply the
-   explicit database migration if required, restart the API/collector, then run
-   the verifier. The current installer is a maintenance operation that can
-   restart services; review [its behavior](ubuntu-monitoring.md#setup-bash-ubuntu-packages-postgresql)
-   before rerunning it. Do not use the docs-only pull test as evidence that a
-   code deployment or rollback works.
+5. For an application-code change, rerun `bash setup.sh ELASTIC_IP` after the
+   pull. It installs changed dependencies, applies pending migrations, restarts
+   the API and collector, rebuilds React and runs verification. It restarts
+   services, so review [its behavior](ubuntu-monitoring.md#setup-bash-ubuntu-packages-postgresql)
+   first. Do not use the docs-only pull test as evidence that a code deployment
+   or rollback works.
 
 If GitHub says the repository is public, no GitHub login is needed on EC2 for
 clone/pull. For a private repository, verify that the instance's read-only key
@@ -292,7 +290,7 @@ rehearse this process separately from the recorded fresh-instance run.
 
 ## Verify Cron backups and restore (G5)
 
-Full setup installs a root-owned command at `/usr/local/sbin/serverwatch-backup`
+Setup installs a root-owned command at `/usr/local/sbin/serverwatch-backup`
 and a schedule at `/etc/cron.d/serverwatch-backup`. Every day at 03:15 in the
 host's timezone, Cron saves a custom-format dump of the **native**
 `serverwatch_monitor` database and the past 24 hours of native service logs.
@@ -336,14 +334,11 @@ database for the demo. Run the commands in Bash as your usual SSH user.
 `sudo /usr/local/sbin/serverwatch-backup` runs the same backup immediately for
 troubleshooting. Use the Cron log as evidence of the scheduled run.
 
-## Current limits and next steps
+## Remaining steps
 
 Record the public-IP browser checks as evidence for the native Nginx deployment.
-Configure and demonstrate the [Discord timer](discord-alerts.md) and, if using
-separate role accounts, verify their [workspace permissions](ubuntu-accounts.md).
-Verify the scheduled backup and restore on EC2. For VG, run the
-[Compose stack](docker-deployment.md) on EC2 and verify database persistence.
-Point a custom domain at EC2, obtain a Certbot certificate, then verify HTTPS,
-HTTP redirects, and renewal.
-See the [assignment coverage tracker](project-plan.md#assignment-coverage-tracker)
-and [GitHub/EC2 workflow](github-actions-plan.md#opt-in-deployment-workflow-github-actions-compose-ec2).
+If using separate accounts, verify their [workspace permissions](ubuntu-accounts.md).
+For VG, run the [Compose stack](docker-deployment.md) on EC2 and verify database
+persistence, then point a custom domain at EC2, obtain a Certbot certificate,
+and verify HTTPS, HTTP redirects, and renewal. Current status is in the
+[assignment coverage tracker](project-plan.md#assignment-coverage-tracker).

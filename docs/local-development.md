@@ -135,7 +135,7 @@ collector in another Windows PowerShell terminal from the project root:
 Do not start a second collector when the launcher is already running one. Stop
 with Ctrl+C. Restart the API/collector after changing tokens in `.env`. Measurements
 are real database writes that remain saved after stopping the local stack.
-EC2 scheduling, alerts, backups, and production collection remain separate work.
+On EC2 the same collector runs under systemd; see [Ubuntu monitoring](ubuntu-monitoring.md).
 
 ## Verification (Bash, Python)
 
@@ -145,10 +145,7 @@ bash scripts/setup/start_local.sh --help
 python -m pytest tests/test_local_launcher.py tests/test_local_collector.py -q
 ```
 
-The 15 launcher tests and 6 collector tests passed, covering Windows/WSL command
-dispatch, paths with spaces, exit status, dummy configuration, host sampling,
-authenticated POST, connection cleanup, retries, and five-second sleeps.
-The three existing EC2 verification tests also passed (24 automation tests total). Bash syntax/help and
-Python lint/format checks passed. ShellCheck was unavailable. Actual Windows service startup, process
-cleanup on Ctrl+C, and browser integration require a Windows smoke test; they
-have not been verified in the Linux development environment.
+These tests cover Windows/WSL command dispatch, paths with spaces, exit status,
+dummy configuration, host sampling, authenticated POST, connection cleanup,
+retries, and five-second sleeps. They run in CI. Windows service startup,
+process cleanup on Ctrl+C, and browser integration need a manual Windows check.

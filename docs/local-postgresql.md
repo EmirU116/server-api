@@ -86,8 +86,9 @@ Install updated dependencies with the same Windows Python used to run FastAPI:
 .\.venv-windows\Scripts\python.exe backend/migrate.py --env-file .env
 ```
 
-The upgrade creates `metrics`, `incidents`, and Alembic's version table.
-An existing metrics-only database upgrades by adding the incidents table. It does not run on
+The upgrade applies every pending migration (currently through
+`0005_trigger_metric_names`), creating `metrics`, `incidents`, and Alembic's
+version table. An existing database keeps its records. It does not run on
 application startup. Repeating the upgrade preserves existing records. To inspect
 SQL without connecting, add `--sql`. Do not run downgrades against data you need.
 Missing tables make metrics return `503`, even when the health query succeeds.
@@ -131,8 +132,8 @@ editing credentials. Nothing in this setup creates real tokens automatically.
    verify the saved record. `?limit=1` returns the latest sample.
 4. Start the frontend with `npm run dev` in `frontend/`, open
    <http://127.0.0.1:5173>, choose **Connect API**, and enter the reader token.
-   Health, server information, and saved metrics now load from FastAPI. Incidents
-   remain explicitly unavailable. API mode polls every five seconds. The sample
+   Health, server information, saved metrics, and incidents now load from
+   FastAPI. API mode polls every five seconds. The sample
    above is manually supplied test data. For real host measurements, use the
    [local launcher and collector](local-development.md); the launcher now starts
    the collector automatically after the API.
@@ -151,9 +152,9 @@ From the project root in Windows PowerShell, run the existing upgrade command:
 .\.venv-windows\Scripts\python.exe backend/migrate.py --env-file .env
 ```
 
-This applies `0002_incidents` without deleting existing measurements. No upgrade
-has been run against your local database by the coding agent. Health can be
-healthy while incident requests return 503 because their table is missing.
+This applies any pending incident migrations without deleting existing
+measurements. Health can be healthy while incident requests return 503 because
+their table is missing.
 
 Generate a separate token privately (do not paste the output into chat):
 
@@ -188,6 +189,7 @@ Test in <http://127.0.0.1:8000/docs>:
 4. DELETE that test incident; expect 204 with no body. Switch to reader and GET
    the same ID; expect 404. Deletion permanently removes the selected record.
 
-The live React incident view is not connected yet. Use Swagger for these checks;
-never place admin credentials into the dashboard's reader connection field.
-Automatic detection and notifications remain pending.
+The dashboard can run the same workflow: in **Connect your API**, enter the
+reader token as the bearer token and the admin token in its own optional field.
+Never put the admin token in the bearer token field. Incidents are opened
+manually; automatic incident detection is not implemented.
