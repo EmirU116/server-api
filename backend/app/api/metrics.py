@@ -1,7 +1,7 @@
 """GET saved server statistics and POST validated collector samples."""
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, get_args
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 from pydantic import AwareDatetime
@@ -88,6 +88,8 @@ async def get_metrics(
 ) -> MetricPage:
     """Read a bounded historical page; this never collects new measurements."""
     await validate_list_request(request, "limit", "offset", "start", "end")
+    # Pydantic also accepts Unix numbers such as start=1700000000. Require the
+    # documented ISO 8601 text instead; parsing already rejected invalid values.
     for name in ("start", "end"):
         if name in request.query_params:
             try:
@@ -120,18 +122,11 @@ async def get_metric_history(
 ) -> MetricHistory:
     """Return averaged time buckets for a dashboard window."""
     await validate_list_request(request, "minutes")
-    selected: HistoryMinutes
-    if minutes == 30:
-        selected = 30
-    elif minutes == 60:
-        selected = 60
-    elif minutes == 1440:
-        selected = 1440
-    else:
+    if minutes not in get_args(HistoryMinutes):
         raise PublicHTTPError(422, "minutes must be 30, 60, or 1440.")
     try:
         result = await run_in_threadpool(
-            service.history, selected, request.state.received_at
+            service.history, minutes, request.state.received_at
         )
     except MetricsUnavailable as exc:
         raise PublicHTTPError(503, exc.reason.value) from None

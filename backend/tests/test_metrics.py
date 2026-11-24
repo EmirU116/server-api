@@ -116,6 +116,9 @@ def test_roles(client, metrics, method, headers, expected):
         "start=bad",
         "start=2026-01-01T12:00:00",
         "start=2026-01-02T00:00:00Z&end=2026-01-01T00:00:00Z",
+        # Pydantic would accept Unix numbers; the API requires ISO 8601 text.
+        "start=1700000000",
+        "end=1700000000",
     ],
 )
 def test_invalid_query_does_not_read(client, metrics, query):

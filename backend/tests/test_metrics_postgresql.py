@@ -13,7 +13,8 @@ from pydantic import SecretStr
 from sqlalchemy import delete, inspect, text
 from test_metrics import COLLECTOR, READER, SAMPLE
 
-from app.models.metric import Base, Metric
+from app.models.base import Base
+from app.models.metric import Metric
 from app.schemas.metric import MetricCreate
 from app.services.metrics import DuplicateMetric, FutureMetric, MetricsService
 

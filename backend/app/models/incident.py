@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import JSON, CheckConstraint, DateTime, Index, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.metric import Base
+from app.models.base import Base
 
 
 class Incident(Base):
