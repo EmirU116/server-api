@@ -35,10 +35,10 @@ def test_full_setup_runs_preflight_before_changes(tmp_path):
     boot.mkdir(parents=True)
     trace = tmp_path / "trace"
     (boot / "setup_ubuntu_web.sh").write_text(
-        'echo "web:$SERVERWATCH_FULL_SETUP:$*" >> "$TRACE"\n'
+        'echo "web:$*" >> "$TRACE"\n'
     )
     (boot / "setup_ubuntu_monitoring.sh").write_text(
-        'echo "monitor:$SERVERWATCH_FULL_SETUP:$1" >> "$TRACE"\n'
+        'echo "monitor:$1" >> "$TRACE"\n'
     )
     subprocess.run(
         ["bash", str(ROOT / "setup.sh"), "192.0.2.1"],
@@ -46,16 +46,15 @@ def test_full_setup_runs_preflight_before_changes(tmp_path):
         env={
             **os.environ,
             "SERVERWATCH_PROJECT_DIR": str(tmp_path),
-            "SERVERWATCH_FULL_SETUP": "",
             "TRACE": str(trace),
             "HOME": str(tmp_path),
         },
         timeout=10,
     )
     assert trace.read_text().splitlines() == [
-        "web:1:--preflight 192.0.2.1",
-        f"monitor:1:{tmp_path}",
-        "web:1:192.0.2.1",
+        "web:--preflight 192.0.2.1",
+        f"monitor:{tmp_path}",
+        "web:192.0.2.1",
     ]
 
 

@@ -21,11 +21,11 @@ if [[ "${SERVERWATCH_START_COMPOSE:-0}" == 1 && "$project" != "$HOME/serverwatch
     exit 1
 fi
 # Validate the host and public address before installing packages or restarting services.
-SERVERWATCH_FULL_SETUP=1 bash "$project/infrastructure/bootstrap/setup_ubuntu_web.sh" --preflight "$@"
+bash "$project/infrastructure/bootstrap/setup_ubuntu_web.sh" --preflight "$@"
 # Install packages, PostgreSQL, the API and collector services, and the Cron backup schedule.
-SERVERWATCH_FULL_SETUP=1 bash "$project/infrastructure/bootstrap/setup_ubuntu_monitoring.sh" "$project"
+bash "$project/infrastructure/bootstrap/setup_ubuntu_monitoring.sh" "$project"
 # Build and publish React, then configure Nginx to serve it and proxy the API.
-SERVERWATCH_FULL_SETUP=1 bash "$project/infrastructure/bootstrap/setup_ubuntu_web.sh" "$@"
+bash "$project/infrastructure/bootstrap/setup_ubuntu_web.sh" "$@"
 
 # Provision optional Linux accounts with group and ACL access to the dev and prod workspaces.
 if [[ -n "${SERVERWATCH_SENIOR_USER:-}" ]]; then

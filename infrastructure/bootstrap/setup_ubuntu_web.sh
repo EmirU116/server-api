@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Publish a static frontend alongside the existing native monitoring services.
+# Publish React and Swagger through Nginx. Called by the root setup.sh, first
+# with --preflight to validate arguments before anything is installed.
 set -euo pipefail
 fail() { echo "[FAIL] $*" >&2; exit 1; }
 if [[ "${1:-}" == --help ]]; then
@@ -48,10 +49,8 @@ install_node() (
     mv -T -- "${archive%.tar.xz}" "$node_dir"
 )
 
-if [[ "$preflight" == true && "${SERVERWATCH_FULL_SETUP:-}" == 1 ]]; then exit 0; fi
+if [[ "$preflight" == true ]]; then exit 0; fi
 if ! node_ready; then
-    [[ "${SERVERWATCH_FULL_SETUP:-}" == 1 ]] ||
-        fail "Install Node.js 22.12+ with npm first, or run the full setup.sh."
     node_version=v22.23.5
     node_dir="$HOME/.local/share/serverwatch/node-$node_version"
     if [[ ! -d "$node_dir" ]]; then
@@ -60,7 +59,6 @@ if ! node_ready; then
     export PATH="$node_dir/bin:$PATH"
     node_ready || fail "The ServerWatch Node.js installation is unusable: $node_dir"
 fi
-if [[ "$preflight" == true ]]; then exit 0; fi
 [[ "$(systemctl show serverwatch-api -p User --value)" == "$(id -un)" &&
    "$(systemctl show serverwatch-api -p WorkingDirectory --value)" == "$project" ]] ||
     fail "Run from the checkout used by the API service, as its owner."
@@ -78,10 +76,6 @@ npm run build
 
 step="install and configure Nginx"
 echo "[SETUP] $step"
-if [[ "${SERVERWATCH_FULL_SETUP:-}" != 1 ]]; then
-    sudo apt-get update
-    sudo apt-get install -y nginx curl
-fi
 work_dir=$(mktemp -d)
 trap 'rm -rf -- "$work_dir"' EXIT
 site=/etc/nginx/sites-enabled/serverwatch.conf

@@ -29,18 +29,12 @@ Clone or transfer the current code first. On the Ubuntu server, from the project
 root, run as your normal SSH user:
 
 ```bash
-bash infrastructure/bootstrap/setup_ubuntu_monitoring.sh
+bash setup.sh PUBLIC_IP
 ```
 
-Do not put `sudo` before the whole command. The script requests sudo for package,
-PostgreSQL, and systemd administration. From another directory, pass the clone's
-absolute path:
-
-```bash
-bash /home/ubuntu/serverwatch/infrastructure/bootstrap/setup_ubuntu_monitoring.sh /home/ubuntu/serverwatch
-```
-
-Setup performs these steps:
+Do not put `sudo` before the whole command. The scripts request sudo for package,
+PostgreSQL, and systemd administration. `setup.sh` runs
+`infrastructure/bootstrap/setup_ubuntu_monitoring.sh`, which performs these steps:
 
 1. Checks Ubuntu/systemd, checkout ownership assumptions, conflicting managed
    services, and whether port 8000 is free (or our API is already running).
@@ -62,7 +56,8 @@ Setup performs these steps:
    `serverwatch-collector.service` as the installing SSH user. API binds only to
    `127.0.0.1:8000`, runs in production mode without reload or Swagger, and uses
    the private configuration. Collector runs directly on the host.
-8. Runs verification. Setup exits nonzero if a component fails verification.
+8. Installs the daily Cron backup. `setup.sh` then publishes the web tier and
+   runs verification; it exits nonzero if a component fails verification.
 
 Existing configuration must match this managed local database/server-ID setup.
 Reruns preserve files and data; they reinstall dependencies, apply new migrations,
@@ -72,14 +67,7 @@ instead of silently replacing an existing database's password. A partial failure
 may leave installed packages, created files/database, or services in place; fix
 the reported issue and rerun. No automatic destructive cleanup is performed.
 
-If the older smoke-test service is running, stop it before setup:
-
-```bash
-sudo systemctl disable --now serverwatch-ec2-test.service
-```
-
-Only do this when switching away from that older test setup. The new scripts do
-not stop unrelated applications or services to reclaim ports.
+The scripts do not stop unrelated applications or services to reclaim ports.
 
 ## Verification (Bash, HTTP, PostgreSQL)
 

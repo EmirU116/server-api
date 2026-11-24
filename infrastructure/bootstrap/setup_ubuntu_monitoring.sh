@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
-# Install native Ubuntu monitoring. Run as the SSH user, not sudo bash.
+# Install packages, PostgreSQL, the API/collector services and Cron backups.
+# Called by the root setup.sh, which then publishes the web tier and verifies.
+# Run as the SSH user, not sudo bash.
 set -euo pipefail
 
 if [[ "${1:-}" == "--help" ]]; then
     echo "Usage: bash setup_ubuntu_monitoring.sh [project-directory]"
     echo "Ubuntu 24.04+, sudo access, cloned repository, and free port 8000 required."
-    echo "Installs local PostgreSQL, private credentials, migrations, API and collector services."
-    echo "Reruns preserve credentials/data. Does not deploy React, Nginx, HTTPS or AWS resources."
+    echo "Installs packages, local PostgreSQL, private credentials, migrations, API and"
+    echo "collector services, and the Cron backup. Normally run through setup.sh."
+    echo "Reruns preserve credentials/data. Does not configure Nginx, HTTPS or AWS resources."
     exit 0
 fi
 if (( $# > 1 )) || [[ "${1:-}" == --* ]]; then
@@ -52,25 +55,22 @@ for service in serverwatch-api serverwatch-collector; do
     fi
 done
 
-packages=(python3 python3-venv python3-pip postgresql postgresql-client iproute2)
-if [[ "${SERVERWATCH_FULL_SETUP:-}" == 1 ]]; then
-    packages+=(git nginx curl cron ca-certificates xz-utils acl)
-    if dpkg-query -W -f='${db:Status-Status}' docker-ce 2>/dev/null | grep -qx installed; then
-        docker compose version >/dev/null 2>&1 || packages+=(docker-compose-plugin)
-        docker buildx version >/dev/null 2>&1 || packages+=(docker-buildx-plugin)
-    else
-        docker compose version >/dev/null 2>&1 || packages+=(docker.io docker-compose-v2)
-        docker buildx version >/dev/null 2>&1 || packages+=(docker-buildx)
-    fi
+packages=(python3 python3-venv python3-pip postgresql postgresql-client iproute2
+    git nginx curl cron ca-certificates xz-utils acl)
+# Keep Docker's own packages when they are installed; otherwise use Ubuntu's.
+if dpkg-query -W -f='${db:Status-Status}' docker-ce 2>/dev/null | grep -qx installed; then
+    docker compose version >/dev/null 2>&1 || packages+=(docker-compose-plugin)
+    docker buildx version >/dev/null 2>&1 || packages+=(docker-buildx-plugin)
+else
+    docker compose version >/dev/null 2>&1 || packages+=(docker.io docker-compose-v2)
+    docker buildx version >/dev/null 2>&1 || packages+=(docker-buildx)
 fi
 echo "[SETUP] Installing Ubuntu packages: ${packages[*]}"
 sudo apt-get update
 sudo apt-get install -y "${packages[@]}"
-if [[ "${SERVERWATCH_FULL_SETUP:-}" == 1 ]]; then
-    sudo systemctl enable --now docker.service
-    docker compose version
-    docker buildx version
-fi
+sudo systemctl enable --now docker.service
+docker compose version
+docker buildx version
 python3 -c 'import sys; assert sys.version_info >= (3, 11), "Python 3.11+ required"'
 if ! systemctl is-active --quiet serverwatch-api.service; then
     python3 - <<'CHECK_PORT'
@@ -116,12 +116,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable serverwatch-api.service serverwatch-collector.service
 sudo systemctl restart serverwatch-api.service
 sudo systemctl restart serverwatch-collector.service
-if [[ "${SERVERWATCH_FULL_SETUP:-}" == 1 ]]; then
-    echo "[SETUP] Installing the native PostgreSQL and service log backup schedule."
-    sudo install -o root -g root -m 755 -- "$project_dir/scripts/backup/backup_native.sh" /usr/local/sbin/serverwatch-backup
-    sudo install -o root -g root -m 644 -- "$project_dir/infrastructure/cron/serverwatch-backup" /etc/cron.d/serverwatch-backup
-    sudo systemctl enable --now cron.service
-else
-    bash "$project_dir/scripts/verification/verify_ubuntu_monitoring.sh" "$project_dir"
-fi
+echo "[SETUP] Installing the native PostgreSQL and service log backup schedule."
+sudo install -o root -g root -m 755 -- "$project_dir/scripts/backup/backup_native.sh" /usr/local/sbin/serverwatch-backup
+sudo install -o root -g root -m 644 -- "$project_dir/infrastructure/cron/serverwatch-backup" /etc/cron.d/serverwatch-backup
+sudo systemctl enable --now cron.service
 echo "[OK] Monitoring is running; services start at boot. Credentials were not printed."

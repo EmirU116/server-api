@@ -112,9 +112,8 @@ In a second EC2 terminal, from the checkout, run:
 bash scripts/deployment/compose_host.sh collect
 ```
 
-The command finds the published Compose port and collector configuration. It
-reuses the native Python virtual environment if available or prepares a private
-collector environment on first use. The collector runs in that terminal until
+The command finds the published Compose port and collector configuration and
+uses the project virtual environment that `setup.sh` created. The collector runs in that terminal until
 you press Ctrl+C. It reads the Docker host's CPU, memory, and disk usage, and sends
 samples every five seconds. The host identity snapshot is created by
 `prepare_compose.sh` from the same machine. Compose's metrics and incident
