@@ -8,21 +8,18 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import SecretStr
 
-from app.core.config import Settings
 from app.core.errors import PublicHTTPError
 
 bearer = HTTPBearer(auto_error=False)
 
 
-def load_reader_token(settings: Settings) -> SecretStr | None:
-    """Prefer a mounted secret file; use environment configuration locally."""
-    return load_token(settings.reader_token, settings.reader_token_file, "Reader")
-
-
 def load_token(
     token: SecretStr | None, path: Path | None, role: str
 ) -> SecretStr | None:
-    """Validate either role's configured secret without exposing its contents."""
+    """Load one role's secret, preferring a mounted file over the environment.
+
+    The value is validated without exposing its contents in errors.
+    """
     if path is not None:
         try:
             token = SecretStr(path.read_text().strip())

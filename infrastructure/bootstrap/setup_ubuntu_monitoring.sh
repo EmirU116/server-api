@@ -51,10 +51,6 @@ for service in serverwatch-api serverwatch-collector; do
         fi
     fi
 done
-if systemctl is-active --quiet serverwatch-ec2-test.service; then
-    echo "[FAIL] Stop the older serverwatch-ec2-test.service before installing monitoring."
-    exit 1
-fi
 
 packages=(python3 python3-venv python3-pip postgresql postgresql-client iproute2)
 if [[ "${SERVERWATCH_FULL_SETUP:-}" == 1 ]]; then

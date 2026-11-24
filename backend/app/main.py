@@ -12,7 +12,7 @@ from app.api.server import router as server_router
 from app.core.config import Settings, load_settings
 from app.core.database import Database
 from app.core.errors import register_error_handlers
-from app.core.security import load_reader_token, load_token
+from app.core.security import load_token
 from app.services.health import HealthService
 from app.services.incidents import IncidentsService
 from app.services.metrics import MetricsService
@@ -59,7 +59,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.server_service = ServerService(
         settings.server_id, settings.server_name, settings.host_identity_file
     )
-    app.state.reader_token = load_reader_token(settings)
+    app.state.reader_token = load_token(
+        settings.reader_token, settings.reader_token_file, "Reader"
+    )
     app.state.collector_token = load_token(
         settings.collector_token, settings.collector_token_file, "Collector"
     )

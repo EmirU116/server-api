@@ -4,7 +4,11 @@ import pytest
 from pydantic import SecretStr
 
 from app.core.config import Settings
-from app.core.security import load_reader_token
+from app.core.security import load_token
+
+
+def load_reader_token(settings: Settings):
+    return load_token(settings.reader_token, settings.reader_token_file, "Reader")
 
 
 def test_reader_token_is_optional_and_hidden():

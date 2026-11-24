@@ -177,11 +177,6 @@ Docker tooling, aliases, and selected integrations. Demonstrate public
 routing from your computer, Discord delivery, the scheduled backup and restore,
 and Compose persistence using the corresponding walkthroughs.
 
-If a host still has the retired API-only test service, inspect it with
-`sudo systemctl status serverwatch-ec2-test.service`. If it is the old
-ServerWatch smoke test and you are replacing it, stop and disable it with
-`sudo systemctl disable --now serverwatch-ec2-test.service`.
-
 ## 5. Verify the current native monitoring deployment
 
 From the EC2 checkout, still as the installing user:

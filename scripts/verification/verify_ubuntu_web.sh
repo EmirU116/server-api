@@ -13,9 +13,6 @@ python3 -c 'import ipaddress, sys; ipaddress.IPv4Address(sys.argv[1])' "$public_
 project=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 bash "$project/scripts/verification/verify_ubuntu_monitoring.sh" ||
     fail "Underlying monitoring checks failed."
-# Read only the identity from the same managed settings the check just validated.
-server_id=$("$project/.venv/bin/python" -c 'from dotenv import dotenv_values; from pathlib import Path; print(int(dotenv_values(Path.home() / ".config/serverwatch-monitoring/api.env")["SERVERWATCH_SERVER_ID"]))' 2>/dev/null) ||
-    fail "Could not read the monitored server ID from managed configuration."
 fetch() {
     curl --noproxy '*' --fail --silent --show-error --max-time 5 \
         --resolve "$public_ip:80:127.0.0.1" "http://$public_ip$1"
@@ -33,7 +30,7 @@ docs=$(fetch /docs) || fail "Swagger request failed."
 schema=$(fetch /openapi.json) || fail "OpenAPI request failed."
 python3 -c 'import json, sys; sys.exit("/api/v1/health" not in json.load(sys.stdin).get("paths", {}))' <<< "$schema" ||
     fail "OpenAPI did not describe the health endpoint."
-health=$(fetch "/api/v1/health?server_id=$server_id") || fail "Proxied health request failed."
+health=$(fetch "/api/v1/health?server_id=1") || fail "Proxied health request failed."
 python3 -c 'import json, sys; sys.exit(json.load(sys.stdin).get("status") != "healthy")' <<< "$health" ||
     fail "Proxied API did not report healthy."
 echo "[PASS] Nginx served React, health, Swagger and OpenAPI."

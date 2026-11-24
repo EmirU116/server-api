@@ -47,6 +47,11 @@ def get_service(request: Request) -> IncidentsService:
 
 
 async def validate_read(request: Request) -> None:
+    """Reject query parameters and bodies on detail and delete operations.
+
+    Keep this wrapper: used directly as a dependency, the helper's
+    *allowed_parameters would appear as a bogus query parameter in OpenAPI.
+    """
     await validate_read_request(request)
 
 
