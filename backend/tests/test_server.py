@@ -36,15 +36,13 @@ def test_service_returns_configured_identity_and_host_metadata(host):
 
 
 def test_native_linux_metadata_uses_distribution_not_kernel(monkeypatch):
-    monkeypatch.setattr("app.services.server.Path.exists", lambda path: False)
-    monkeypatch.setattr("app.services.server.platform.system", lambda: "Linux")
-    monkeypatch.setattr("app.services.server.platform.node", lambda: "test-server")
-    monkeypatch.setattr("app.services.server.platform.machine", lambda: "x86_64")
+    monkeypatch.setattr("app.host_identity.Path.exists", lambda path: False)
+    monkeypatch.setattr("app.host_identity.platform.system", lambda: "Linux")
+    monkeypatch.setattr("app.host_identity.platform.node", lambda: "test-server")
+    monkeypatch.setattr("app.host_identity.platform.machine", lambda: "x86_64")
+    monkeypatch.setattr("app.host_identity.platform.release", lambda: "kernel-version")
     monkeypatch.setattr(
-        "app.services.server.platform.release", lambda: "kernel-version"
-    )
-    monkeypatch.setattr(
-        "app.services.server.platform.freedesktop_os_release",
+        "app.host_identity.platform.freedesktop_os_release",
         lambda: {"NAME": "Ubuntu", "VERSION_ID": "24.04"},
     )
 
@@ -52,11 +50,11 @@ def test_native_linux_metadata_uses_distribution_not_kernel(monkeypatch):
 
 
 def test_native_windows_metadata_does_not_read_linux_files(monkeypatch):
-    monkeypatch.setattr("app.services.server.Path.exists", lambda path: False)
-    monkeypatch.setattr("app.services.server.platform.system", lambda: "Windows")
-    monkeypatch.setattr("app.services.server.platform.node", lambda: "windows-host")
-    monkeypatch.setattr("app.services.server.platform.machine", lambda: "AMD64")
-    monkeypatch.setattr("app.services.server.platform.release", lambda: "11")
+    monkeypatch.setattr("app.host_identity.Path.exists", lambda path: False)
+    monkeypatch.setattr("app.host_identity.platform.system", lambda: "Windows")
+    monkeypatch.setattr("app.host_identity.platform.node", lambda: "windows-host")
+    monkeypatch.setattr("app.host_identity.platform.machine", lambda: "AMD64")
+    monkeypatch.setattr("app.host_identity.platform.release", lambda: "11")
 
     assert read_host_info() == {
         "hostname": "windows-host",
@@ -68,7 +66,7 @@ def test_native_windows_metadata_does_not_read_linux_files(monkeypatch):
 
 
 def test_container_metadata_is_not_reported_as_host(monkeypatch):
-    monkeypatch.setattr("app.services.server.Path.exists", lambda path: True)
+    monkeypatch.setattr("app.host_identity.Path.exists", lambda path: True)
 
     with pytest.raises(ServerInfoUnavailable):
         read_host_info()

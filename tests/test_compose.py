@@ -12,13 +12,24 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SETUP = ROOT / "scripts/setup/prepare_compose.sh"
 HOST = ROOT / "scripts/deployment/compose_host.sh"
+# prepare_compose.sh imports these from its own checkout.
+PREPARE_FILES = (
+    "scripts/setup/prepare_compose.sh",
+    "scripts/setup/private_files.py",
+    "backend/app/__init__.py",
+    "backend/app/host_identity.py",
+)
+
+
+def copy_prepare_files(project: Path) -> None:
+    for name in PREPARE_FILES:
+        (project / name).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / name, project / name)
 
 
 def test_start_creates_private_defaults_and_collect_uses_the_published_port(tmp_path):
     project = tmp_path / "serverwatch"
-    setup_script = project / "scripts/setup/prepare_compose.sh"
-    setup_script.parent.mkdir(parents=True)
-    shutil.copyfile(SETUP, setup_script)
+    copy_prepare_files(project)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     docker = bin_dir / "docker"
@@ -204,9 +215,7 @@ def test_host_config_resolves_custom_port_and_external_secrets(tmp_path):
         "SERVERWATCH_WEB_PORT": "8888",
         "SERVERWATCH_COMPOSE_SECRETS": "/ignored",
     }
-    setup_script = project / "scripts/setup/prepare_compose.sh"
-    setup_script.parent.mkdir(parents=True)
-    shutil.copyfile(SETUP, setup_script)
+    copy_prepare_files(project)
     subprocess.run(
         [*command, "prepare"],
         env=environment,

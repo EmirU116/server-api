@@ -11,41 +11,18 @@ import hashlib
 import hmac
 import os
 import secrets
-import stat
+import sys
 from pathlib import Path
+
+# Tests load this file by path, so make its sibling helper importable.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from private_files import private_directory, private_file, require_private  # noqa: E402
 
 DATABASE = "serverwatch_monitor"
 
 
-def private_file(path: Path, content: str) -> None:
-    """Create once, then require a private regular file owned by this user."""
-    if not path.exists() and not path.is_symlink():
-        with open(
-            path, "x", opener=lambda name, flags: os.open(name, flags, 0o600)
-        ) as file:
-            file.write(content)
-    check_private_file(path)
-
-
-def check_private_file(path: Path) -> None:
-    info = path.lstat()
-    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid():
-        raise RuntimeError("Configuration must be regular files owned by this user.")
-    if stat.S_IMODE(info.st_mode) != 0o600:
-        raise RuntimeError("Existing configuration files must have mode 600.")
-
-
 def prepare(config: Path) -> None:
-    config.mkdir(mode=0o700, parents=True, exist_ok=True)
-    info = config.lstat()
-    if (
-        not stat.S_ISDIR(info.st_mode)
-        or info.st_uid != os.getuid()
-        or stat.S_IMODE(info.st_mode) != 0o700
-    ):
-        raise RuntimeError(
-            "Configuration directory must be owned by this user with mode 700."
-        )
+    private_directory(config)
     for name in ("reader_token", "collector_token", "admin_token", "db_password"):
         private_file(config / name, secrets.token_urlsafe(32) + "\n")
     private_file(
@@ -81,13 +58,7 @@ def validate(config: Path):
 
     # Read only the managed file: ambient SERVERWATCH_* variables and a cloned
     # .env cannot redirect this installer to a remote/production database.
-    info = config.lstat()
-    if (
-        not stat.S_ISDIR(info.st_mode)
-        or info.st_uid != os.getuid()
-        or stat.S_IMODE(info.st_mode) != 0o700
-    ):
-        raise RuntimeError("Private configuration directory required.")
+    require_private(config, directory=True)
     for name in (
         "reader_token",
         "collector_token",
@@ -96,7 +67,7 @@ def validate(config: Path):
         "api.env",
         "collector.env",
     ):
-        check_private_file(config / name)
+        require_private(config / name)
     values = dotenv_values(config / "api.env")
     expected = {
         "SERVERWATCH_ENVIRONMENT": "production",
@@ -211,7 +182,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    import sys
-
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
     main()

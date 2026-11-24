@@ -1,10 +1,9 @@
 """PostgreSQL connectivity without exposing credentials or blocking requests."""
 
 from psycopg import AsyncConnection
-from pydantic import SecretStr
 from sqlalchemy import URL, create_engine
 
-from app.core.config import Settings
+from app.core.config import Settings, read_secret_file
 
 
 class Database:
@@ -12,14 +11,9 @@ class Database:
         self.settings = settings
         self.password = settings.database_password
         if settings.database_password_file is not None:
-            try:
-                self.password = SecretStr(
-                    settings.database_password_file.read_text(encoding="utf-8").strip()
-                )
-            except (OSError, UnicodeError):
-                raise RuntimeError(
-                    "Cannot read configured database password file."
-                ) from None
+            self.password = read_secret_file(
+                settings.database_password_file, "database password"
+            )
 
         if self.password is not None and not self.password.get_secret_value():
             raise RuntimeError("Configured database password must not be empty.")

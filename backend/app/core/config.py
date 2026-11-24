@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     database_password_file: Path | None = Field(default=None, repr=False)
 
 
+def read_secret_file(path: Path, label: str) -> SecretStr:
+    """Read a mounted secret file; the error names the setting, never the path."""
+    try:
+        return SecretStr(path.read_text(encoding="utf-8").strip())
+    except (OSError, UnicodeError):
+        raise RuntimeError(f"Cannot read configured {label} file.") from None
+
+
 def load_settings() -> Settings:
     """Fail startup with a useful message without revealing supplied values."""
     try:

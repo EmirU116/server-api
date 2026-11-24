@@ -8,6 +8,7 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import SecretStr
 
+from app.core.config import read_secret_file
 from app.core.errors import PublicHTTPError
 
 bearer = HTTPBearer(auto_error=False)
@@ -21,12 +22,7 @@ def load_token(
     The value is validated without exposing its contents in errors.
     """
     if path is not None:
-        try:
-            token = SecretStr(path.read_text().strip())
-        except (OSError, UnicodeError):
-            raise RuntimeError(
-                f"Cannot read configured {role.lower()} token file."
-            ) from None
+        token = read_secret_file(path, f"{role.lower()} token")
 
     if token is not None:
         value = token.get_secret_value()

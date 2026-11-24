@@ -15,59 +15,37 @@ project=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 secret_dir=${1:-${SERVERWATCH_COMPOSE_SECRETS:-$project/secrets}}
 umask 077
 
-python3 - "$secret_dir" <<'PY'
+python3 - "$secret_dir" "$project" <<'PY'
 import json
-import os
-import platform
 import secrets
-import stat
 import sys
 from pathlib import Path
 
 directory = Path(sys.argv[1]).expanduser()
-
-
-def require_private(path, kind, mode):
-    info = path.lstat()
-    if not kind(info.st_mode) or info.st_uid != os.getuid():
-        raise SystemExit(f"[FAIL] {path.name} must be owned by this user and must not be a symlink.")
-    if stat.S_IMODE(info.st_mode) != mode:
-        raise SystemExit(f"[FAIL] {path.name} requires permissions {mode:o}.")
-
-
-def preserve_or_create(name, content):
-    path = directory / name
-    try:
-        with path.open("x", encoding="utf-8") as handle:
-            handle.write(content + "\n")
-    except FileExistsError:
-        pass
-    require_private(path, stat.S_ISREG, 0o600)
-
+project = Path(sys.argv[2])
+# Reuse the API's host identity rules and the native setup's private-file checks.
+sys.path[:0] = [str(project / "scripts/setup"), str(project / "backend")]
+from app.host_identity import ServerInfoUnavailable, read_host_info  # noqa: E402
+from private_files import NotPrivate, private_directory, private_file  # noqa: E402
 
 try:
-    directory.mkdir(parents=True, exist_ok=True)
-    require_private(directory, stat.S_ISDIR, 0o700)
+    private_directory(directory)
     for name in (
         "db_admin_password", "db_password", "db_migration_password",
         "reader_token", "collector_token", "admin_token",
     ):
-        preserve_or_create(name, secrets.token_urlsafe(32))
+        private_file(directory / name, secrets.token_urlsafe(32) + "\n")
 
-    os_type = platform.system()
-    release = platform.freedesktop_os_release() if os_type == "Linux" else {}
-    identity = {
-        "hostname": platform.node(),
-        "os_type": os_type,
-        "os_name": release.get("NAME", os_type),
-        "os_version": release.get("VERSION_ID", platform.release()),
-        "architecture": platform.machine(),
-    }
-    preserve_or_create("host_identity.json", json.dumps(identity))
+    # The API container cannot see the host, so record the host identity here.
+    private_file(directory / "host_identity.json", json.dumps(read_host_info()) + "\n")
     token_path = str((directory / "collector_token").absolute())
     path_value = token_path.replace("\\", "\\\\").replace("'", "\\'")
     # Compose keeps the host collector's credentials independent from native services.
-    preserve_or_create("collector.env", f"SERVERWATCH_COLLECTOR_TOKEN_FILE='{path_value}'")
+    private_file(directory / "collector.env", f"SERVERWATCH_COLLECTOR_TOKEN_FILE='{path_value}'\n")
+except NotPrivate as error:
+    raise SystemExit(f"[FAIL] {error}") from None
+except ServerInfoUnavailable:
+    raise SystemExit("[FAIL] Run this on the host, not inside a container.") from None
 except OSError:
     raise SystemExit("[FAIL] Could not provision private Compose files. Check ownership and write permissions.") from None
 
