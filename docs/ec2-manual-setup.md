@@ -148,8 +148,34 @@ For normal setup and updates, run `bash setup.sh ELASTIC_IP` inside the
 checkout. You can optionally pass the EC2 public DNS hostname as a second
 argument. Use your normal SSH user. The script uses sudo for package and
 service changes and keeps existing credentials and PostgreSQL data.
-It deploys the native services and prepares the Docker tooling. To run the
-containerized application afterward, follow the [Compose guide](docker-deployment.md).
+It deploys native FastAPI, PostgreSQL, the systemd collector, React through
+Nginx, and Cron backups. It installs Docker tooling and adds the Bash aliases
+`sw-status`, `sw-logs`, `sw-timers`, and `sw-help` for new SSH sessions.
+Run `sw-help` to see the available shortcuts.
+
+For a combined rehearsal, export only the options that apply to your demo,
+then run setup and verification in the same SSH session:
+
+```bash
+export SERVERWATCH_SENIOR_USER=emir
+export SERVERWATCH_JUNIOR_USER=alice
+export SERVERWATCH_DISCORD_WEBHOOK_FILE="$HOME/.config/serverwatch-alerts/discord-webhook"
+export SERVERWATCH_START_COMPOSE=1
+bash setup.sh ELASTIC_IP
+bash verify.sh ELASTIC_IP
+```
+
+Create the [private webhook file](discord-alerts.md) first. Discord defaults
+to 90%; export `SERVERWATCH_DISCORD_THRESHOLD` to change it. The developer
+roles grant permissions to `/srv/serverwatch/dev` and `/srv/serverwatch/prod`.
+Install each student's SSH public key separately. Compose startup requires
+the checkout at `~/serverwatch` and an operator with [Docker access](docker-deployment.md).
+Keep the account options for the same names on subsequent runs.
+
+Verification checks the native API, collector, React and Nginx, Cron setup,
+Docker tooling, aliases, and selected integrations. Demonstrate public
+routing from your computer, Discord delivery, the scheduled backup and restore,
+and Compose persistence using the corresponding walkthroughs.
 
 If a host still has the retired API-only test service, inspect it with
 `sudo systemctl status serverwatch-ec2-test.service`. If it is the old

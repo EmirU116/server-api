@@ -23,9 +23,14 @@ Avoid introducing Kubernetes, microservices, RDS, Terraform, message brokers, or
 3. Identify the smallest change that satisfies the request. Describe planned file additions or moves when the change is substantial.
 4. Preserve the existing architecture and naming conventions unless there is a compelling reason to change them.
 5. After changes, run relevant tests, formatting, linting, or configuration validation that the project actually supports.
-6. Report what changed, what was verified, and any remaining risks or manual steps.
+6. Use supported APIs. Check deprecation claims against the official documentation for the project's supported versions and replace confirmed deprecated calls with supported equivalents. Python's `contextlib.contextmanager` and `contextlib.asynccontextmanager` are supported. Use FastAPI's `lifespan=` for application lifecycle hooks.
+7. Report what changed, what was verified, and any remaining risks or manual steps.
 
 When requirements are unclear, choose a conservative, reversible implementation and make assumptions explicit. Do not silently invent product requirements.
+
+Use root `setup.sh` and `verify.sh` as the EC2 deployment entry points.
+Reuse the component installers for optional Discord, Ubuntu accounts, and
+Compose stages. See the [EC2 setup guide](docs/ec2-manual-setup.md).
 
 ### Documentation references
 
@@ -44,7 +49,7 @@ describe requirements and conventions; verify implementation status separately.
 | [Folder structure](docs/FOLDER_STRUCTURE.md) | Creating, moving, or organizing files and modules. |
 | [Frontend development](docs/frontend.md) | Working on the React/TypeScript UI, demo/live data separation, API client, local development proxy, or frontend checks. |
 | [Ubuntu host monitoring](docs/ubuntu-monitoring.md) | Installing native Ubuntu PostgreSQL, migrations, API/collector systemd services, or verifying fresh persisted measurements. |
-| [Discord alerts](docs/discord-alerts.md) | Configuring the webhook privately, scheduling disk monitoring, and demonstrating alert delivery. |
+| [Discord alerts](docs/discord-alerts.md) | Configuring the webhook privately and reproducing the verified G6 alert during the demo. |
 | [Docker deployment](docs/docker-deployment.md) | Building and running Compose, host-owned Compose settings, migrating existing volumes with separate migration and runtime roles, and exposing the stack through host Nginx. |
 | [Ubuntu accounts and permissions](docs/ubuntu-accounts.md) | Creating junior and senior accounts, verifying ACLs, and keeping workspace access separate from service credentials. |
 | [EC2 manual setup and deployment rehearsal](docs/ec2-manual-setup.md) | Creating a fresh instance, running full setup, testing the public IP, and demonstrating native Cron backups and restore. |

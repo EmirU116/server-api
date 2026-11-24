@@ -48,6 +48,7 @@ def test_full_setup_runs_preflight_before_changes(tmp_path):
             "SERVERWATCH_PROJECT_DIR": str(tmp_path),
             "SERVERWATCH_FULL_SETUP": "",
             "TRACE": str(trace),
+            "HOME": str(tmp_path),
         },
         timeout=10,
     )

@@ -58,7 +58,7 @@ fi
 
 packages=(python3 python3-venv python3-pip postgresql postgresql-client iproute2)
 if [[ "${SERVERWATCH_FULL_SETUP:-}" == 1 ]]; then
-    packages+=(git nginx curl cron ca-certificates xz-utils)
+    packages+=(git nginx curl cron ca-certificates xz-utils acl)
     if dpkg-query -W -f='${db:Status-Status}' docker-ce 2>/dev/null | grep -qx installed; then
         docker compose version >/dev/null 2>&1 || packages+=(docker-compose-plugin)
         docker buildx version >/dev/null 2>&1 || packages+=(docker-buildx-plugin)

@@ -1,22 +1,18 @@
 # ServerWatch project plan and progress
 
-Last reviewed on 2026-11-23. Live status reflects the reported EC2 verification.
+Last reviewed on 2026-11-24. Live status reflects the reported EC2 verification.
 Endpoint details are in the [API specification](api.md).
 
 ## What to do next
 
-**Start with Discord alerts (G6).** On the current EC2 instance, the database
-migrations are applied, the collector saved a fresh measurement, and the web
-verifier passed for React, health, Swagger, and OpenAPI. Use that instance to
-test alerts before rehearsing the full deployment from scratch.
+**Next, verify the Cron backups and restore on EC2 (G5).** Discord delivery
+(G6) was verified on the current instance.
 
 ### Finish the G requirements
 
-1. [ ] **Send a Discord alert (Python, systemd, Discord).** Create the channel
-   webhook, store it privately on EC2, and install the implemented timer.
-   Done when a controlled threshold breach produces one Discord message and
-   you restore the normal threshold.
-   Follow the [Discord checklist](#discord-alerts-to-do-g6).
+1. [x] **Send a Discord alert (Python, systemd, Discord).** The scheduled
+   check delivered an alert during a controlled threshold test.
+   See the [Discord verification record](#discord-alert-verification-g6).
 2. [ ] **Demonstrate backups (Bash, Cron, PostgreSQL).** Full native setup
    installs the database and log backup schedule. Follow the
    [EC2 backup and restore walkthrough](ec2-manual-setup.md#verify-cron-backups-and-restore-g5)
@@ -48,7 +44,7 @@ RDS and automatic GitHub Actions deployment are assignment bonuses.
 
 ## Current position
 
-**All four backend APIs are implemented. The next EC2 task is to configure and demonstrate Discord delivery for G6.**
+**All four backend APIs are implemented. The next EC2 task is to verify a scheduled backup and restore for G5.**
 
 The project has a runnable FastAPI application factory, validated settings,
 shared error handling, dependency manifests, and a passing foundation test suite.
@@ -164,8 +160,8 @@ evidence for its parent milestone above.
 | 3.3 Incident endpoints (Python, FastAPI, PostgreSQL) | Implement incident create, read, update, and delete behavior. | Verified locally, including Windows CRUD smoke check |
 | 3.4 API and business logic tests (Python, pytest, PostgreSQL) | Metrics and incident API/PostgreSQL tests implemented; Windows incident CRUD verified, full Windows metrics flow pending. | In progress |
 | 4.1 Host metrics collection (Python, Bash, Linux, HTTP) | Local Python loop and Ubuntu systemd installer/verifier implemented; native server/reboot verification and Cron evidence pending. | In progress |
-| 4.2 Scheduled health checks (Linux, Monitoring) | Verify monitoring starts on boot and configure recurring threshold checks for G6. Cron is required for backups in G5. | In progress |
-| 4.3 Disk threshold alerts (Python, Monitoring, Discord) | Disk alert checker and systemd timer implemented. Demonstrate delivery and suppression on EC2. | In progress |
+| 4.2 Scheduled health checks (Linux, Monitoring) | The recurring Discord check ran on EC2. Verify monitoring starts after reboot. | In progress |
+| 4.3 Disk threshold alerts (Python, Monitoring, Discord) | Scheduled Discord delivery verified on EC2. Duplicate suppression covered by local tests. | Verified |
 | 4.4 Backup and restore (Bash, PostgreSQL, Cron) | Full setup installs daily native database and service-log backups. Verify the scheduled run and restore on EC2. | In progress |
 | 5.1 EC2 and student access (AWS EC2, Linux, SSH) | Prepare the instance configuration and independent access for both students. | Not started |
 | 5.2 Server bootstrap (Bash, SCP, Git, Linux) | Ubuntu installer prepares a cloned checkout with Python, PostgreSQL, and migrations. SCP and fresh instance verification remain pending. | In progress |
@@ -188,16 +184,17 @@ non-obvious behavior. Bash tasks include syntax checks and failure-path checks;
 Docker tasks include build/configuration and runtime checks as applicable.
 Keep task status and evidence alongside these rows when implementation begins.
 
-### Discord alerts to-do (G6)
+### Discord alert verification (G6)
 
-EC2 verification confirmed that the collector saved a fresh measurement. A
-Discord alert will notify you of a problem while the dashboard is closed.
+On 2026-11-24, the user reported that the EC2 systemd timer delivered a
+Discord alert at 31.5% root disk usage with a temporary 25% threshold. The
+installer then confirmed the normal 90% threshold was restored.
 
-- [ ] (Discord, Security) Create a channel webhook and store its URL in a private EC2 configuration file outside Git.
+- [x] (Discord, Security) Create a channel webhook and store its URL in a private EC2 configuration file outside Git.
 - [x] (Python, Monitoring) Implement a disk usage threshold check that sends one alert per breach and rearms after recovery.
-- [ ] (Linux, systemd) Install the timer on EC2 using the [Discord setup guide](discord-alerts.md).
+- [x] (Linux, systemd) Install the timer on EC2 using the [Discord setup guide](discord-alerts.md).
 - [x] (Python, Testing) Test normal usage, a threshold breach, duplicate suppression, recovery, and webhook delivery failure.
-- [ ] (EC2, Discord, Demo) Temporarily lower the threshold below current disk usage, confirm the scheduled check sends a Discord message, then restore the normal threshold.
+- [x] (EC2, Discord, Demo) Temporarily lower the threshold below current disk usage, confirm the scheduled check sends a Discord message, then restore the normal threshold.
 
 ## Assignment coverage tracker
 
@@ -212,7 +209,7 @@ evidence for the EC2 requirements.
 | G3 Bootstrap (Bash, SCP, Ubuntu) | Bash setup installs packages and configures services and permissions. The EC2 guide demonstrates SCP. | Include useful shell aliases, rehearse transferring and running the chosen bootstrap on a fresh instance, and explain account choices. |
 | G4 Repository checkout (Git, Linux) | Home-directory clone documented. Full installer expects an existing user-owned checkout. | Perform the clone as the deployment user and show ownership and the order of steps. |
 | G5 Backups (Bash, Cron, PostgreSQL) | Full setup installs the native backup script and Cron entry. | Show the files created by Cron on EC2 and verify a restore into a separate database. |
-| G6 Monitoring and alerts (Linux, Python, Discord) | EC2 verification confirmed a fresh measurement was persisted by the systemd collector. | Complete the [Discord alerts to-do list](#discord-alerts-to-do-g6) and demonstrate delivery during a controlled threshold breach. |
+| G6 Monitoring and alerts (Linux, Python, Discord) | Verified on the current EC2 instance. The collector saved a fresh measurement and the scheduled disk check delivered a [Discord alert](#discord-alert-verification-g6). | Repeat the controlled threshold test during the recorded deployment. |
 | G7 Public API docs (systemd, FastAPI, HTTP) | Web installer opts into Swagger and OpenAPI on the existing loopback API. | Open public-IP `/docs` and `/openapi.json` from a browser on EC2 rehearsal. |
 | G8 Reverse proxy (Nginx) | Site serves the static React build and proxies API requests. | Run the web installer and verifier on EC2 and confirm public HTTP routing. |
 | G9 Database connection (FastAPI, PostgreSQL) | Local health and Windows incident CRUD verified against PostgreSQL. Migrations and persistence tested with disposable PostgreSQL. | Show the deployed API reading and writing through the instance's database. |
