@@ -43,7 +43,8 @@ EC2 entry points: `bash setup.sh PUBLIC_IP` and `bash verify.sh PUBLIC_IP`; Comp
 - **Schema**: Alembic only (`backend/alembic/versions/000N_*.py`); never auto-create tables or migrate at startup.
 - **Data flow**: host collector (`scripts/monitoring/collect_local.py`, psutil, 5 s loop; systemd on Ubuntu) → `POST /api/v1/metrics` → PostgreSQL ← dashboard polls `GET` every 5 s with a reader token. Frontend uses same-origin `/api/v1` (Vite proxy in dev, Nginx in prod), starts in labeled demo mode (`services/demo.ts`) kept separate from live data; tokens live only in memory.
 - **Compose** (`compose.yaml`): `db` (postgres:17, internal network only) → one-shot `migrate` (separate migrator role, then grants runtime role) → `api` → `web` (Nginx image, bound to loopback; host Nginx fronts it). Secrets come from files in `${SERVERWATCH_COMPOSE_SECRETS:-./secrets}`.
-- **Host automation**: `setup.sh` orchestrates `infrastructure/bootstrap/*` (monitoring, web/Nginx, Discord timer), user provisioning, Cron backups (`scripts/backup/`, `infrastructure/cron/`). Implementations live in `scripts/`, schedules/units in `infrastructure/` — one authoritative location per file.
+- **Host automation**: `setup.sh` is the only supported entry point; it orchestrates `infrastructure/bootstrap/*` (packages/PostgreSQL/services/Cron, then web/Nginx, Discord timer) and user provisioning. Implementations live in `scripts/`, schedules/units in `infrastructure/` — one authoritative location per file. Deployment is manual (no CD workflow).
+- **Shared stdlib helpers** (used by scripts that run with system Python before `.venv` exists): `backend/app/host_identity.py` (host identity for the API and Compose) and `scripts/setup/private_files.py` (create-once 600/700 credential files).
 
 ## Repo-specific rules
 
