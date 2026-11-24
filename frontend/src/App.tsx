@@ -21,7 +21,7 @@ import { ServerDetails } from './components/ServerDetails';
 import { ResourceChart } from './components/ResourceChart';
 import { IncidentEditor } from './components/IncidentEditor';
 import { IncidentTable } from './components/IncidentTable';
-import { Modal } from './components/Modal';
+import { ConnectDialog } from './components/ConnectDialog';
 import { createApi } from './services/api';
 import {
   createDemoIncident,
@@ -36,11 +36,42 @@ import type {
   View,
 } from './types';
 
-const navigation: { key: View; label: string; icon: LucideIcon }[] = [
-  { key: 'overview', label: 'Overview', icon: LayoutDashboard },
-  { key: 'metrics', label: 'Metrics', icon: Activity },
-  { key: 'server', label: 'Server details', icon: Server },
-  { key: 'incidents', label: 'Incidents', icon: CircleAlert },
+const navigation: {
+  key: View;
+  label: string;
+  icon: LucideIcon;
+  title: string;
+  subtitle: string;
+}[] = [
+  {
+    key: 'overview',
+    label: 'Overview',
+    icon: LayoutDashboard,
+    title: 'Server overview',
+    subtitle: 'A clear picture of your server. All in one place.',
+  },
+  {
+    key: 'metrics',
+    label: 'Metrics',
+    icon: Activity,
+    title: 'Resource metrics',
+    subtitle: 'Understand how your server resources are being used.',
+  },
+  {
+    key: 'server',
+    label: 'Server details',
+    icon: Server,
+    title: 'Server details',
+    subtitle: 'The identity and environment of your monitored server.',
+  },
+  {
+    key: 'incidents',
+    label: 'Incidents',
+    icon: CircleAlert,
+    title: 'Incident management',
+    subtitle:
+      'Track issues, investigate causes, and keep a record of resolutions.',
+  },
 ];
 
 export default function App() {
@@ -48,9 +79,7 @@ export default function App() {
   const [mode, setMode] = useState<'demo' | 'api'>('demo');
   const [snapshot, setSnapshot] = useState<Snapshot | null>(createDemoSnapshot);
   const [token, setToken] = useState('');
-  const [tokenInput, setTokenInput] = useState('');
   const [adminToken, setAdminToken] = useState('');
-  const [adminInput, setAdminInput] = useState('');
   const allowLiveTokens =
     location.protocol === 'https:' ||
     ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
@@ -67,22 +96,8 @@ export default function App() {
     snapshot?.incidents?.filter(
       (item) => item.status === 'open' || item.status === 'investigating',
     ).length ?? 0;
-  const title =
-    view === 'overview'
-      ? 'Server overview'
-      : view === 'metrics'
-        ? 'Resource metrics'
-        : view === 'server'
-          ? 'Server details'
-          : 'Incident management';
-  const subtitle =
-    view === 'overview'
-      ? 'A clear picture of your server. All in one place.'
-      : view === 'metrics'
-        ? 'Understand how your server resources are being used.'
-        : view === 'server'
-          ? 'The identity and environment of your monitored server.'
-          : 'Track issues, investigate causes, and keep a record of resolutions.';
+  const page = navigation.find((item) => item.key === view)!;
+  const { title, subtitle } = page;
 
   useEffect(() => {
     document.title = `ServerWatch · ${title}`;
@@ -149,13 +164,28 @@ export default function App() {
     generation.current += 1;
     setMode('demo');
     setToken('');
-    setTokenInput('');
     setAdminToken('');
-    setAdminInput('');
     setSnapshot(createDemoSnapshot());
     setLoading(false);
     setError('');
     setNotice('');
+  }
+
+  /** Apply a local change to the loaded incident list after a successful write. */
+  function changeIncidents(
+    update: (incidents: Incident[]) => Incident[],
+    totalChange: number,
+  ) {
+    generation.current += 1;
+    setSnapshot((current) =>
+      current && current.incidents !== null && current.incidentTotal !== null
+        ? {
+            ...current,
+            incidents: update(current.incidents),
+            incidentTotal: current.incidentTotal + totalChange,
+          }
+        : current,
+    );
   }
 
   async function saveIncident(
@@ -181,19 +211,12 @@ export default function App() {
           ? await api.updateIncident(id, input as IncidentUpdate)
           : await api.createIncident(input as IncidentInput);
     if (generation.current !== session) return;
-    generation.current += 1;
-    setSnapshot((current) =>
-      current && current.incidents !== null && current.incidentTotal !== null
-        ? {
-            ...current,
-            incidents: id
-              ? current.incidents.map((item) =>
-                  item.id === id ? record : item,
-                )
-              : [record, ...current.incidents],
-            incidentTotal: current.incidentTotal + (id ? 0 : 1),
-          }
-        : current,
+    changeIncidents(
+      (incidents) =>
+        id
+          ? incidents.map((item) => (item.id === id ? record : item))
+          : [record, ...incidents],
+      id ? 0 : 1,
     );
     setNotice(
       `${mode === 'demo' ? 'Demo incident' : 'Incident'} ${id ? 'updated' : 'created'} successfully.`,
@@ -208,15 +231,9 @@ export default function App() {
     const session = generation.current;
     if (mode === 'api') await api.deleteIncident(id);
     if (generation.current !== session) return;
-    generation.current += 1;
-    setSnapshot((current) =>
-      current && current.incidents !== null && current.incidentTotal !== null
-        ? {
-            ...current,
-            incidents: current.incidents.filter((item) => item.id !== id),
-            incidentTotal: current.incidentTotal - 1,
-          }
-        : current,
+    changeIncidents(
+      (incidents) => incidents.filter((item) => item.id !== id),
+      -1,
     );
     setNotice(`${mode === 'demo' ? 'Demo incident' : 'Incident'} deleted.`);
   }
@@ -295,9 +312,7 @@ export default function App() {
             <Server size={15} />
             <span>Workspace</span>
             <ChevronRight size={13} />
-            <strong>
-              {navigation.find((item) => item.key === view)?.label}
-            </strong>
+            <strong>{page.label}</strong>
           </div>
           <div className="topbar-actions">
             <span className={`source-badge ${mode}`}>
@@ -499,87 +514,19 @@ export default function App() {
         />
       )}
       {connecting && (
-        <Modal
-          title="Connect your API"
-          onClose={() => {
+        <ConnectDialog
+          allowLiveTokens={allowLiveTokens}
+          onClose={() => setConnecting(false)}
+          onDemo={() => {
+            useDemo();
             setConnecting(false);
-            setTokenInput('');
-            setAdminInput('');
           }}
-        >
-          {!allowLiveTokens ? (
-            <p className="modal-description">
-              Open ServerWatch over HTTPS to connect with a token. Demo mode is
-              available over HTTP.
-            </p>
-          ) : (
-            <>
-              <p className="modal-description">
-                Use your reader token to view live data. To create or edit
-                incidents, also enter the separate incident admin token.
-              </p>
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const bearer = tokenInput.trim();
-                  if (!bearer) return;
-                  setConnecting(false);
-                  setTokenInput('');
-                  setAdminToken(adminInput.trim());
-                  setAdminInput('');
-                  void loadApi(bearer);
-                }}
-              >
-                <div className="form-fields">
-                  <label>
-                    API path
-                    <input value="/api/v1" readOnly className="mono" />
-                  </label>
-                  <label>
-                    Incident admin token (optional)
-                    <input
-                      type="password"
-                      autoComplete="off"
-                      value={adminInput}
-                      onChange={(event) => setAdminInput(event.target.value)}
-                    />
-                  </label>
-                  <label>
-                    Bearer token
-                    <input
-                      type="password"
-                      required
-                      autoComplete="off"
-                      value={tokenInput}
-                      placeholder="Enter your access token"
-                      onChange={(event) => setTokenInput(event.target.value)}
-                    />
-                  </label>
-                  <p className="field-hint">
-                    Your token stays in memory and is cleared on reload or when
-                    returning to demo mode.
-                  </p>
-                  <div className="modal-footer">
-                    <button
-                      type="button"
-                      className="button secondary"
-                      onClick={() => {
-                        useDemo();
-                        setConnecting(false);
-                      }}
-                    >
-                      Use demo data
-                    </button>
-                    <button type="submit" className="button primary">
-                      <Cable size={16} />
-                      Connect
-                    </button>
-                  </div>
-                </div>
-              </form>
-            </>
-          )}
-        </Modal>
+          onConnect={(bearer, admin) => {
+            setConnecting(false);
+            setAdminToken(admin);
+            void loadApi(bearer);
+          }}
+        />
       )}
     </div>
   );
