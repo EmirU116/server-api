@@ -1,12 +1,13 @@
 # ServerWatch project plan and progress
 
-Last reviewed on 2026-11-24. Live status reflects the reported EC2 verification.
+Last reviewed on 2026-11-25. Live status reflects the reported EC2 verification.
 Endpoint details are in the [API specification](api.md).
 
 ## What to do next
 
-**Next, confirm public access from your computer.** The Cron backup and restore
-(G5) and Discord delivery (G6) were verified on the current EC2 instance.
+**Next, set up the custom domain and HTTPS (VG2).** It is the only assessed
+requirement without a working implementation. Public HTTP access (G7/G8) and
+Compose persistence (VG1) were verified on the current EC2 instance.
 
 ### Finish the G requirements
 
@@ -18,10 +19,11 @@ Endpoint details are in the [API specification](api.md).
    restored into a separate database with 18,867 metrics and 0 incidents.
    Use the [EC2 walkthrough](ec2-manual-setup.md#verify-cron-backups-and-restore-g5)
    to repeat the test on camera.
-3. [ ] **Confirm public access from your computer (HTTP, Nginx, FastAPI).**
-   Open the dashboard, `/docs`, and `/openapi.json` using the EC2 public IP.
-   Done when all three load. Verify fresh dashboard metrics over HTTPS or a
-   private localhost connection.
+3. [x] **Confirm public access from your computer (HTTP, Nginx, FastAPI).**
+   On 2026-11-24, after `setup.sh` and `verify.sh` passed 8/8 on the cleaned-up
+   code, requests from outside AWS to `/`, `/docs`, `/openapi.json` and
+   `/api/v1/health?server_id=1` on the public IP all returned HTTP 200.
+   Live dashboard data still needs HTTPS or an SSH tunnel.
 4. [ ] **Rehearse the pair deployment (AWS EC2, SSH, SCP, Bash, systemd).**
    Start with a fresh EC2 instance, configure the security group and Elastic IP,
    show both SSH logins, transfer and run the bootstrap, and clone into the
@@ -31,11 +33,12 @@ Endpoint details are in the [API specification](api.md).
 
 ### Finish the VG requirements
 
-1. [ ] **Deploy containers on EC2 (Docker, Compose, PostgreSQL).** Build the
-   API and web images and run them with containerized PostgreSQL using the
-   [Docker guide](docker-deployment.md). Show the native systemd
-   deployment during the demo as well. Done when the containerized API can save
-   and read data and that data survives container recreation.
+1. [x] **Deploy containers on EC2 (Docker, Compose, PostgreSQL).** On
+   2026-11-24, `compose_host.sh collect` stored host samples through the
+   Compose API. The Compose database held 867 metrics, `down` removed the
+   containers and networks but kept the `postgres_data` volume, and after
+   `up -d --wait` (db, api and web healthy; migrate exited) the count was
+   still 867. Show the native systemd deployment during the demo as well.
 2. [ ] **Set up your own domain and HTTPS (DNS, Nginx, Certbot).** Point the
    domain at the Elastic IP, issue a certificate, and check renewal. Done when
    the dashboard and `/docs` load over HTTPS from your computer. Then test
@@ -45,14 +48,14 @@ RDS and automatic GitHub Actions deployment are assignment bonuses.
 
 ## Current position
 
-**All four APIs and the dashboard are implemented. The next EC2 task is to confirm public access from a separate computer.**
+**All four APIs and the dashboard are implemented, and every G requirement plus VG1 has been verified on EC2. The remaining assessed work is VG2 (domain and HTTPS) and the timed fresh-instance rehearsal.**
 
 Reported on the current EC2 instance: 8/8 native monitoring checks passing,
-healthy API, web and PostgreSQL containers with a successful migration job,
-a Cron backup that restored into a separate database (G5), and a delivered
-Discord disk alert (G6). Still open: public browser access from another
-computer, collection after reboot, the Compose persistence demonstration,
-the custom domain with HTTPS, and the timed fresh-instance rehearsal.
+public HTTP access to the dashboard, Swagger and OpenAPI, a Cron backup that
+restored into a separate database (G5), a delivered Discord disk alert (G6),
+and Compose data that survived container recreation (VG1). Still open:
+collection after reboot, the custom domain with HTTPS, and the timed
+fresh-instance rehearsal.
 
 | Workstream | Current status | Evidence |
 | --- | --- | --- |
@@ -65,8 +68,8 @@ the custom domain with HTTPS, and the timed fresh-instance rehearsal.
 | Metrics and persistence | Implemented and tested with isolated PostgreSQL | Metrics model, Alembic upgrade, transaction, filtering, and persistence tests; both migrations present in the verified local incident database |
 | Incident endpoints | Verified locally on Windows | CRUD, resolution/reopening, and deletion verified through FastAPI against local PostgreSQL; automated persistence/error tests also pass |
 | React frontend | Live health, server, metrics and incidents integrated; browser check pending | `frontend/tests/`, typecheck, build and format checks in CI |
-| Infrastructure and CI | Native setup, Cron backups and Discord alerts verified on EC2; reboot check pending | `setup.sh`, `verify.sh`, systemd units, root `tests/`, `.github/workflows/ci.yml` |
-| Deployment and demo | Not verified | Host setup guides exist. The timed pair runbook and EC2 evidence are pending. |
+| Infrastructure and CI | Native setup, public HTTP routing, Cron backups, Discord alerts and Compose persistence verified on EC2; reboot check pending | `setup.sh`, `verify.sh`, systemd units, root `tests/`, `.github/workflows/ci.yml` |
+| Deployment and demo | Presentation guide written; rehearsal pending | [Presentation guide](presentation-guide.md). The timed pair rehearsal is pending. |
 
 The application language decisions are **Python for the backend/API** and
 **React with TypeScript for the frontend**. The frontend is planned project work,
@@ -146,14 +149,14 @@ evidence for its parent milestone above.
 | 5.3 Native service and reverse proxy (systemd, Nginx, Linux) | Native verifier passed 8/8 on EC2, as reported by the user. Nginx setup and web verification scripts are implemented. Run the [public IP rehearsal](ec2-manual-setup.md#7-serve-the-dashboard-and-api-through-nginx-bash-react-fastapi) and capture browser evidence. | In progress |
 | 5.4 Native deployment verification (Bash, Linux, Testing) | Localhost smoke verifier added; fresh-instance verification, restarts, and scheduled monitoring after reboot remain pending. | In progress |
 | 5.5 Define and verify environment access (Ubuntu, Bash, Linux users, groups, ACLs) | Define dev/prod ownership and role membership, provision accounts and inherited permissions, then check effective allowed and denied operations as each identity. See [Ubuntu accounts and permissions](ubuntu-accounts.md). | Implemented and tested with simulated system commands. Verify ACLs on EC2. |
-| 6.1 API and web images (Docker, Python, React) | Dockerfiles and build exclusions implemented. Build and verify on EC2. | In progress |
-| 6.2 Container services and storage (Docker Compose, PostgreSQL) | Compose includes a private DB, migration job, API, and loopback web proxy. Demonstrate persisted data after recreation. | In progress |
+| 6.1 API and web images (Docker, Python, React) | Dockerfiles and build exclusions implemented. Both images built and ran healthy on EC2 on 2026-11-24. | Verified |
+| 6.2 Container services and storage (Docker Compose, PostgreSQL) | Compose includes a private DB, migration job, API, and loopback web proxy. 867 metrics survived `down` and `up` on EC2 on 2026-11-24. | Verified |
 | 6.3 Domain and TLS (DNS, Nginx, Certbot, HTTPS) | Configure the custom domain, certificate, redirects, and renewal. | Not started |
-| 6.4 Container deployment verification (Docker Compose, Testing) | Local Compose smoke test verified the dashboard, Swagger, health, and a metric that survived container recreation. Repeat on EC2. | Verified locally |
+| 6.4 Container deployment verification (Docker Compose, Testing) | Verified locally and on EC2: host collection into Compose, healthy services, and data that survived container recreation. | Verified |
 | 7.1 Frontend foundation (React, TypeScript) | Set up the frontend project and typed API client. | Verified |
 | 7.2 Dashboard and incident management (React, TypeScript, CSS) | Build health, metrics, server, and incident views with the required UI states. | In progress |
 | 7.3 Frontend verification (TypeScript, Frontend testing) | Run type checking/build and verify core UI flows against the API. | In progress |
-| 8.1 Runbook and assessment checklist (Documentation) | Record deployment steps, requirement evidence, and speaking roles. | Not started |
+| 8.1 Runbook and assessment checklist (Documentation) | [Presentation guide](presentation-guide.md) with the demo order, commands and talking points. Assign speaking roles. | In progress |
 | 8.2 Timed pair rehearsal (AWS EC2, Deployment, Presentation) | Rehearse from a fresh instance within 60 minutes, with both students explaining their work. | Not started |
 | PR checks (Git, GitHub Actions) | [Human and agent workflow](github-actions-plan.md). Test PRs and pushes to main with backend, dashboard and Bash jobs. | CI implemented. The unused signed staging/production delivery workflow was removed on 2026-11-24 to keep the demo explainable; VG4 is not pursued. |
 
@@ -188,10 +191,10 @@ evidence for the EC2 requirements.
 | G4 Repository checkout (Git, Linux) | Home-directory clone documented. Full installer expects an existing user-owned checkout. | Perform the clone as the deployment user and show ownership and the order of steps. |
 | G5 Backups (Bash, Cron, PostgreSQL) | Verified on the current EC2 instance. The 11:22 UTC snapshot contained the native dump and logs, and the restore contained 18,867 metrics and 0 incidents. | Repeat the scheduled backup and isolated restore during the recorded deployment. |
 | G6 Monitoring and alerts (Linux, Python, Discord) | Verified on the current EC2 instance. The collector saved a fresh measurement and the scheduled disk check delivered a [Discord alert](#discord-alert-verification-g6). | Repeat the controlled threshold test during the recorded deployment. |
-| G7 Public API docs (systemd, FastAPI, HTTP) | Web installer opts into Swagger and OpenAPI on the existing loopback API. | Open public-IP `/docs` and `/openapi.json` from a browser on EC2 rehearsal. |
-| G8 Reverse proxy (Nginx) | Site serves the static React build and proxies API requests. | Run the web installer and verifier on EC2 and confirm public HTTP routing. |
+| G7 Public API docs (systemd, FastAPI, HTTP) | Verified on 2026-11-24: `/docs` and `/openapi.json` returned HTTP 200 from outside AWS on the public IP. | Show Swagger in a browser during the recorded deployment. |
+| G8 Reverse proxy (Nginx) | Verified on 2026-11-24: Nginx served React, health, Swagger and OpenAPI publicly. | Open the Nginx site in nano on camera and explain the proxy rules. |
 | G9 Database connection (FastAPI, PostgreSQL) | Local health and Windows incident CRUD verified against PostgreSQL. Migrations and persistence tested with disposable PostgreSQL. | Show the deployed API reading and writing through the instance's database. |
-| VG1 Containers (Docker, Compose, PostgreSQL) | Compose was reported healthy on EC2, and migrations exited successfully. | Rehearse the simplified commands, demonstrate persistence on EC2, and show the native process manager. |
+| VG1 Containers (Docker, Compose, PostgreSQL) | Verified on 2026-11-24: 867 metrics before and after `down` and `up -d --wait`, with all services healthy. | Repeat the persistence check on camera and show the native process manager. |
 | VG2 Custom domain (DNS, HTTPS, Certbot) | No verified domain or TLS setup. | Point a domain at the instance, issue a certificate and demonstrate working HTTPS. |
 | Optional VG3/VG4 (AWS RDS, GitHub Actions) | Not pursued. The unused delivery workflow was removed on 2026-11-24. RDS remains optional. | If selected, demonstrate the RDS alternative or automatic Docker image deployment to EC2. |
 | Team and recording (Classroom, documentation, presentation) | Team membership and a timed rehearsal are unverified. | Accept the invitation, document the pair, rehearse from scratch, record within 60 minutes, check playback and the link, then stop the instances. |
@@ -215,8 +218,6 @@ Verify the video link and playback before shutting down the instances.
 - Local collection uses a five-second sleep. Define the production collection
   schedule, incident thresholds, automatic resolution policy, retention, and
   notification channel.
-- Choose how a containerized API obtains the monitored host's identity and
-  health without reporting only its own container metadata.
 - Identify domain/DNS ownership, backup storage location, and recovery procedure.
   Local backups alone do not protect against losing the instance.
 
