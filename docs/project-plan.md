@@ -5,8 +5,8 @@ Endpoint details are in the [API specification](api.md).
 
 ## What to do next
 
-**Next, set up the custom domain and HTTPS (VG2).** It is the only assessed
-requirement without a working implementation. Public HTTP access (G7/G8) and
+**Next, run the HTTPS setup on EC2 (VG2).** `serverwatch.dev` resolves to the
+instance and `setup_https.sh` is implemented; it has not run on EC2 yet. Public HTTP access (G7/G8) and
 Compose persistence (VG1) were verified on the current EC2 instance.
 
 ### Finish the G requirements
@@ -151,7 +151,7 @@ evidence for its parent milestone above.
 | 5.5 Define and verify environment access (Ubuntu, Bash, Linux users, groups, ACLs) | Define dev/prod ownership and role membership, provision accounts and inherited permissions, then check effective allowed and denied operations as each identity. See [Ubuntu accounts and permissions](ubuntu-accounts.md). | Implemented and tested with simulated system commands. Verify ACLs on EC2. |
 | 6.1 API and web images (Docker, Python, React) | Dockerfiles and build exclusions implemented. Both images built and ran healthy on EC2 on 2026-11-24. | Verified |
 | 6.2 Container services and storage (Docker Compose, PostgreSQL) | Compose includes a private DB, migration job, API, and loopback web proxy. 867 metrics survived `down` and `up` on EC2 on 2026-11-24. | Verified |
-| 6.3 Domain and TLS (DNS, Nginx, Certbot, HTTPS) | Configure the custom domain, certificate, redirects, and renewal. | Not started |
+| 6.3 Domain and TLS (DNS, Nginx, Certbot, HTTPS) | `serverwatch.dev` registered and resolving to the Elastic IP on 2026-11-25. `setup_https.sh` and `verify_https.sh` implemented and tested locally (Nginx 1.24 config and routing). Run on EC2. | In progress |
 | 6.4 Container deployment verification (Docker Compose, Testing) | Verified locally and on EC2: host collection into Compose, healthy services, and data that survived container recreation. | Verified |
 | 7.1 Frontend foundation (React, TypeScript) | Set up the frontend project and typed API client. | Verified |
 | 7.2 Dashboard and incident management (React, TypeScript, CSS) | Build health, metrics, server, and incident views with the required UI states. | In progress |
@@ -195,7 +195,7 @@ evidence for the EC2 requirements.
 | G8 Reverse proxy (Nginx) | Verified on 2026-11-24: Nginx served React, health, Swagger and OpenAPI publicly. | Open the Nginx site in nano on camera and explain the proxy rules. |
 | G9 Database connection (FastAPI, PostgreSQL) | Local health and Windows incident CRUD verified against PostgreSQL. Migrations and persistence tested with disposable PostgreSQL. | Show the deployed API reading and writing through the instance's database. |
 | VG1 Containers (Docker, Compose, PostgreSQL) | Verified on 2026-11-24: 867 metrics before and after `down` and `up -d --wait`, with all services healthy. | Repeat the persistence check on camera and show the native process manager. |
-| VG2 Custom domain (DNS, HTTPS, Certbot) | No verified domain or TLS setup. | Point a domain at the instance, issue a certificate and demonstrate working HTTPS. |
+| VG2 Custom domain (DNS, HTTPS, Certbot) | `serverwatch.dev` resolves to the instance. The Certbot setup is implemented but not yet run on EC2. | Point a domain at the instance, issue a certificate and demonstrate working HTTPS. |
 | Optional VG3/VG4 (AWS RDS, GitHub Actions) | Not pursued. The unused delivery workflow was removed on 2026-11-24. RDS remains optional. | If selected, demonstrate the RDS alternative or automatic Docker image deployment to EC2. |
 | Team and recording (Classroom, documentation, presentation) | Team membership and a timed rehearsal are unverified. | Accept the invitation, document the pair, rehearse from scratch, record within 60 minutes, check playback and the link, then stop the instances. |
 
@@ -218,7 +218,7 @@ Verify the video link and playback before shutting down the instances.
 - Local collection uses a five-second sleep. Define the production collection
   schedule, incident thresholds, automatic resolution policy, retention, and
   notification channel.
-- Identify domain/DNS ownership, backup storage location, and recovery procedure.
+- Domain: `serverwatch.dev` at Namecheap, auto-renew off. Identify backup storage location and recovery procedure.
   Local backups alone do not protect against losing the instance.
 
 ## Maintaining progress

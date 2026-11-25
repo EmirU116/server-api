@@ -24,7 +24,8 @@ Status of each requirement is in the [coverage tracker](project-plan.md#assignme
 - [ ] The code is merged to `main` and pushed. `git log -1 --oneline` noted.
 - [ ] Each student has their own SSH key pair. Know both public IPs.
 - [ ] Discord webhook URL ready to paste (never show it on screen).
-- [ ] Domain registered and ready to point at the Elastic IP (VG2).
+- [ ] `serverwatch.dev` DNS open in Namecheap (Advanced DNS), A records at TTL 5 min (VG2).
+- [ ] At most a few real certificates this week: rehearse VG2 with `SERVERWATCH_CERTBOT_STAGING=1`.
 - [ ] Terminal font enlarged, unrelated tabs and notifications closed.
 - [ ] This guide open on a second screen. Decide who says which part.
 
@@ -276,19 +277,50 @@ The two counts must match.
 
 ## 10. Domain and HTTPS — VG2 (5 min)
 
-> Not implemented yet. Fill in the exact commands once the Certbot step is
-> built and rehearsed.
+1. In Namecheap → **Advanced DNS**, change both `A` records (`@` and `www`) to
+   the new Elastic IP. In AWS, add **HTTPS 443** to the security group.
+2. Check DNS and show the "before" state:
 
-Planned flow: the domain's DNS `A` record points to the Elastic IP, Nginx gets
-the domain as `server_name`, Certbot issues the certificate and adds the HTTPS
-configuration, then `https://DOMAIN/docs` loads and `certbot renew --dry-run`
-passes. Add **HTTPS 443** to the security group.
+```bash
+getent hosts serverwatch.dev www.serverwatch.dev   # both must show ELASTIC_IP
+```
+
+   Open `https://serverwatch.dev` in the browser: it fails, because `.dev` is
+   HTTPS-only in every browser and there is no certificate yet.
+3. Get the certificate and switch the domain to HTTPS:
+
+```bash
+bash infrastructure/bootstrap/setup_https.sh serverwatch.dev ELASTIC_IP
+sudo certbot certificates                           # domains and expiry date
+systemctl list-timers certbot.timer                 # automatic renewal
+sudo nano /etc/nginx/sites-enabled/serverwatch-domain.conf
+```
+
+4. In the browser: `https://serverwatch.dev` (padlock), `/docs`, then
+   **Connect your API** with the reader and admin tokens and edit an incident.
+
+| Script step | What happens |
+|---|---|
+| DNS check | Stops early if the domain doesn't point at this server yet |
+| Install Certbot | `apt-get install certbot` |
+| Ownership check | Nginx serves `/.well-known/acme-challenge/` for the domain; Let's Encrypt fetches a token from it to prove we control the domain |
+| `certbot certonly --webroot` | Issues the certificate into `/etc/letsencrypt/live/serverwatch.dev/` |
+| HTTPS site | Adds the `listen 443 ssl` block and redirects HTTP to HTTPS (`nginx -t` first) |
+| Renewal check | `certbot renew --dry-run` and the `certbot.timer` |
+| Verification | Health and Swagger over HTTPS with real certificate checks, plus the redirect |
 
 **Say:**
-- "Certbot gets a free certificate from Let's Encrypt and proves we control the
-  domain. It renews automatically."
-- "With HTTPS we can connect the dashboard with a real token and edit an
-  incident live."
+- "DNS is the phone book: the A record tells the world that `serverwatch.dev`
+  is our Elastic IP."
+- "Let's Encrypt proves we control the domain by fetching a file over port 80,
+  then gives us a free certificate. Certbot renews it automatically every
+  ~60 days through a systemd timer."
+- "Certbot only issues the certificate. Our own Nginx file uses it, so rerunning
+  setup never removes HTTPS."
+- "`.dev` is HTTPS-only in every browser, so without this certificate the site
+  wouldn't load at all."
+- "Now tokens travel encrypted, so the dashboard accepts a real token and we
+  can edit an incident live."
 
 ## 11. Wrap-up (2 min)
 

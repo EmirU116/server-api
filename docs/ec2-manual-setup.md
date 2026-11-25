@@ -334,11 +334,45 @@ database for the demo. Run the commands in Bash as your usual SSH user.
 `sudo /usr/local/sbin/serverwatch-backup` runs the same backup immediately for
 troubleshooting. Use the Cron log as evidence of the scheduled run.
 
+## Custom domain and HTTPS with Certbot (VG2)
+
+The project domain is `serverwatch.dev`, registered at Namecheap. Namecheap's
+free DNS is enough; Route 53 is not needed.
+
+1. In the registrar's DNS settings, add `A` records for `@` and `www` pointing
+   to the Elastic IP, with a short TTL (5 minutes). Remove the parking records.
+2. In the EC2 security group, allow **HTTPS / TCP 443** and keep **HTTP 80**
+   open: Let's Encrypt checks domain ownership over port 80.
+3. On EC2, once `getent hosts serverwatch.dev` shows the Elastic IP, run:
+
+   ```bash
+   bash infrastructure/bootstrap/setup_https.sh serverwatch.dev ELASTIC_IP
+   ```
+
+   Or pass `SERVERWATCH_DOMAIN=serverwatch.dev` to `setup.sh` and `verify.sh`.
+
+The script checks DNS first, installs Certbot, answers the ownership check from
+`/var/www/letsencrypt`, and requests the certificate with
+`certbot certonly --webroot`. It then installs
+`/etc/nginx/sites-enabled/serverwatch-domain.conf`, which serves the app over
+HTTPS and redirects the domain's HTTP requests. It finishes with
+`certbot renew --dry-run` and `scripts/verification/verify_https.sh`. Certbot
+never edits the Nginx files and `setup.sh` never overwrites the domain site, so
+reruns keep HTTPS. The public IP keeps its plain HTTP site for G7.
+
+- Without an email, Let's Encrypt sends no expiry notices. Set
+  `SERVERWATCH_CERTBOT_EMAIL` to receive them.
+- Let's Encrypt issues at most five certificates per week for the same names.
+  Every fresh instance requests a new one, so rehearse with
+  `SERVERWATCH_CERTBOT_STAGING=1` (an untrusted test certificate) and save real
+  certificates for the final run.
+- `.dev` domains are HTTPS-only in browsers: `http://serverwatch.dev` is
+  upgraded automatically and fails until the certificate exists.
+- When the instance is gone, point the `A` records elsewhere or delete them so
+  the domain does not lead to a released IP.
+
 ## Remaining steps
 
-Record the public-IP browser checks as evidence for the native Nginx deployment.
 If using separate accounts, verify their [workspace permissions](ubuntu-accounts.md).
-For VG, run the [Compose stack](docker-deployment.md) on EC2 and verify database
-persistence, then point a custom domain at EC2, obtain a Certbot certificate,
-and verify HTTPS, HTTP redirects, and renewal. Current status is in the
+Current status is in the
 [assignment coverage tracker](project-plan.md#assignment-coverage-tracker).

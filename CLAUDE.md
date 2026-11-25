@@ -32,7 +32,7 @@ Other checks: `bash -n <script>.sh` (CI parses every tracked `.sh`), `docker com
 
 Local full stack on the user's Windows machine (from Git Bash/WSL): `bash scripts/setup/start_local.sh` — uses Windows Python/Node via PowerShell, not WSL tooling.
 
-EC2 entry points: `bash setup.sh PUBLIC_IP` and `bash verify.sh PUBLIC_IP`; Compose via `scripts/deployment/compose_host.sh start|collect`. These modify hosts — never run them on a workstation or live server without explicit approval.
+EC2 entry points: `bash setup.sh PUBLIC_IP` and `bash verify.sh PUBLIC_IP` (`SERVERWATCH_DOMAIN=serverwatch.dev` adds Certbot HTTPS via `infrastructure/bootstrap/setup_https.sh`); Compose via `scripts/deployment/compose_host.sh start|collect`. These modify hosts — never run them on a workstation or live server without explicit approval.
 
 ## Architecture
 

@@ -84,6 +84,17 @@ bash scripts/deployment/compose_host.sh collect
 Ctrl+C. The [Compose guide](docs/docker-deployment.md) covers Docker access,
 opening the live dashboard, and demonstrating database persistence.
 
+### Add HTTPS on the custom domain
+
+After the domain's `A` records point to the Elastic IP and port 443 is open:
+
+```bash
+bash infrastructure/bootstrap/setup_https.sh serverwatch.dev PUBLIC_IP
+```
+
+Certbot issues a Let's Encrypt certificate and Nginx serves the domain over
+HTTPS. See the [HTTPS section of the EC2 guide](docs/ec2-manual-setup.md#custom-domain-and-https-with-certbot-vg2).
+
 ### Request a project review
 
 Type `code-review` in Codex to review the project, or add a scope such as

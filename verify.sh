@@ -63,6 +63,11 @@ if [[ "${SERVERWATCH_START_COMPOSE:-0}" == 1 ]]; then
         "http://$endpoint/api/v1/health?server_id=1" >/dev/null ||
         fail 'Compose API health check failed.'
 fi
+# Check the custom domain over HTTPS, including the HTTP redirect.
+if [[ -n "${SERVERWATCH_DOMAIN:-}" ]]; then
+    bash "$project/scripts/verification/verify_https.sh" "$SERVERWATCH_DOMAIN"
+    systemctl is-active --quiet certbot.timer || fail 'The certbot.timer renewal schedule is not active.'
+fi
 # Check that the operator aliases are present in the SSH user’s Bash configuration.
 for alias_name in sw-help sw-status sw-logs sw-timers; do
     grep -Fq "alias $alias_name=" "$HOME/.bashrc" || fail "Missing Bash alias $alias_name."

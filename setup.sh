@@ -5,7 +5,8 @@ set -euo pipefail
 if [[ "${1:-}" == --help ]]; then
     echo 'Usage: bash setup.sh PUBLIC_IPV4 [PUBLIC_DNS_NAME]'
     echo 'Optional environment: SERVERWATCH_DISCORD_WEBHOOK_FILE, SERVERWATCH_DISCORD_THRESHOLD,'
-    echo 'SERVERWATCH_SENIOR_USER, SERVERWATCH_JUNIOR_USER, SERVERWATCH_START_COMPOSE=1.'
+    echo 'SERVERWATCH_SENIOR_USER, SERVERWATCH_JUNIOR_USER, SERVERWATCH_START_COMPOSE=1,'
+    echo 'SERVERWATCH_DOMAIN (HTTPS with Certbot), SERVERWATCH_CERTBOT_EMAIL, SERVERWATCH_CERTBOT_STAGING=1.'
     exit 0
 fi
 # Use the cloned checkout when this entry point was copied to EC2 with SCP.
@@ -22,6 +23,10 @@ if [[ "${SERVERWATCH_START_COMPOSE:-0}" == 1 && "$project" != "$HOME/serverwatch
 fi
 # Validate the host and public address before installing packages or restarting services.
 bash "$project/infrastructure/bootstrap/setup_ubuntu_web.sh" --preflight "$@"
+# Check the domain and its DNS record now, so a typo fails before anything changes.
+if [[ -n "${SERVERWATCH_DOMAIN:-}" ]]; then
+    bash "$project/infrastructure/bootstrap/setup_https.sh" --preflight "$SERVERWATCH_DOMAIN" "$1"
+fi
 # Install packages, PostgreSQL, the API and collector services, and the Cron backup schedule.
 bash "$project/infrastructure/bootstrap/setup_ubuntu_monitoring.sh" "$project"
 # Build and publish React, then configure Nginx to serve it and proxy the API.
@@ -41,6 +46,10 @@ fi
 # Start the optional container stack alongside the native deployment.
 if [[ "${SERVERWATCH_START_COMPOSE:-0}" == 1 ]]; then
     bash "$project/scripts/deployment/compose_host.sh" start
+fi
+# Serve the custom domain over HTTPS with a Certbot certificate.
+if [[ -n "${SERVERWATCH_DOMAIN:-}" ]]; then
+    bash "$project/infrastructure/bootstrap/setup_https.sh" "$SERVERWATCH_DOMAIN" "$1"
 fi
 # Add operator shortcuts once. New interactive Bash sessions load them from .bashrc.
 if ! grep -Fqx '# ServerWatch operator aliases' "$HOME/.bashrc" 2>/dev/null; then

@@ -135,13 +135,14 @@ restore, and preserve the native database until a restore has been checked.
 
 ## Put the stack behind public HTTPS (EC2, Nginx, Certbot)
 
-Point your domain at the Elastic IP and use host Nginx and Certbot to serve
-HTTPS. In the EC2 Nginx site for that domain, proxy requests for the dashboard,
-API, and Swagger to `http://127.0.0.1:8080`. Leave the Compose web port bound to
-loopback and retain a separate native site or switch the site upstream when
-demonstrating the native deployment. Verify the domain from a browser and test
-a live incident edit over HTTPS. Certificate provisioning and a live EC2
-rehearsal are still required for VG2.
+The [HTTPS setup](ec2-manual-setup.md#custom-domain-and-https-with-certbot-vg2)
+points the domain at the native deployment. To serve the Compose stack on the
+domain instead, edit the `listen 443 ssl` block in
+`/etc/nginx/sites-enabled/serverwatch-domain.conf`: keep the `server_name` and
+`ssl_*` lines, and replace `root`, `index` and the three `location` blocks with
+`location / { proxy_pass http://127.0.0.1:8080; }`. The Compose `web` container
+already serves React and proxies the API. Run `sudo nginx -t`, then
+`sudo systemctl reload nginx`. Leave the Compose web port bound to loopback.
 
 The implementation uses [Compose startup conditions](https://docs.docker.com/compose/how-tos/startup-order/),
 [file-backed Compose secrets](https://docs.docker.com/compose/how-tos/use-secrets/),
