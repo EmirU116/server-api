@@ -1,0 +1,91 @@
+name: ServerWatch deploy
+
+# Continuous deployment (VG4 bonus): after CI passes on main, build the Docker
+# images of that exact commit, push them to GitHub Container Registry, and
+# start them on EC2 over SSH. See docs/continuous-deployment.md.
+on:
+  workflow_run:
+    workflows: [ServerWatch CI]
+    types: [completed]
+    branches: [main]
+  # Manual redeploy of main, for example after starting a new instance.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time, and never cancel a deploy halfway through.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  images:
+    name: Build and push images
+    # Automatic runs need a successful CI run for a push to main, and the
+    # SERVERWATCH_DEPLOY_ENABLED variable set to true while an instance runs.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       vars.SERVERWATCH_DEPLOY_ENABLED == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      sha: ${{ steps.names.outputs.sha }}
+    steps:
+      - name: Choose the tested commit and image names
+        id: names
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "repository=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ steps.names.outputs.sha }}
+          persist-credentials: false
+      - name: Log in to GitHub Container Registry
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Build and push the API and web images
+        env:
+          REPOSITORY: ${{ steps.names.outputs.repository }}
+          SHA: ${{ steps.names.outputs.sha }}
+        run: |
+          # The source label links the packages to this repository on GitHub.
+          source="org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY"
+          docker build --label "$source" --tag "$REPOSITORY/api:$SHA" .
+          docker build --label "$source" --tag "$REPOSITORY/web:$SHA" frontend
+          docker push "$REPOSITORY/api:$SHA"
+          docker push "$REPOSITORY/web:$SHA"
+
+  deploy:
+    name: Deploy to EC2
+    needs: images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Deploy over SSH
+        env:
+          HOST: ${{ secrets.SERVERWATCH_DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.SERVERWATCH_DEPLOY_USER }}
+          SSH_KEY: ${{ secrets.SERVERWATCH_DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.SERVERWATCH_DEPLOY_KNOWN_HOSTS }}
+          SHA: ${{ needs.images.outputs.sha }}
+        run: |
+          for name in HOST DEPLOY_USER SSH_KEY KNOWN_HOSTS; do
+            [[ -n "${!name}" ]] || { echo "::error::Set the SERVERWATCH_DEPLOY_* repository secrets."; exit 1; }
+          done
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # The pinned host key stops the runner from deploying to an impostor.
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # The server's forced command runs deploy_image.sh with this SHA.
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=15 "$DEPLOY_USER@$HOST" "$SHA"

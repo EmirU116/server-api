@@ -48,7 +48,11 @@ Copy a token privately (for example in a second, unrecorded window).
 | 8 | Discord alert | G6 | B | 4 |
 | 9 | Docker Compose and persistence | VG1 | A | 7 |
 | 10 | Domain and HTTPS | VG2 | B | 5 |
+| 10b | Optional: deploy after CI | VG4 bonus | A | (4) |
 | 11 | Wrap-up and shutdown | — | A + B | 2 |
+
+The plan already uses the full 60 minutes, so do 10b only if the earlier parts
+ran short.
 
 Setup in step 4 takes several minutes. Use that time to talk (the talking
 points below are written for it).
@@ -323,6 +327,24 @@ sudo nano /etc/nginx/sites-enabled/serverwatch-domain.conf
   wouldn't load at all."
 - "Now tokens travel encrypted, so the dashboard accepts a real token and we
   can edit an incident live."
+
+## 10b. Optional: deploy after CI — VG4 bonus (4 min)
+
+Only if time allows and the setup in [continuous deployment](continuous-deployment.md)
+is done (secrets set, packages public, port 22 open to GitHub). Make a tiny
+visible change, push it, and show **Actions**: CI, then *ServerWatch deploy*.
+
+```bash
+cat ~/.config/serverwatch-delivery/deployed-commit   # the SHA that GitHub deployed
+bash scripts/deployment/compose_host.sh ps           # images tagged with that SHA
+```
+
+**Say:**
+- "Deploy only runs after CI passes on main, so untested code never reaches
+  the server."
+- "Images are tagged with the commit SHA, so we know exactly which code runs."
+- "GitHub's SSH key is restricted: it can't open a shell, it can only run our
+  deploy script with a commit ID."
 
 ## 11. Wrap-up (2 min)
 

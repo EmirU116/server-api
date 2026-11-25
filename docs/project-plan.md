@@ -48,6 +48,12 @@ Compose persistence (VG1) were verified on the current EC2 instance.
 
 RDS and automatic GitHub Actions deployment are assignment bonuses.
 
+3. [ ] **Bonus VG4: deploy after CI (GitHub Actions, GHCR, SSH).** Built on
+   branch `feat/cd-deploy`: after CI passes on `main`, the images of that
+   commit go to GHCR and a restricted SSH key runs `deploy_image.sh` on EC2.
+   Covered by `tests/test_deploy.py`. Not yet run on GitHub or EC2. Follow
+   [continuous deployment](continuous-deployment.md).
+
 ## Current position
 
 **All four APIs and the dashboard are implemented, and every G and VG requirement has been verified on EC2. The remaining work is the timed fresh-instance rehearsal and the recording.**
@@ -160,7 +166,8 @@ evidence for its parent milestone above.
 | 7.3 Frontend verification (TypeScript, Frontend testing) | Run type checking/build and verify core UI flows against the API. | In progress |
 | 8.1 Runbook and assessment checklist (Documentation) | [Presentation guide](presentation-guide.md) with the demo order, commands and talking points. Assign speaking roles. | In progress |
 | 8.2 Timed pair rehearsal (AWS EC2, Deployment, Presentation) | Rehearse from a fresh instance within 60 minutes, with both students explaining their work. | Not started |
-| PR checks (Git, GitHub Actions) | [Human and agent workflow](github-actions-plan.md). Test PRs and pushes to main with backend, dashboard and Bash jobs. | CI implemented. The unused signed staging/production delivery workflow was removed on 2026-11-24 to keep the demo explainable; VG4 is not pursued. |
+| PR checks (Git, GitHub Actions) | [Human and agent workflow](github-actions-plan.md). Test PRs and pushes to main with backend, dashboard and Bash jobs. | CI verified on GitHub. |
+| Continuous deployment (GitHub Actions, GHCR, SSH, Docker Compose) | [Deploy workflow](continuous-deployment.md): images per commit, restricted deploy key, health-checked Compose update. | Implemented with local tests. Run on GitHub and EC2 pending. |
 
 Python tasks include unit tests and clear comments or multiline docstrings for
 non-obvious behavior. Bash tasks include syntax checks and failure-path checks;
@@ -198,7 +205,8 @@ evidence for the EC2 requirements.
 | G9 Database connection (FastAPI, PostgreSQL) | Local health and Windows incident CRUD verified against PostgreSQL. Migrations and persistence tested with disposable PostgreSQL. | Show the deployed API reading and writing through the instance's database. |
 | VG1 Containers (Docker, Compose, PostgreSQL) | Verified on 2026-11-24: 867 metrics before and after `down` and `up -d --wait`, with all services healthy. | Repeat the persistence check on camera and show the native process manager. |
 | VG2 Custom domain (DNS, HTTPS, Certbot) | Verified on 2026-11-25: `https://serverwatch.dev` and `/docs` load with a valid Let's Encrypt certificate; HTTP redirects to HTTPS. | Repoint the A records to the new instance and run the HTTPS setup on camera. |
-| Optional VG3/VG4 (AWS RDS, GitHub Actions) | Not pursued. The unused delivery workflow was removed on 2026-11-24. RDS remains optional. | If selected, demonstrate the RDS alternative or automatic Docker image deployment to EC2. |
+| Optional VG3 (AWS RDS) | Not pursued. | If selected, demonstrate the RDS alternative. |
+| Optional VG4 (GitHub Actions, deployment) | Deploy workflow, deploy script and restricted key setup implemented with tests; not yet run on EC2. | Set the secrets, run one deploy, then show a push going through CI and deploy during the recording. |
 | Team and recording (Classroom, documentation, presentation) | Team membership and a timed rehearsal are unverified. | Accept the invitation, document the pair, rehearse from scratch, record within 60 minutes, check playback and the link, then stop the instances. |
 
 ## Assignment audit notes

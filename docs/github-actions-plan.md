@@ -1,18 +1,20 @@
 # Git and GitHub Actions workflow for ServerWatch
 
-The test-only [CI workflow](../.github/workflows/ci.yml) runs on pull requests
-to `main` and pushes to `main`. There is no automatic deployment workflow:
-the [assignment](assignment-brief.md) requires the native and container
-demonstrations for VG, and deployment to EC2 is done by hand with the
-[EC2 guide](ec2-manual-setup.md) and the [Compose guide](docker-deployment.md).
-Automatic image deployment to EC2 is the optional VG4 bonus.
+The [CI workflow](../.github/workflows/ci.yml) runs on pull requests
+to `main` and pushes to `main`. When CI passes on `main`, the
+[deploy workflow](../.github/workflows/deploy.yml) builds the Docker images of
+that commit and starts them in Compose on EC2. This is the optional VG4 bonus,
+described in [continuous deployment](continuous-deployment.md). The
+[assignment](assignment-brief.md) still requires the manual native and
+container deployments with the [EC2 guide](ec2-manual-setup.md) and the
+[Compose guide](docker-deployment.md).
 
 ## How one change travels through the project (Git, GitHub)
 
 1. **Work locally.** Start a short-lived branch from an up-to-date `main`, such as `fix/server-id-errors`. Reproduce the problem with a failing test, change the code, and rerun the test. A local commit records a version on your machine. A push sends it to GitHub.
 2. **Open a pull request to main.** Describe the problem, the change and the test result. Each new push to the open PR reruns CI. Review your own diff, including accidental files, and fix failures on that branch. Small commits that each express one change are easier to review and undo. [GitHub flow](https://docs.github.com/en/get-started/using-github/github-flow) · [Pro Git on contributing and commit guidelines](https://git-scm.com/book/en/v2/Distributed-Git-Contributing-to-a-Project)
 3. **Merge after green checks.** For a solo developer, require successful checks on `main` where the repository plan allows it. Leave mandatory second-person reviews off during solo work. Squash merging is a reasonable default for one small PR per change. Delete the merged topic branch. Run CI on the resulting main commit too. Keep one long-lived branch, `main`. Each environment records which commit is deployed. [GitHub branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches)
-4. **Deploy the tested version.** On EC2, pull the green `main` commit and rerun the relevant setup or Compose command.
+4. **Deploy the tested version.** With automatic deploys switched on, the deploy workflow starts the green `main` commit's images in Compose. Otherwise, on EC2, pull the green `main` commit and rerun the relevant setup or Compose command.
 
 For example, with a clean, synchronized checkout the local commands for the first step would be:
 

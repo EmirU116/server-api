@@ -32,7 +32,7 @@ Other checks: `bash -n <script>.sh` (CI parses every tracked `.sh`), `docker com
 
 Local full stack on the user's Windows machine (from Git Bash/WSL): `bash scripts/setup/start_local.sh` — uses Windows Python/Node via PowerShell, not WSL tooling.
 
-EC2 entry points: `bash setup.sh PUBLIC_IP` and `bash verify.sh PUBLIC_IP` (`SERVERWATCH_DOMAIN=serverwatch.dev` adds Certbot HTTPS via `infrastructure/bootstrap/setup_https.sh`); Compose via `scripts/deployment/compose_host.sh start|collect`. These modify hosts — never run them on a workstation or live server without explicit approval.
+EC2 entry points: `bash setup.sh PUBLIC_IP` and `bash verify.sh PUBLIC_IP` (`SERVERWATCH_DOMAIN=serverwatch.dev` adds Certbot HTTPS via `infrastructure/bootstrap/setup_https.sh`); Compose via `scripts/deployment/compose_host.sh start|collect`. Optional CD (VG4): `.github/workflows/deploy.yml` runs after green CI on `main`, pushes GHCR images tagged by SHA, and SSHes in with a forced-command key to `scripts/deployment/deploy_image.sh` (`docs/continuous-deployment.md`). These modify hosts — never run them on a workstation or live server without explicit approval.
 
 ## Architecture
 
@@ -43,7 +43,7 @@ EC2 entry points: `bash setup.sh PUBLIC_IP` and `bash verify.sh PUBLIC_IP` (`SER
 - **Schema**: Alembic only (`backend/alembic/versions/000N_*.py`); never auto-create tables or migrate at startup.
 - **Data flow**: host collector (`scripts/monitoring/collect_local.py`, psutil, 5 s loop; systemd on Ubuntu) → `POST /api/v1/metrics` → PostgreSQL ← dashboard polls `GET` every 5 s with a reader token. Frontend uses same-origin `/api/v1` (Vite proxy in dev, Nginx in prod), starts in labeled demo mode (`services/demo.ts`) kept separate from live data; tokens live only in memory.
 - **Compose** (`compose.yaml`): `db` (postgres:17, internal network only) → one-shot `migrate` (separate migrator role, then grants runtime role) → `api` → `web` (Nginx image, bound to loopback; host Nginx fronts it). Secrets come from files in `${SERVERWATCH_COMPOSE_SECRETS:-./secrets}`.
-- **Host automation**: `setup.sh` is the only supported entry point; it orchestrates `infrastructure/bootstrap/*` (packages/PostgreSQL/services/Cron, then web/Nginx, Discord timer) and user provisioning. Implementations live in `scripts/`, schedules/units in `infrastructure/` — one authoritative location per file. Deployment is manual (no CD workflow).
+- **Host automation**: `setup.sh` is the only supported entry point; it orchestrates `infrastructure/bootstrap/*` (packages/PostgreSQL/services/Cron, then web/Nginx, Discord timer) and user provisioning. Implementations live in `scripts/`, schedules/units in `infrastructure/` — one authoritative location per file. The native deployment is manual; only the Compose stack can be deployed automatically (optional, gated by the `SERVERWATCH_DEPLOY_ENABLED` repo variable).
 - **Shared stdlib helpers** (used by scripts that run with system Python before `.venv` exists): `backend/app/host_identity.py` (host identity for the API and Compose) and `scripts/setup/private_files.py` (create-once 600/700 credential files).
 
 ## Repo-specific rules

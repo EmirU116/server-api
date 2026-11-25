@@ -42,7 +42,8 @@ describe requirements and conventions; verify implementation status separately.
 | [Local stack launcher](docs/local-development.md) | Starting the existing Windows database, FastAPI, and React together from Git Bash/WSL; launcher checks, process cleanup, and Windows-only limitations. |
 | [Local PostgreSQL](docs/local-postgresql.md) | Database settings, Windows startup, and connectivity checks. |
 | [Project overview](README.md) | Starting work and finding project documentation. |
-| [Git and GitHub Actions workflow](docs/github-actions-plan.md) | Branches, agent worktrees, human review, and the test-only PR checks. |
+| [Git and GitHub Actions workflow](docs/github-actions-plan.md) | Branches, agent worktrees, human review, and the PR checks. |
+| [Continuous deployment](docs/continuous-deployment.md) | The optional VG4 deploy workflow: GHCR images per commit, the restricted GitHub SSH key, repository secrets, and enabling or disabling automatic deploys. |
 | [Course assignment](docs/assignment-brief.md) | Checking the supplied G/VG criteria, team responsibilities, optional bonuses, and recording rules. |
 | [Project plan and progress](docs/project-plan.md) | Checking the current stage, choosing the next milestone, and tracking assignment completion. Update it with evidence after milestone completion or material scope changes. |
 | [Frontend development](docs/frontend.md) | Working on the React/TypeScript UI, demo/live data separation, API client, local development proxy, or frontend checks. |

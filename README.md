@@ -335,6 +335,8 @@ verified migration and deployment commands here when those workflows exist.
   persistence, host monitoring, and the domain handoff.
 - [Git and GitHub Actions workflow](docs/github-actions-plan.md) covers branches,
   review, and the CI checks.
+- [Continuous deployment](docs/continuous-deployment.md) covers the optional
+  automatic Docker image deploy to EC2 after CI passes (VG4).
 - [Project plan and progress](docs/project-plan.md): current status, milestones,
   assignment coverage, and next steps.
 - [Presentation guide](docs/presentation-guide.md): the recorded demo in order,
