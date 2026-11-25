@@ -340,7 +340,9 @@ verified migration and deployment commands here when those workflows exist.
 - [Project plan and progress](docs/project-plan.md): current status, milestones,
   assignment coverage, and next steps.
 - [Presentation guide](docs/presentation-guide.md): the recorded demo in order,
-  with commands, what they do, and talking points.
+  with commands, what they do, and talking points. The
+  [presentation notebook](docs/presentation-guide.ipynb) is the solo version
+  with a rehearsal timer.
 
 - [Frontend development](docs/frontend.md): startup, demo/live data, verification,
   and integration limitations.

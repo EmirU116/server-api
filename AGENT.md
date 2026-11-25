@@ -52,6 +52,7 @@ describe requirements and conventions; verify implementation status separately.
 | [Docker deployment](docs/docker-deployment.md) | Building and running Compose, host-owned Compose settings, migrating existing volumes with separate migration and runtime roles, and exposing the stack through host Nginx. |
 | [Ubuntu accounts and permissions](docs/ubuntu-accounts.md) | Creating junior and senior accounts, verifying ACLs, and keeping workspace access separate from service credentials. |
 | [Presentation guide](docs/presentation-guide.md) | Preparing or changing the recorded demo: order, timing, commands, explanations and talking points. Update it when a demo-relevant feature or command changes. |
+| [Presentation notebook](docs/presentation-guide.ipynb) | The solo version of the presentation guide as a Jupyter notebook, with a rehearsal timer. Keep its steps in sync with the guide. |
 | [EC2 manual setup and deployment rehearsal](docs/ec2-manual-setup.md) | Creating a fresh instance, running full setup, testing the public IP, demonstrating native Cron backups and restore, and the custom domain with Certbot HTTPS (VG2). |
 | [API specification](docs/api.md) | Implementing or changing health, metrics, server information, incident CRUD, validation, error handling, API tests, or code comments. The current contract targets one monitored server. |
 | [Secrets management](docs/SECRETS_MANAGEMENT.md) | Handling credentials, authentication configuration, containers, monitoring, or deployment; use its storage and approval rules. |
