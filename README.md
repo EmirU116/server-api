@@ -326,6 +326,8 @@ verified migration and deployment commands here when those workflows exist.
   review, and the CI checks.
 - [Project plan and progress](docs/project-plan.md): current status, milestones,
   assignment coverage, and next steps.
+- [Presentation guide](docs/presentation-guide.md): the recorded demo in order,
+  with commands, what they do, and talking points.
 
 - [Frontend development](docs/frontend.md): startup, demo/live data, verification,
   and integration limitations.
