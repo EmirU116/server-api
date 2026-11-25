@@ -5,8 +5,8 @@ Endpoint details are in the [API specification](api.md).
 
 ## What to do next
 
-**Next, run the HTTPS setup on EC2 (VG2).** `serverwatch.dev` resolves to the
-instance and `setup_https.sh` is implemented; it has not run on EC2 yet. Public HTTP access (G7/G8) and
+**Next, rehearse the full recording on a fresh instance.** Every G requirement,
+VG1 and VG2 have been verified on the current EC2 instance. Public HTTP access (G7/G8) and
 Compose persistence (VG1) were verified on the current EC2 instance.
 
 ### Finish the G requirements
@@ -39,23 +39,25 @@ Compose persistence (VG1) were verified on the current EC2 instance.
    containers and networks but kept the `postgres_data` volume, and after
    `up -d --wait` (db, api and web healthy; migrate exited) the count was
    still 867. Show the native systemd deployment during the demo as well.
-2. [ ] **Set up your own domain and HTTPS (DNS, Nginx, Certbot).** Point the
-   domain at the Elastic IP, issue a certificate, and check renewal. Done when
-   the dashboard and `/docs` load over HTTPS from your computer. Then test
-   creating and editing an incident from the dashboard.
+2. [x] **Set up your own domain and HTTPS (DNS, Nginx, Certbot).** On
+   2026-11-25, `setup_https.sh` issued a Let's Encrypt certificate for
+   `serverwatch.dev` and `www.serverwatch.dev` (valid to 2027-02-23). From
+   outside AWS, `/`, `/docs` and health returned 200 over HTTPS with the
+   certificate validated, and HTTP redirected with 301. The dashboard loaded
+   with a padlock in the user's browser.
 
 RDS and automatic GitHub Actions deployment are assignment bonuses.
 
 ## Current position
 
-**All four APIs and the dashboard are implemented, and every G requirement plus VG1 has been verified on EC2. The remaining assessed work is VG2 (domain and HTTPS) and the timed fresh-instance rehearsal.**
+**All four APIs and the dashboard are implemented, and every G and VG requirement has been verified on EC2. The remaining work is the timed fresh-instance rehearsal and the recording.**
 
 Reported on the current EC2 instance: 8/8 native monitoring checks passing,
 public HTTP access to the dashboard, Swagger and OpenAPI, a Cron backup that
 restored into a separate database (G5), a delivered Discord disk alert (G6),
-and Compose data that survived container recreation (VG1). Still open:
-collection after reboot, the custom domain with HTTPS, and the timed
-fresh-instance rehearsal.
+Compose data that survived container recreation (VG1), and HTTPS on
+`serverwatch.dev` with a Let's Encrypt certificate (VG2). Still open:
+collection after reboot and the timed fresh-instance rehearsal.
 
 | Workstream | Current status | Evidence |
 | --- | --- | --- |
@@ -151,7 +153,7 @@ evidence for its parent milestone above.
 | 5.5 Define and verify environment access (Ubuntu, Bash, Linux users, groups, ACLs) | Define dev/prod ownership and role membership, provision accounts and inherited permissions, then check effective allowed and denied operations as each identity. See [Ubuntu accounts and permissions](ubuntu-accounts.md). | Implemented and tested with simulated system commands. Verify ACLs on EC2. |
 | 6.1 API and web images (Docker, Python, React) | Dockerfiles and build exclusions implemented. Both images built and ran healthy on EC2 on 2026-11-24. | Verified |
 | 6.2 Container services and storage (Docker Compose, PostgreSQL) | Compose includes a private DB, migration job, API, and loopback web proxy. 867 metrics survived `down` and `up` on EC2 on 2026-11-24. | Verified |
-| 6.3 Domain and TLS (DNS, Nginx, Certbot, HTTPS) | `serverwatch.dev` registered and resolving to the Elastic IP on 2026-11-25. `setup_https.sh` and `verify_https.sh` implemented and tested locally (Nginx 1.24 config and routing). Run on EC2. | In progress |
+| 6.3 Domain and TLS (DNS, Nginx, Certbot, HTTPS) | `setup_https.sh` issued the certificate on EC2 on 2026-11-25; HTTPS, the HTTP redirect and the renewal dry run passed. | Verified |
 | 6.4 Container deployment verification (Docker Compose, Testing) | Verified locally and on EC2: host collection into Compose, healthy services, and data that survived container recreation. | Verified |
 | 7.1 Frontend foundation (React, TypeScript) | Set up the frontend project and typed API client. | Verified |
 | 7.2 Dashboard and incident management (React, TypeScript, CSS) | Build health, metrics, server, and incident views with the required UI states. | In progress |
@@ -195,7 +197,7 @@ evidence for the EC2 requirements.
 | G8 Reverse proxy (Nginx) | Verified on 2026-11-24: Nginx served React, health, Swagger and OpenAPI publicly. | Open the Nginx site in nano on camera and explain the proxy rules. |
 | G9 Database connection (FastAPI, PostgreSQL) | Local health and Windows incident CRUD verified against PostgreSQL. Migrations and persistence tested with disposable PostgreSQL. | Show the deployed API reading and writing through the instance's database. |
 | VG1 Containers (Docker, Compose, PostgreSQL) | Verified on 2026-11-24: 867 metrics before and after `down` and `up -d --wait`, with all services healthy. | Repeat the persistence check on camera and show the native process manager. |
-| VG2 Custom domain (DNS, HTTPS, Certbot) | `serverwatch.dev` resolves to the instance. The Certbot setup is implemented but not yet run on EC2. | Point a domain at the instance, issue a certificate and demonstrate working HTTPS. |
+| VG2 Custom domain (DNS, HTTPS, Certbot) | Verified on 2026-11-25: `https://serverwatch.dev` and `/docs` load with a valid Let's Encrypt certificate; HTTP redirects to HTTPS. | Repoint the A records to the new instance and run the HTTPS setup on camera. |
 | Optional VG3/VG4 (AWS RDS, GitHub Actions) | Not pursued. The unused delivery workflow was removed on 2026-11-24. RDS remains optional. | If selected, demonstrate the RDS alternative or automatic Docker image deployment to EC2. |
 | Team and recording (Classroom, documentation, presentation) | Team membership and a timed rehearsal are unverified. | Accept the invitation, document the pair, rehearse from scratch, record within 60 minutes, check playback and the link, then stop the instances. |
 

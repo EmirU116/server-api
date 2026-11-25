@@ -26,6 +26,8 @@ Status of each requirement is in the [coverage tracker](project-plan.md#assignme
 - [ ] Discord webhook URL ready to paste (never show it on screen).
 - [ ] `serverwatch.dev` DNS open in Namecheap (Advanced DNS), A records at TTL 5 min (VG2).
 - [ ] At most a few real certificates this week: rehearse VG2 with `SERVERWATCH_CERTBOT_STAGING=1`.
+- [ ] Chrome **secure DNS** set to Cloudflare. The home router caches old DNS
+      answers, so without it the new IP may not show up during the recording.
 - [ ] Terminal font enlarged, unrelated tabs and notifications closed.
 - [ ] This guide open on a second screen. Decide who says which part.
 
